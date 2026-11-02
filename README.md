@@ -10,7 +10,7 @@ Vanilla JS-SPA, ingen byggkedja. Tänkt för GitHub Pages + eget domännamn (TBD
 - `js/settings.js` / `js/admin.js` — inställningar (namn, användarnamn, telefon, PIN) och admin (roller, import, redigera/radera användare).
 - `js/stats.js` — statistikpanel (`#/stats`, admin eller användare med statistikrätt), ritad med ren HTML/CSS.
 - `js/app.js` — personlig vy (`renderApp`). En sida: dagens opjour, reservtoggel (av/på),
-  kalender med boka/avboka (dator: 5 veckor, mobil: innevarande vecka + nästa, stega en vecka åt gången), "mina kommande pass". Admin får en "boka åt"-väljare.
+  kalender med boka/avboka (4 veckor: en bakåt, innevarande och två framåt; mobilen scrollas till idag; stega en vecka åt gången), "mina kommande pass". Admin får en "boka åt"-väljare.
 - `js/display.js` — visningsvy (`renderDisplay`). Read-only, stor "Dagens opjour: X" /
   reserver + kalendern. Auto-uppdatering var 60:e sekund.
 

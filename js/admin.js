@@ -1,5 +1,7 @@
 // ── Admin (#/admin) ──────────────────────────────────────────────────────
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser() och js/import.js (OpjourImport).
+// Varje användare är en rad med snabbreglage (Reserv, Admin, Statistik, Aktiv) som ändrar direkt; namn, telefon,
+// PIN-återställning och radering ligger i en uppfällbar del under raden.
 // Endast för admin (annars skickas man till startsidan). Hantera klinikens användare:
 // lägg till (en och en eller via fil), ändra namn/telefon, reservstatus, admin, aktiv/inaktiv och återställ PIN.
 // Roller: Användare, Admin och Visning (väggskärmen — loggar in som vilket konto som helst men ser bara kalendern).
@@ -53,16 +55,35 @@ function sw(attrs, checked, disabled) {
   return `<span class="switch"><input type="checkbox" role="switch" ${attrs} ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span class="track"><span class="knob"></span></span></span>`;
 }
 
+// Ett reglage med rubrik. Måste vara en <label> — annars når klicket på reglagets spår aldrig kryssrutan under det.
+function quickSwitch(caption, attr, checked, disabled, why) {
+  return `<label class="qsw"${why ? ` title="${esc(why)}"` : ''}><span>${caption}</span>${sw(`data-a="${attr}"`, checked, disabled)}</label>`;
+}
+
 function userBlock(u, selfId) {
   const isSelf = u.id === selfId;
   const locked = u.isGlobalAdmin && !_admin.me.isGlobalAdmin;   // bara en global admin får röra ett globalt adminkonto
   const bookings = u.claimCount ? ` · ${u.claimCount} bokning${u.claimCount === 1 ? '' : 'ar'}` : '';
+  const open = _admin.open.has(u.id);
+  const fixed = isSelf || u.isGlobalAdmin || locked;   // får inte inaktiveras/degraderas här
+  const why = isSelf ? 'Du kan inte ändra detta på dig själv.' : u.isGlobalAdmin ? 'Globalt adminkonto.' : '';
+  // Snabbreglagen sitter i huvudraden så att man slipper fälla ut kortet. Visningskonton har bara "Aktiv".
+  const quick = u.isDisplay
+    ? `<span></span><span></span><span></span>${quickSwitch('Aktiv', 'active', u.active, fixed, why)}`
+    : quickSwitch('Reserv', 'reserve', u.availableReserve, locked, '')
+      + quickSwitch('Admin', 'admin', u.isAdmin, fixed, why)
+      + quickSwitch('Statistik', 'stats', u.isAdmin || u.canSeeStats, u.isAdmin || locked, u.isAdmin ? 'Admin ser alltid statistiken.' : '')
+      + quickSwitch('Aktiv', 'active', u.active, fixed, why);
   return `
-    <details data-id="${esc(u.id)}"${_admin.open.has(u.id) ? ' open' : ''}>
-      <summary>
-        <span class="uname">${esc(u.displayName)}${isSelf ? ' <span class="muted">(du)</span>' : ''}</span>
-        <span class="uuser">${esc(u.username || '')}${bookings}</span> ${adminChips(u)}
-      </summary>
+    <div class="ublock${open ? ' open' : ''}" data-id="${esc(u.id)}">
+      <div class="uhead">
+        <button type="button" class="uinfo" data-a="toggle" aria-expanded="${open}">
+          <span class="uname">${esc(u.displayName)}${isSelf ? ' <span class="muted">(du)</span>' : ''}</span>
+          <span class="uuser">${esc(u.username || '')}${bookings}</span> ${adminChips(u)}
+        </button>
+        <div class="qsws">${quick}</div>
+      </div>
+      <div class="status" data-s></div>
       <div class="body">
         <div class="field-row">
           <div><label>${u.isDisplay ? 'Namn (kontonamn)' : 'Fullständigt namn'}</label><input type="text" data-f="name" value="${esc(u.displayName)}" maxlength="60"></div>
@@ -70,27 +91,18 @@ function userBlock(u, selfId) {
           ${u.isDisplay ? '' : `<div><label>Telefon</label><input type="tel" data-f="phone" value="${esc(u.phone || '')}" maxlength="30" inputmode="tel" placeholder="070-123 45 67"></div>`}
         </div>
         <div class="row" style="margin-top:10px"><button class="btn" data-a="save">Spara</button></div>
-        ${u.isDisplay ? '<p class="hint">Visningskonto: loggar in som alla andra men ser bara kalendern (ingen bokning, ingen reserv).</p>' : `
-        <div class="opt-row" style="margin-top:12px"><span>Tillgänglig som reserv</span>${sw('data-a="reserve"', u.availableReserve)}</div>
-        <div class="opt-row"><span>Admin</span>${sw('data-a="admin"', u.isAdmin, isSelf || u.isGlobalAdmin || locked)}</div>
-        <div class="opt-row"><span>Får se statistiken${u.isAdmin ? ' <span class="muted">(admin ser alltid)</span>' : ''}</span>${sw('data-a="stats"', u.isAdmin || u.canSeeStats, u.isAdmin || locked)}</div>`}
-        <div class="opt-row"><span>Aktiv <span class="muted">(kan logga in)</span></span>${sw('data-a="active"', u.active, isSelf || u.isGlobalAdmin || locked)}</div>
+        ${u.isDisplay ? '<p class="hint">Visningskonto: loggar in som alla andra men ser bara kalendern (ingen bokning, ingen reserv).</p>' : ''}
         ${isSelf ? '<p class="hint">Du kan inte inaktivera, ta bort eller degradera dig själv.</p>' : ''}
         ${locked ? '<p class="hint">Globalt adminkonto — kan bara ändras av en global admin.</p>' : ''}
         <div class="row" style="margin-top:12px;gap:8px">
           ${locked ? '' : '<button class="btn-ghost" data-a="resetpin">Återställ PIN…</button>'}
           ${isSelf || u.isGlobalAdmin ? '' : '<button class="btn-ghost" style="color:var(--danger);border-color:#e3b3ab" data-a="delete">Radera användare…</button>'}
         </div>
-        <div class="status" data-s></div>
       </div>
-    </details>`;
+    </div>`;
 }
 
 function drawAdmin(root) {
-  // Behåll vilka användare som är uppfällda över omritning.
-  const openNow = [...document.querySelectorAll('.ulist details[open]')].map(d => d.dataset.id);
-  if (openNow.length || document.querySelector('.ulist')) _admin.open = new Set(openNow);
-
   const { me, notice } = _admin;
   const roster = [...(me.roster || [])].sort((a, b) => a.displayName.localeCompare(b.displayName, 'sv'));
   const active = roster.filter(u => u.active), inactive = roster.filter(u => !u.active);
@@ -268,28 +280,31 @@ function userStatus(detailsEl, text, ok) {
   box.textContent = text; box.className = 'status ' + (ok ? 'ok' : 'err');
 }
 
-async function userAction(detailsEl, fn, okText) {
-  const id = detailsEl.dataset.id;
+// Kör en ändring på en användare och ritar om listan med bibehållen scrollposition (reglagen sitter långt ner på sidan).
+async function userAction(blockEl, fn, okText) {
+  const id = blockEl.dataset.id;
+  const y = window.scrollY;
+  const redraw = async () => { await reloadAdmin(); window.scrollTo(0, y); return document.querySelector(`.ulist .ublock[data-id="${CSS.escape(id)}"]`); };
   try {
     await fn(id);
-    _admin.open.add(id);
-    await reloadAdmin();
-    const again = document.querySelector(`.ulist details[data-id="${CSS.escape(id)}"]`);
+    const again = await redraw();
     if (again && okText) userStatus(again, okText, true);
   } catch (err) {
-    _admin.open.add(id);
-    await reloadAdmin().catch(() => {});   // återställ kryssrutor som inte gick igenom
-    const again = document.querySelector(`.ulist details[data-id="${CSS.escape(id)}"]`);
-    userStatus(again || detailsEl, err.message, false);
+    const again = await redraw().catch(() => null);   // återställ reglage som inte gick igenom
+    userStatus(again || blockEl, err.message, false);
   }
 }
 
 function onUserClick(e) {
   const btn = e.target.closest('button[data-a]');
   if (!btn) return;
-  const d = btn.closest('details');
+  const d = btn.closest('.ublock');
   const u = (_admin.me.roster || []).find(x => x.id === d.dataset.id);
-  if (btn.dataset.a === 'save') {
+  if (btn.dataset.a === 'toggle') {
+    const open = d.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open);
+    open ? _admin.open.add(d.dataset.id) : _admin.open.delete(d.dataset.id);
+  } else if (btn.dataset.a === 'save') {
     userAction(d, id => {
       const body = { userId: id, displayName: d.querySelector('[data-f="name"]').value, username: d.querySelector('[data-f="username"]').value };
       const phone = d.querySelector('[data-f="phone"]');
@@ -319,7 +334,7 @@ function onUserClick(e) {
 function onUserChange(e) {
   const box = e.target.closest('input[type=checkbox][data-a]');
   if (!box) return;
-  const d = box.closest('details');
+  const d = box.closest('.ublock');
   const u = (_admin.me.roster || []).find(x => x.id === d.dataset.id);
   const a = box.dataset.a, on = box.checked;
   if (a === 'active' && !on && !confirm(`Inaktivera ${u.displayName}? Kontot kan inte längre logga in. Befintliga bokningar ligger kvar i kalendern.`)) { box.checked = true; return; }

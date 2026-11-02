@@ -6,8 +6,8 @@
 // Dagar visas med prioritet bokning > intresserade > reserv, och alla personer visas med telefonnummer.
 // Idag markeras (IDAG-märke, tjock ram). Tryck på en dag öppnar dagsvyn där man bokar, anmäler intresse
 // eller tar bort sin bokning. Överst finns en on/off-toggle för reservtillgänglighet.
-// Vyn kan stegas en vecka i taget; förval: dator = 5 veckor centrerade på innevarande vecka,
-// mobil = innevarande vecka + nästa. Inställningar, admin och statistik ligger på egna sidor.
+// Vyn kan stegas en vecka i taget; förval: 4 veckor som börjar en vecka före innevarande vecka (dator och mobil).
+// På mobil scrollas listan till idag när vyn öppnas (tidigare dagar ligger ovanför). Inställningar, admin och statistik ligger på egna sidor.
 
 let _app = null;
 
@@ -16,7 +16,14 @@ const WEEKS_BACK = 26, WEEKS_FORWARD = 52;   // samma gränser som servern
 
 function defaultView(today) {
   const monday = mondayOfISO(today);
-  return isMobileView() ? { start: monday, weeks: 2 } : { start: addDaysISO(monday, -14), weeks: 5 };
+  return { start: addDaysISO(monday, -7), weeks: 4 };   // en vecka bakåt, innevarande och två framåt (dator och mobil)
+}
+
+// Mobilens kalender är en lång lista: börja vid idag, med förra veckan ovanför.
+function scrollToToday() {
+  if (!isMobileView()) return;
+  const t = document.querySelector('.day.today');
+  if (t) t.scrollIntoView({ block: 'start' });
 }
 
 async function fetchCalendar(view) {
@@ -31,6 +38,7 @@ async function renderApp(root) {
     setMenuForUser(me);
     _app = { cal, me, view, acting: me.userId, sheet: null };
     drawApp(root);
+    scrollToToday();
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }
@@ -53,6 +61,7 @@ async function stepCalendar(n) {
     _app.cal = await fetchCalendar(view);
     _app.view = view;
     drawApp(el('view'));
+    if (n === 'today') scrollToToday();
   } catch (err) { alert(err.message); }
 }
 
@@ -193,6 +202,7 @@ function drawSheet() {
   if (claim) {
     body += `<p style="font-size:20px;margin:4px 0">Opjour: ${personLine(claim.displayName, claim.phone)}</p>`;
     if (claim.createdByAdmin) body += '<p class="hint">Bokad av admin.</p>';
+    else if (claim.drawn) body += '<p class="hint">Utlottad bland de intresserade när dagen började (00.00).</p>';
   } else {
     body += '<p style="font-size:18px;margin:4px 0">Ingen uppskriven.</p>';
     if (hasInterests()) {
@@ -200,7 +210,7 @@ function drawSheet() {
       if (!ints.length) body += '<p class="muted" style="margin:0">Ingen har anmält intresse.</p>';
       else {
         body += `<ul class="plist">${ints.map(i => `<li>${personLine(i.displayName, i.phone)}${i.userId === acting.id ? ' <span class="muted">(du)</span>' : ''}</li>`).join('')}</ul>`;
-        body += '<p class="hint">Kom överens med varandra — sedan bokar en av er.</p>';
+        body += isPast ? '' : '<p class="hint">Är ingen bokad när dagen börjar (00.00) lottas passet ut bland de intresserade. Avbokas ett utlottat pass lottas det om. Vill ni själva komma överens kan en av er boka före dess.</p>';
       }
     }
     const res = (cal.reservesByDate && cal.reservesByDate[d]) || [];

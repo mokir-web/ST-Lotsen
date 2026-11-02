@@ -106,8 +106,9 @@
     }
     .day .dnum { font-size: 12.5px; color: var(--ink-soft); font-weight: bold; }
     .day.other { opacity: 0.45; }
-    .day.today { border-color: var(--today); border-width: 2.5px; }
+    .day.today { border-color: var(--today); border-width: 2.5px; scroll-margin-top: 12px; }
     .day.past { --cellbg: #eef1f3; }
+    .day.past .dnum::after { content: ' · låst'; font-weight: normal; }
     .day .who { font-weight: bold; font-size: 15.5px; line-height: 1.2; overflow-wrap: anywhere; }
     .day .res { color: var(--ink-soft); font-style: italic; line-height: 1.2; }
     .day.mine { --cellbg: var(--accent-soft); border-color: var(--accent); }
@@ -223,15 +224,21 @@
     .check input { width: 20px; height: 20px; }
     .notice { border-left: 5px solid var(--ok); background: #eaf4ee; }
     .notice.warn { border-left-color: var(--accent); background: var(--accent-soft); }
-    .ulist details { border-top: 1px solid var(--line); }
-    .ulist details:first-child { border-top: none; }
-    .ulist summary { cursor: pointer; padding: 12px 2px; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
-    .ulist summary::-webkit-details-marker { display: none; }
-    .ulist summary::before { content: '▸'; color: var(--ink-soft); }
-    .ulist details[open] > summary::before { content: '▾'; }
+    .ulist .ublock { border-top: 1px solid var(--line); }
+    .ulist .ublock:first-child { border-top: none; }
+    .ulist .uhead { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; justify-content: space-between; padding: 8px 2px 4px; }
+    .ulist .uinfo { flex: 1 1 280px; min-height: 44px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; text-align: left;
+      background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 0; box-shadow: none; }
+    .ulist .uinfo::before { content: '▸'; color: var(--ink-soft); }
+    .ulist .ublock.open .uinfo::before { content: '▾'; }
     .ulist .uname { font-weight: bold; }
     .ulist .uuser { color: var(--ink-soft); font-size: 14px; }
-    .ulist .body { padding: 0 2px 14px 20px; }
+    .ulist .qsws { display: grid; grid-template-columns: repeat(4, 64px); gap: 4px; flex: none; }
+    .ulist .qsw { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0; padding: 2px 0; font-size: 11.5px; font-weight: normal; color: var(--ink-soft); cursor: pointer; }
+    .ulist .status { margin: 0 2px 6px; }
+    .ulist .status:empty { display: none; }
+    .ulist .body { display: none; padding: 0 2px 14px 20px; }
+    .ulist .ublock.open .body { display: block; }
     .tagchip { display: inline-block; font-size: 11px; font-weight: bold; padding: 1px 8px; border-radius: 9px; background: #eef1f3; color: var(--ink-soft); border: 1px solid var(--line); }
     .tagchip.admin { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
     .tagchip.off { background: #f6e3df; color: var(--danger); border-color: #e3b3ab; }
@@ -315,7 +322,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.5.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.6.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -480,6 +487,7 @@
         if (opts.isMine && opts.isMine(claim)) cls.push('mine');
         inner += `<span class="who">${esc(claim.displayName)}</span>${pp(claim.phone)}`;
         if (claim.createdByAdmin) inner += `<span class="badge-admin">bokad av admin</span>`;
+        else if (claim.drawn) inner += `<span class="badge-admin">utlottad</span>`;
       } else if (ints.length && !isPast) {
         cls.push('has-interest');
         if (opts.actingId && ints.some(i => i.userId === opts.actingId)) cls.push('my-interest');

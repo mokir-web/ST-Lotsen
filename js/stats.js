@@ -34,6 +34,30 @@ const barRow = (label, pct, right, cls = '') =>
 const fmtNum = n => String(n).replace('.', ',');
 const fmtPct = n => `${fmtNum(n)} %`;
 
+// Utlottning: när ingen bokat en dag lottas den ut bland de intresserade (se plan §18).
+function drawCard(w) {
+  if (!w || !w.total) {
+    return `<div class="card" style="margin-top:16px"><h2>Utlottning</h2>
+      <p class="muted" style="margin:0">Inga utlottningar i perioden. Utlottning sker när ingen bokat en dag men någon anmält intresse.</p></div>`;
+  }
+  const maxWon = Math.max(1, ...w.perPerson.map(p => Math.max(p.won, p.expected)));
+  return `<div class="card" style="margin-top:16px">
+      <h2>Utlottning</h2>
+      <p style="margin:0 0 4px"><strong>${w.total}</strong> utlottning${w.total === 1 ? '' : 'ar'} · ${fmtPct(w.sharePercent)} av bokningarna i perioden kom via utlottning (${w.drawnClaims} st).</p>
+      <p class="muted" style="margin:0 0 10px">${w.alone} med en ensam intresserad · ${w.contested} med flera${w.avgCandidates != null ? ` (snitt ${fmtNum(w.avgCandidates)} i lotten)` : ''}
+        · ${w.cancelledAfter} utlottad${w.cancelledAfter === 1 ? '' : 'e'} bokning${w.cancelledAfter === 1 ? '' : 'ar'} avbokades${w.redraws ? `, ${w.redraws} omlottning${w.redraws === 1 ? '' : 'ar'}` : ''}.</p>
+      <div style="overflow-x:auto"><table class="stats-table">
+        <tr><th>Namn</th><th class="num">Var med</th><th>Utlottad</th><th class="num">Förväntat</th></tr>
+        ${w.perPerson.map(p => `<tr>
+          <td><strong>${esc(p.displayName)}</strong></td>
+          <td class="num">${p.participated}</td>
+          <td style="min-width:150px"><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><span style="width:${(p.won / maxWon) * 100}%"></span></div><span class="n" style="min-width:24px;text-align:right">${p.won}</span></div></td>
+          <td class="num">${fmtNum(p.expected)}</td></tr>`).join('')}
+      </table></div>
+      <p class="muted" style="margin:8px 0 0;font-size:13px">"Förväntat" är hur många utlottningar personen borde ha vunnit om lotten är rättvis (summan av 1/antal i lotten). Över tid ska "Utlottad" ligga nära det.</p>
+    </div>`;
+}
+
 function drawStats(root) {
   const d = _stats.data;
   const maxCount = Math.max(1, ...d.perPerson.map(p => p.count));
@@ -88,6 +112,8 @@ function drawStats(root) {
       <div class="cols">${d.perMonth.map(m => `<div class="c" title="${esc(m.label)}: ${m.covered}/${m.days} dagar"><b>${Math.round(m.percent)}</b><i style="height:${m.percent}%"></i><span>${esc(m.label)}</span></div>`).join('')}</div>
       <p class="muted" style="margin:8px 0 0;font-size:13px">Andel av månadens dagar (hittills) som hade någon uppskriven, i procent.</p>
     </div>
+
+    ${drawCard(d.draws)}
 
     <div class="card" style="margin-top:16px">
       <h2>Jourer per person</h2>
