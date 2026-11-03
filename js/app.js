@@ -215,7 +215,7 @@ function drawSheet() {
     }
     const res = (cal.reservesByDate && cal.reservesByDate[d]) || [];
     if (!isPast && !ints.length && res.length) {
-      body += `<h3>Reserv</h3><ul class="plist">${res.map((r, i) => `<li>${personLine(r.displayName, null, `${i + 1}. `)}</li>`).join('')}</ul>`;
+      body += `<h3>Reserv</h3><ul class="plist">${res.map(r => `<li>${personLine(r.displayName)}</li>`).join('')}</ul>`;
     }
   }
 
