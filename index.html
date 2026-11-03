@@ -265,6 +265,19 @@
     .st-table input[type=text], .st-table input[type=number], .st-table select { margin: 0; padding: 4px 6px; font-size: 14px; }
     .st-table input[type=color] { width: 40px; height: 30px; padding: 0; border: none; background: none; }
     .st-table tr.inactive td { opacity: 0.55; }
+    /* Måluppfyllelse (#/oversikt) */
+    .prog thead th { font-size: 11px; }
+    .prog thead th.cat { background: #e2e7ea; text-transform: uppercase; letter-spacing: 0.3px; }
+    .prog .pc { min-width: 58px; max-width: 90px; font-size: 11px; text-align: center; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .prog .pc.edit { cursor: pointer; }
+    .prog .pc.edit:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .st-klart { background: #d7ecdf; color: #1f5a3a; }
+    .st-tidigare { background: #e6eee9; color: #3d5a4a; }
+    .st-bokad { background: #dce8f4; color: #23466b; }
+    .st-forslag { background: #fff; color: #23466b; font-style: italic; box-shadow: inset 0 0 0 1px #9bb8d6; }
+    .st-plan { background: #fbf1d9; color: #6b5317; }
+    .st-saknas { background: #f8e7e4; color: var(--danger); }
+    .pchip { display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 12px; }
     .imp-table tr.exists td { color: var(--ink-soft); }
     input[type=file] { font-size: 14px; max-width: 100%; }
     .big-today .phone-big { font-size: 26px; margin-top: 6px; }
@@ -334,6 +347,7 @@
         <nav id="menu" class="hidden">
           <a href="#/" data-route="" id="menu-opjour">Opjour</a>
           <a href="#/schema" data-route="#/schema" id="menu-schema" class="hidden">Veckoschema</a>
+          <a href="#/oversikt" data-route="#/oversikt" id="menu-oversikt" class="hidden">Måluppfyllelse</a>
           <a href="#/settings" data-route="#/settings">Inställningar</a>
           <a href="#/st" data-route="#/st" id="menu-st" class="hidden">ST-inställningar</a>
           <a href="#/admin" data-route="#/admin" id="menu-admin" class="hidden">Admin</a>
@@ -351,7 +365,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.9.1';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.10.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -449,6 +463,7 @@
       el('sheet-root')?.remove();
       if (typeof _app !== 'undefined' && _app) _app.sheet = null;
       if (typeof _sch !== 'undefined' && _sch) _sch.sheet = null;
+      if (typeof _ov !== 'undefined' && _ov) _ov.sheet = null;
       const h = location.hash;
       el('menu').querySelectorAll('a').forEach(a => a.classList.toggle('active', a.dataset.route === (h === '#/' ? '' : h)));
       const root = el('view');
@@ -458,6 +473,7 @@
       else if (h === '#/stats') renderStats(root);
       else if (h === '#/schema') renderSchema(root);
       else if (h === '#/st') renderStSettings(root);
+      else if (h === '#/oversikt') renderOversikt(root);
       else renderApp(root);
       window.scrollTo(0, 0);
     }
@@ -476,7 +492,8 @@
       const mods = me.modules || ['opjour'], schema = mods.includes('schema');
       el('menu-opjour').classList.toggle('hidden', !mods.includes('opjour'));
       el('menu-schema').classList.toggle('hidden', !(schema && (me.isSt || me.isDirector || me.isAdmin)));
-      el('menu-st').classList.toggle('hidden', !(schema && (me.isDirector || me.isAdmin)));
+      el('menu-oversikt').classList.toggle('hidden', !(mods.includes('mal') && (me.isSt || me.isDirector || me.isAdmin)));
+      el('menu-st').classList.toggle('hidden', !((schema || mods.includes('mal')) && (me.isDirector || me.isAdmin)));
       el('menu-admin').classList.toggle('hidden', !me.isAdmin);
       el('menu-stats').classList.toggle('hidden', !me.canSeeStats || !mods.includes('opjour'));
     }
@@ -609,5 +626,6 @@
   <script src="js/display.js"></script>
   <script src="js/schema.js"></script>
   <script src="js/stsettings.js"></script>
+  <script src="js/oversikt.js"></script>
 </body>
 </html>
