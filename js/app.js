@@ -200,7 +200,7 @@ function drawSheet() {
 
   let body = '';
   if (claim) {
-    body += `<p style="font-size:20px;margin:4px 0">Opjour: ${personLine(claim.displayName, claim.phone)}</p>`;
+    body += `<p style="font-size:20px;margin:4px 0">Opjour: ${personLine(claim.displayName)}</p>`;
     if (claim.createdByAdmin) body += '<p class="hint">Bokad av admin.</p>';
     else if (claim.drawn) body += '<p class="hint">Utlottad bland de intresserade när dagen började (00.00).</p>';
   } else {
@@ -209,13 +209,13 @@ function drawSheet() {
       body += `<h3>Intresserade${ints.length ? ` (${ints.length})` : ''}</h3>`;
       if (!ints.length) body += '<p class="muted" style="margin:0">Ingen har anmält intresse.</p>';
       else {
-        body += `<ul class="plist">${ints.map(i => `<li>${personLine(i.displayName, i.phone)}${i.userId === acting.id ? ' <span class="muted">(du)</span>' : ''}</li>`).join('')}</ul>`;
+        body += `<ul class="plist">${ints.map(i => `<li>${personLine(i.displayName)}${i.userId === acting.id ? ' <span class="muted">(du)</span>' : ''}</li>`).join('')}</ul>`;
         body += isPast ? '' : '<p class="hint">Är ingen bokad när dagen börjar (00.00) lottas passet ut bland de intresserade. Avbokas ett utlottat pass lottas det om. Vill ni själva komma överens kan en av er boka före dess.</p>';
       }
     }
     const res = (cal.reservesByDate && cal.reservesByDate[d]) || [];
     if (!isPast && !ints.length && res.length) {
-      body += `<h3>Reserv</h3><ul class="plist">${res.map((r, i) => `<li>${personLine(r.displayName, r.phone, `${i + 1}. `)}</li>`).join('')}</ul>`;
+      body += `<h3>Reserv</h3><ul class="plist">${res.map((r, i) => `<li>${personLine(r.displayName, null, `${i + 1}. `)}</li>`).join('')}</ul>`;
     }
   }
 

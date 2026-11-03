@@ -116,8 +116,6 @@
     .day.clickable:hover { border-color: var(--accent); }
     .day.clickable:focus-visible { outline: 3px solid var(--interest); outline-offset: 2px; }
     .day .pn { font-weight: bold; }
-    .day .pp { display: block; font-size: 13px; line-height: 1.25; }
-    .day .pp a { color: var(--interest); font-weight: bold; text-decoration: none; white-space: nowrap; }
     .day ul.plist.cell { display: flex; flex-direction: column; gap: 4px; }
     .day ul.plist.cell li { padding: 0; }
     .cal-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 12px; }
@@ -171,12 +169,11 @@
       .cal-week::before { content: attr(data-week); font-size: 12px; font-weight: bold; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 2px 0; }
       .day { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 2px 10px; min-height: 46px; padding: 8px 10px; font-size: 15px; }
       .day.past { min-height: 36px; padding-top: 5px; padding-bottom: 5px; }
-      .day .dnum { min-width: 132px; font-size: 14px; color: var(--ink); }
+      .day .dnum { flex: 0 0 100%; font-size: 14px; color: var(--ink); }
       .day .dwd, .day .dn-dm { display: inline; }
       .day .dn-short { display: none; }
       .day .plist.cell { width: 100%; font-size: 14px; }
       .day { min-height: 0; }
-      .day .pp { display: inline; font-size: 14px; margin-left: 6px; }
       .day .who { font-size: 15px; }
       .day .tag { font-size: 11px; }
       .day .ints { font-size: 14px; }
@@ -322,7 +319,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.6.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.6.1';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -480,14 +477,13 @@
         + `<span class="dn-dm">${fmtDM(dISO)}</span>`
         + (isToday ? '<span class="today-pill">IDAG</span>' : '') + '</span>';
       const ints = (cal.interestsByDate && cal.interestsByDate[dISO]) || [];
-      const pp = phone => (phone ? `<span class="pp">${phoneLink(phone)}</span>` : '');
-      const person = (p, prefix = '') => `<li>${prefix}<span class="pn">${esc(p.displayName)}</span>${pp(p.phone)}</li>`;
+      const person = (p, prefix = '') => `<li>${prefix}<span class="pn">${esc(p.displayName)}</span></li>`;
 
       if (claim) {
         if (opts.isMine && opts.isMine(claim)) cls.push('mine');
-        inner += `<span class="who">${esc(claim.displayName)}</span>${pp(claim.phone)}`;
+        inner += `<span class="who">${esc(claim.displayName)}</span>`;
         if (claim.createdByAdmin) inner += `<span class="badge-admin">bokad av admin</span>`;
-        else if (claim.drawn) inner += `<span class="badge-admin">utlottad</span>`;
+        else if (claim.drawn) inner += `<span class="badge-admin">Utlottad</span>`;
       } else if (ints.length && !isPast) {
         cls.push('has-interest');
         if (opts.actingId && ints.some(i => i.userId === opts.actingId)) cls.push('my-interest');
@@ -497,7 +493,7 @@
         if (isToday && opts.todayDetail && res.length) {
           inner += `<span class="tag" style="color:var(--ink-soft)">Reserv</span><ul class="plist cell">${res.map((r, i) => person(r, `${i + 1}. `)).join('')}</ul>`;
         } else if (res.length) {
-          inner += `<span class="res">Reserv: ${esc(res[0].displayName)}</span>${pp(res[0].phone)}`;
+          inner += `<span class="res">Reserv: ${esc(res[0].displayName)}</span>`;
         }
       }
 
@@ -514,7 +510,7 @@
     let _clipTimer = null;
     window.addEventListener('resize', () => { clearTimeout(_clipTimer); _clipTimer = setTimeout(markClippedCells, 120); });
 
-    // Telefonnummer visas för alla inloggade, på alla poster i kalendern.
+    // Telefonnummer visas bara på visningsskärmen, för dagens opjour (backend skickar inga andra).
     function phoneLink(p) {
       if (!p) return '';
       return `<a class="phone" href="tel:${esc(p.replace(/[^\d+]/g, ''))}">${esc(p)}</a>`;
