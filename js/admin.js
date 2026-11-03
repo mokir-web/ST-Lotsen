@@ -29,6 +29,7 @@ async function renderAdmin(root) {
     if (!me.isAdmin) { location.hash = '#/'; return; }
     _admin = { me, open: new Set(), notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
     if (me.isGlobalAdmin) _admin.clinics = (await api('/admin/clinics')).clinics;
+    if ((me.modules || []).includes('mal')) _admin.frameworks = (await api('/goals/frameworks')).frameworks;
     drawAdmin(root);
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
@@ -118,7 +119,13 @@ function stSection(u, locked) {
             <div><label>ST-start</label><input type="month" data-f="stStart" value="${esc(toMonth(u.stStart))}"></div>
             <div><label>ST-slut (när ST är klar)</label><input type="month" data-f="stEnd" value="${esc(toMonth(u.stEnd))}"></div>
           </div>
-          <div class="row" style="margin-top:10px"><button class="btn" data-a="savest"${locked ? ' disabled' : ''}>Spara ST-datum</button></div>` : ''}
+          ${_admin.frameworks ? `<div class="field-row">
+            <div><label>Målbeskrivning</label><select data-f="framework"><option value="">Klinikens förval</option>${_admin.frameworks.map(f => `<option value="${esc(f.id)}"${f.id === u.frameworkId ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</select></div>
+          </div>
+          <label>Handledare</label>
+          <div class="sup-list">${(_admin.me.roster || []).filter(x => x.active && !x.isDisplay && x.id !== u.id).map(x =>
+            `<label class="row" style="gap:6px;font-weight:normal;margin:2px 0"><input type="checkbox" data-sup="${esc(x.id)}"${(u.supervisorIds || []).includes(x.id) ? ' checked' : ''}> ${esc(x.displayName)}</label>`).join('')}</div>` : ''}
+          <div class="row" style="margin-top:10px"><button class="btn" data-a="savest"${locked ? ' disabled' : ''}>Spara ST-uppgifter</button></div>` : ''}
         </div>`;
 }
 
@@ -336,9 +343,10 @@ function onUserClick(e) {
       return api('/profile', { method: 'PUT', body });
     }, 'Sparat.');
   } else if (btn.dataset.a === 'savest') {
-    userAction(d, id => api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: {
-      stStart: d.querySelector('[data-f="stStart"]').value, stEnd: d.querySelector('[data-f="stEnd"]').value
-    } }), 'Sparat.');
+    const body = { stStart: d.querySelector('[data-f="stStart"]').value, stEnd: d.querySelector('[data-f="stEnd"]').value };
+    const fw = d.querySelector('[data-f="framework"]');
+    if (fw) { body.frameworkId = fw.value || null; body.supervisorIds = [...d.querySelectorAll('[data-sup]')].filter(c => c.checked).map(c => c.dataset.sup); }
+    userAction(d, id => api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body }), 'Sparat.');
   } else if (btn.dataset.a === 'delete') {
     const n = u.claimCount || 0, f = u.futureClaimCount || 0;
     const warn = n

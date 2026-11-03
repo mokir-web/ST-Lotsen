@@ -278,6 +278,23 @@
     .st-plan { background: #fbf1d9; color: #6b5317; }
     .st-saknas { background: #f8e7e4; color: var(--danger); }
     .pchip { display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 12px; }
+    .prog .pname a { color: inherit; }
+    .sup-list { max-height: 180px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+    /* Individuell plan (#/plan) */
+    .plan-years { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .plan-year h3 { margin: 0 0 6px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--ink-soft); }
+    .plan-req { padding: 3px 0; border-bottom: 1px solid #eef1f3; font-size: 14px; }
+    .goals-table .gcode { white-space: nowrap; vertical-align: top; text-transform: none; font-size: 14px; color: var(--ink); }
+    .goals-table .gtoggle { font-weight: normal; }
+    .goals-table .gtext { min-width: 220px; max-width: 420px; font-size: 13px; }
+    .goals-table .greq { display: inline-block; margin: 0 6px 4px 0; font-size: 13px; white-space: nowrap; }
+    @media print {
+      header, .no-print, #sheet-root { display: none !important; }
+      body { background: white; }
+      .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+      .sch-scroll { overflow: visible; }
+      .pchip, .st-klart, .st-tidigare, .st-bokad, .st-plan, .st-saknas { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
     .imp-table tr.exists td { color: var(--ink-soft); }
     input[type=file] { font-size: 14px; max-width: 100%; }
     .big-today .phone-big { font-size: 26px; margin-top: 6px; }
@@ -348,6 +365,7 @@
           <a href="#/" data-route="" id="menu-opjour">Opjour</a>
           <a href="#/schema" data-route="#/schema" id="menu-schema" class="hidden">Veckoschema</a>
           <a href="#/oversikt" data-route="#/oversikt" id="menu-oversikt" class="hidden">Måluppfyllelse</a>
+          <a href="#/plan" data-route="#/plan" id="menu-plan" class="hidden">Min utbildningsplan</a>
           <a href="#/settings" data-route="#/settings">Inställningar</a>
           <a href="#/st" data-route="#/st" id="menu-st" class="hidden">ST-inställningar</a>
           <a href="#/admin" data-route="#/admin" id="menu-admin" class="hidden">Admin</a>
@@ -365,7 +383,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.10.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.11.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -465,7 +483,7 @@
       if (typeof _sch !== 'undefined' && _sch) _sch.sheet = null;
       if (typeof _ov !== 'undefined' && _ov) _ov.sheet = null;
       const h = location.hash;
-      el('menu').querySelectorAll('a').forEach(a => a.classList.toggle('active', a.dataset.route === (h === '#/' ? '' : h)));
+      el('menu').querySelectorAll('a').forEach(a => a.classList.toggle('active', a.dataset.route === (h === '#/' ? '' : h.startsWith('#/plan') ? '#/plan' : h)));
       const root = el('view');
       root.classList.toggle('wide', h !== '#/settings' && h !== '#/admin' && h !== '#/stats');   // bred vy för kalendern, schemat och ST-inställningarna
       if (h === '#/settings') renderSettings(root);
@@ -474,6 +492,7 @@
       else if (h === '#/schema') renderSchema(root);
       else if (h === '#/st') renderStSettings(root);
       else if (h === '#/oversikt') renderOversikt(root);
+      else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
       else renderApp(root);
       window.scrollTo(0, 0);
     }
@@ -492,7 +511,8 @@
       const mods = me.modules || ['opjour'], schema = mods.includes('schema');
       el('menu-opjour').classList.toggle('hidden', !mods.includes('opjour'));
       el('menu-schema').classList.toggle('hidden', !(schema && (me.isSt || me.isDirector || me.isAdmin)));
-      el('menu-oversikt').classList.toggle('hidden', !(mods.includes('mal') && (me.isSt || me.isDirector || me.isAdmin)));
+      el('menu-oversikt').classList.toggle('hidden', !(mods.includes('mal') && (me.isSt || me.isDirector || me.isAdmin || me.isSupervisor)));
+      el('menu-plan').classList.toggle('hidden', !(mods.includes('mal') && me.isSt));
       el('menu-st').classList.toggle('hidden', !((schema || mods.includes('mal')) && (me.isDirector || me.isAdmin)));
       el('menu-admin').classList.toggle('hidden', !me.isAdmin);
       el('menu-stats').classList.toggle('hidden', !me.canSeeStats || !mods.includes('opjour'));
@@ -627,5 +647,6 @@
   <script src="js/schema.js"></script>
   <script src="js/stsettings.js"></script>
   <script src="js/oversikt.js"></script>
+  <script src="js/plan.js"></script>
 </body>
 </html>

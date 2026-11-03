@@ -38,7 +38,7 @@ function ovCellText(s) {
 }
 
 const ovEnded = p => p.stEnd && p.stEnd <= _ov.data.today;
-const ovCanEdit = userId => _ov.data.canEditAll || userId === _ov.data.me;
+const ovCanEdit = userId => _ov.data.canEditAll || userId === _ov.data.me || (_ov.data.adepts || []).includes(userId);
 
 function drawOversikt(root) {
   const { data } = _ov;
@@ -60,7 +60,7 @@ function drawOversikt(root) {
       const edit = ovCanEdit(p.id);
       return `<td class="pc st-${s.status || 'none'}${edit ? ' edit' : ''}"${edit ? ` data-p="${esc(p.id)}" data-r="${esc(r.id)}" role="button" tabindex="0"` : ''} title="${esc(OV_LABEL[s.status] || '')}">${esc(ovCellText(s))}</td>`;
     }).join('');
-    return `<tr><th class="pname${p.id === data.me ? ' me' : ''}">${esc(p.displayName)}<br><span class="muted" style="font-weight:normal;font-size:11px">${esc(yr)}${ovEnded(p) ? ' · ST klar' : ''}</span></th>${cells}</tr>`;
+    return `<tr><th class="pname${p.id === data.me ? ' me' : ''}"><a href="#/plan/${esc(p.id)}" title="Utbildningsplan">${esc(p.displayName)}</a><br><span class="muted" style="font-weight:normal;font-size:11px">${esc(yr)}${ovEnded(p) ? ' · ST klar' : ''}</span></th>${cells}</tr>`;
   }).join('');
   const done = ordered.map(r => {
     const n = people.filter(p => ['klart', 'tidigare'].includes(data.cells[p.id][r.id].status)).length;

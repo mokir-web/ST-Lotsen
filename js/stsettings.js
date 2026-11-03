@@ -18,7 +18,8 @@ async function renderStSettings(root) {
     const me = await api('/me');
     setMenuForUser(me);
     if (!(me.isDirector || me.isAdmin)) { location.hash = '#/'; return; }
-    _sts = { me, cfg: await api('/admin/st/config') };
+    const [cfg, fw] = await Promise.all([api('/admin/st/config'), api('/goals/frameworks?goals=1')]);
+    _sts = { me, cfg, frameworks: fw.frameworks };
     drawStSettings(root);
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
@@ -45,6 +46,13 @@ function typeRow(t) {
   </tr>`;
 }
 
+// Delmålen i klinikens förvalda målbeskrivning som koder ("c3, a1"). Koppling till delmål i andra ramverk behålls vid sparning.
+const stsDefaultGoals = () => (_sts.frameworks.find(f => f.id === _sts.cfg.defaultFrameworkId) || { goals: [] }).goals;
+function goalCodes(r) {
+  const goals = stsDefaultGoals();
+  return (r.goalIds || []).map(id => goals.find(g => g.id === id)).filter(Boolean).map(g => g.code).join(', ');
+}
+
 function reqRow(r) {
   return `<tr data-id="${esc(r.id)}"${r.active ? '' : ' class="inactive"'}>
     <td><input type="text" data-f="category" value="${esc(r.category)}" maxlength="40" style="width:100px"></td>
@@ -54,6 +62,7 @@ function reqRow(r) {
     <td><input type="number" data-f="weeks" value="${r.weeks ?? ''}" min="1" max="104" style="width:64px"></td>
     <td><select data-f="serviceEffect">${effectOptions(r.serviceEffect, true)}</select></td>
     <td><input type="number" data-f="stYear" value="${r.stYear ?? ''}" min="1" max="6" style="width:56px"></td>
+    <td><input type="text" data-f="goalCodes" value="${esc(goalCodes(r))}" placeholder="t.ex. c3, a1" style="width:100px"${_sts.cfg.defaultFrameworkId ? '' : ' disabled title="Välj förvald målbeskrivning först"'}></td>
     <td style="text-align:center"><input type="checkbox" data-f="mandatory"${r.mandatory ? ' checked' : ''}></td>
     <td style="text-align:center"><input type="checkbox" data-f="active"${r.active ? ' checked' : ''}></td>
     <td><button class="btn-ghost" data-a="save-req">Spara</button></td>
@@ -65,6 +74,18 @@ function drawStSettings(root) {
   const cats = [...new Set(requirements.map(r => r.category))];
   root.innerHTML = `
     <h1 class="page">ST-inställningar</h1>
+
+    <div class="card">
+      <h2>Målbeskrivning</h2>
+      <p class="hint" style="margin-top:0">Förval för klinikens ST-läkare (Socialstyrelsens målbeskrivningar). Den som följer ett annat regelverk får ett eget
+        under Admin → användare. Kravens <strong>Delmål</strong> nedan anges som koder i den här målbeskrivningen.</p>
+      <div class="row" style="gap:8px;align-items:flex-end">
+        <div><label for="st-fw" style="margin-top:0">Förvald målbeskrivning</label>
+          <select id="st-fw"><option value="">– ingen –</option>${_sts.frameworks.map(f => `<option value="${esc(f.id)}"${f.id === _sts.cfg.defaultFrameworkId ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</select></div>
+        <button class="btn" onclick="saveDefaultFramework()">Spara</button>
+      </div>
+      <div class="status" id="st-fw-status"></div>
+    </div>
 
     <div class="card">
       <h2>Aktivitetstyper</h2>
@@ -99,7 +120,7 @@ function drawStSettings(root) {
         egna kliniken (ort visas i schemat). <strong>I tjänst</strong>: lämna "Ärv från typen" om inte just detta krav ska räknas annorlunda
         (t.ex. Randning Kolo som görs på egna kliniken och därför räknas som i tjänst). <strong>Veckor</strong> fylls i automatiskt i schemat.</p>
       ${requirements.length ? `<div class="sch-scroll"><table class="imp-table st-table">
-        <thead><tr><th>Kategori</th><th>Namn</th><th>Randning</th><th>Ort</th><th>Veckor</th><th>I tjänst</th><th>ST-år</th><th>Obligat.</th><th>Aktiv</th><th></th></tr></thead>
+        <thead><tr><th>Kategori</th><th>Namn</th><th>Randning</th><th>Ort</th><th>Veckor</th><th>I tjänst</th><th>ST-år</th><th>Delmål</th><th>Obligat.</th><th>Aktiv</th><th></th></tr></thead>
         <tbody id="st-reqs">${cats.map(c => requirements.filter(r => r.category === c).map(reqRow).join('')).join('')}</tbody>
       </table></div>` : '<p class="muted">Inga krav än.</p>'}
       <div class="status" id="st-reqs-status"></div>
@@ -124,6 +145,23 @@ function drawStSettings(root) {
   root.querySelectorAll('.st-table').forEach(t => t.addEventListener('click', onStTableClick));
 }
 
+async function saveDefaultFramework() {
+  try {
+    await api('/admin/st/clinic', { method: 'PUT', body: { defaultFrameworkId: el('st-fw').value || null } });
+    await reloadStSettings({ box: 'st-fw-status', text: 'Sparat.' });
+  } catch (err) { const b = el('st-fw-status'); b.textContent = err.message; b.className = 'status err'; }
+}
+
+// "c3, a1" → delmålens id i förvald målbeskrivning; okända koder ger fel. Kopplingar till andra ramverk behålls.
+function goalIdsFromCodes(text, r) {
+  const goals = stsDefaultGoals();
+  const codes = text.split(/[\s,;]+/).map(c => c.trim()).filter(Boolean);
+  const unknown = codes.filter(c => !goals.some(g => g.code.toLowerCase() === c.toLowerCase()));
+  if (unknown.length) throw new Error(`Okänt delmål: ${unknown.join(', ')}`);
+  const own = new Set(goals.map(g => g.id));
+  return [...(r.goalIds || []).filter(id => !own.has(id)), ...codes.map(c => goals.find(g => g.code.toLowerCase() === c.toLowerCase()).id)];
+}
+
 const rowVal = (tr, f) => { const n = tr.querySelector(`[data-f="${f}"]`); return n.type === 'checkbox' ? n.checked : n.value; };
 
 async function onStTableClick(e) {
@@ -135,6 +173,7 @@ async function onStTableClick(e) {
     ? Object.fromEntries(['code', 'label', 'color', 'serviceEffect', 'givesProgress', 'active'].map(f => [f, rowVal(tr, f)]))
     : Object.fromEntries(['category', 'name', 'away', 'location', 'weeks', 'serviceEffect', 'stYear', 'mandatory', 'active'].map(f => [f, rowVal(tr, f)]));
   try {
+    if (!isType && _sts.cfg.defaultFrameworkId) body.goalIds = goalIdsFromCodes(rowVal(tr, 'goalCodes'), _sts.cfg.requirements.find(r => r.id === id));
     await api(`/admin/st/${isType ? 'types' : 'requirements'}/${encodeURIComponent(id)}`, { method: 'PATCH', body });
     await reloadStSettings({ box: box.id, text: `Sparat: ${body.code || body.name}.` });
   } catch (err) { box.textContent = err.message; box.className = 'status err'; }
