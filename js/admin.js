@@ -120,6 +120,8 @@ function drawAdmin(root) {
 
     ${_admin.clinics ? clinicCard() : ''}
 
+    ${shiftCard()}
+
     <div class="card">
       <h2>Lägg till användare</h2>
       <form id="au-form" onsubmit="return addUser(event)">
@@ -344,6 +346,31 @@ function onUserChange(e) {
     if (a === 'admin') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { isAdmin: on } });
     return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { active: on } });
   }, 'Sparat.');
+}
+
+// ── Jourbyte (klinikens admin) ───────────────────────────────────────────
+function shiftCard() {
+  return `<div class="card">
+      <h2>Jourbyte</h2>
+      <p class="muted" style="margin:0 0 10px">Klockslaget då opjour byter person på visningsskärmen. Ett pass går från det klockslaget till samma tid nästa dag.
+        Kalendern, låsning av dagar och utlottningen (00.00) påverkas inte.</p>
+      <div class="row" style="gap:10px;align-items:flex-end">
+        <div><label for="sc-time" style="margin-top:0">Jourbytestid</label>
+          <input type="time" id="sc-time" value="${esc(_admin.me.shiftChange || '07:30')}" required></div>
+        <button class="btn" onclick="saveShiftChange()">Spara</button>
+      </div>
+      <div class="status" id="sc-status"></div>
+    </div>`;
+}
+
+async function saveShiftChange() {
+  const box = el('sc-status');
+  const done = (text, ok) => { box.textContent = text; box.className = 'status ' + (ok ? 'ok' : 'err'); };
+  try {
+    const r = await api('/admin/clinic', { method: 'PUT', body: { shiftChange: el('sc-time').value } });
+    _admin.me.shiftChange = r.shiftChange;
+    done(`Sparat. Opjour byter person kl. ${r.shiftChange.replace(':', '.')}.`, true);
+  } catch (err) { done(err.message, false); }
 }
 
 // ── Kliniker (endast global admin) ────────────────────────────────────────

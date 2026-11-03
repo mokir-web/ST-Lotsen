@@ -255,6 +255,14 @@
     .big-today { text-align: center; padding: 22px 12px; }
     .big-today .label { font-size: 15px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.5px; }
     .big-today .name { font-size: 34px; font-weight: bold; margin-top: 6px; }
+    .big-today .label.shift { font-size: 20px; font-weight: bold; text-transform: none; letter-spacing: 0; }
+    .big-today .sub { font-size: 15px; color: var(--ink-soft); margin-top: 6px; }
+    .big-today .nextshift { border-top: 1px solid var(--line); margin: 18px auto 0; max-width: 380px; padding-top: 10px; }
+    .big-today .nextshift .nl { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.5px; }
+    .big-today .nextshift .nn { font-size: 18px; font-weight: bold; margin-top: 3px; }
+    .big-today .nextshift .nn.none { color: var(--ink-soft); }
+    .big-today .nextshift .ns { font-size: 14px; color: var(--ink-soft); margin-top: 2px; }
+    .big-today .shiftnote { font-size: 14px; color: var(--ink-soft); margin-top: 14px; }
     .big-today .reserves { font-size: 20px; margin-top: 8px; line-height: 1.5; }
   </style>
 </head>
@@ -319,7 +327,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.6.1';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.7.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
