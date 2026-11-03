@@ -2,12 +2,12 @@
 <html lang="sv">
 <head>
   <meta charset="utf-8">
-  <title>Opjour</title>
+  <title>ST-Lotsen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1c2b36">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Opjour">
+  <meta name="apple-mobile-web-app-title" content="ST-Lotsen">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
@@ -270,7 +270,7 @@
 
   <!-- ── Inloggning ─────────────────────────────────────── -->
   <main id="login" class="hidden">
-    <div style="text-align:center;margin:8px 0 14px"><img src="icons/logo.svg" width="96" height="96" alt="Opjour" style="border-radius:20px"><h1 style="margin:10px 0 0">Opjour</h1></div>
+    <div style="text-align:center;margin:8px 0 14px"><img src="icons/logo.svg" width="96" height="96" alt="ST-Lotsen" style="border-radius:20px"><h1 style="margin:10px 0 0">ST-Lotsen</h1></div>
     <div class="card">
       <form id="form-user" onsubmit="return doLogin(event)">
         <label for="li-username" style="margin-top:0">Användarnamn</label>
@@ -302,9 +302,9 @@
   <!-- ── App ───────────────────────────────────────────── -->
   <div id="app" class="hidden">
     <header>
-      <a class="brand" href="#/" aria-label="Opjour — startsidan">
+      <a class="brand" href="#/" aria-label="ST-Lotsen — startsidan">
         <img src="icons/logo.svg" width="34" height="34" alt="">
-        <span class="brand-text"><span class="brand-name">Opjour</span><span class="clinic" id="app-clinic"></span></span>
+        <span class="brand-text"><span class="brand-name">ST-Lotsen</span><span class="clinic" id="app-clinic"></span></span>
       </a>
       <button id="logout-btn" class="hidden" onclick="logout()">Logga ut</button>
       <div id="menu-wrap" class="hidden">
@@ -327,7 +327,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.7.1';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.8.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -407,7 +407,7 @@
       return false;
     }
 
-    document.addEventListener('DOMContentLoaded', () => { el('ver-login').textContent = 'Opjour ' + APP_VERSION; });
+    document.addEventListener('DOMContentLoaded', () => { el('ver-login').textContent = 'ST-Lotsen ' + APP_VERSION; });
 
     function enterApp() {
       showOnly('app');

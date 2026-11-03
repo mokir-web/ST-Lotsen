@@ -1,7 +1,7 @@
 // ── Admin (#/admin) ──────────────────────────────────────────────────────
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser() och js/import.js (OpjourImport).
 // Varje användare är en rad med snabbreglage (Reserv, Admin, Statistik, Aktiv) som ändrar direkt; namn, telefon,
-// PIN-återställning och radering ligger i en uppfällbar del under raden.
+// ST-uppgifter (ST-läkare, studierektor, ST-start/-slut), PIN-återställning och radering ligger i en uppfällbar del under raden.
 // Endast för admin (annars skickas man till startsidan). Hantera klinikens användare:
 // lägg till (en och en eller via fil), ändra namn/telefon, reservstatus, admin, aktiv/inaktiv och återställ PIN.
 // Roller: Användare, Admin och Visning (väggskärmen — loggar in som vilket konto som helst men ser bara kalendern).
@@ -45,6 +45,8 @@ function adminChips(u) {
     u.isDisplay ? '<span class="tagchip admin">Visning</span>' : '',
     u.isGlobalAdmin ? '<span class="tagchip admin">Global admin</span>' : '',
     u.isAdmin && !u.isGlobalAdmin ? '<span class="tagchip admin">Admin</span>' : '',
+    u.isDirector ? '<span class="tagchip">Studierektor</span>' : '',
+    u.isSt ? `<span class="tagchip">ST${u.stEnd ? ' klar' : ''}</span>` : '',
     !u.isDisplay && !u.isAdmin && u.canSeeStats ? '<span class="tagchip">Statistik</span>' : '',
     !u.active ? '<span class="tagchip off">Inaktiv</span>' : '',
     u.active && u.availableReserve && !u.isDisplay ? '<span class="tagchip">Reserv</span>' : ''
@@ -91,6 +93,7 @@ function userBlock(u, selfId) {
           ${u.isDisplay ? '' : `<div><label>Telefon</label><input type="tel" data-f="phone" value="${esc(u.phone || '')}" maxlength="30" inputmode="tel" placeholder="070-123 45 67"></div>`}
         </div>
         <div class="row" style="margin-top:10px"><button class="btn" data-a="save">Spara</button></div>
+        ${u.isDisplay ? '' : stSection(u, locked)}
         ${u.isDisplay ? '<p class="hint">Visningskonto: loggar in som alla andra men ser bara kalendern (ingen bokning, ingen reserv).</p>' : ''}
         ${isSelf ? '<p class="hint">Du kan inte inaktivera, ta bort eller degradera dig själv.</p>' : ''}
         ${locked ? '<p class="hint">Globalt adminkonto — kan bara ändras av en global admin.</p>' : ''}
@@ -100,6 +103,23 @@ function userBlock(u, selfId) {
         </div>
       </div>
     </div>`;
+}
+
+// ST-uppgifter: rollerna ändras direkt med reglagen, start/slut sparas med knappen (månad, sparas som månadens första dag).
+const toMonth = iso => (iso || '').slice(0, 7);
+function stSection(u, locked) {
+  return `
+        <div class="st-sec" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--line)">
+          <strong>ST</strong>
+          <div class="qsws" style="grid-template-columns:repeat(2, 90px);margin:6px 0">
+            ${quickSwitch('ST-läkare', 'st', u.isSt, locked, '')}${quickSwitch('Studierektor', 'director', u.isDirector, locked, '')}
+          </div>
+          ${u.isSt ? `<div class="field-row">
+            <div><label>ST-start</label><input type="month" data-f="stStart" value="${esc(toMonth(u.stStart))}"></div>
+            <div><label>ST-slut (när ST är klar)</label><input type="month" data-f="stEnd" value="${esc(toMonth(u.stEnd))}"></div>
+          </div>
+          <div class="row" style="margin-top:10px"><button class="btn" data-a="savest"${locked ? ' disabled' : ''}>Spara ST-datum</button></div>` : ''}
+        </div>`;
 }
 
 function drawAdmin(root) {
@@ -313,6 +333,10 @@ function onUserClick(e) {
       if (phone) body.phone = phone.value;
       return api('/profile', { method: 'PUT', body });
     }, 'Sparat.');
+  } else if (btn.dataset.a === 'savest') {
+    userAction(d, id => api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: {
+      stStart: d.querySelector('[data-f="stStart"]').value, stEnd: d.querySelector('[data-f="stEnd"]').value
+    } }), 'Sparat.');
   } else if (btn.dataset.a === 'delete') {
     const n = u.claimCount || 0, f = u.futureClaimCount || 0;
     const warn = n
@@ -344,6 +368,8 @@ function onUserChange(e) {
     if (a === 'reserve') return api('/reserve', { method: 'PUT', body: { available: on, userId: id } });
     if (a === 'stats') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { canSeeStats: on } });
     if (a === 'admin') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { isAdmin: on } });
+    if (a === 'st') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { isSt: on } });
+    if (a === 'director') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { isDirector: on } });
     return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { active: on } });
   }, 'Sparat.');
 }

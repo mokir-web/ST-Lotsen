@@ -41,7 +41,7 @@ async function renderSettings(root) {
         <div id="st-pin-status" class="status"></div>
       </div>
 
-      <p class="muted" style="font-size:12px;text-align:center">Opjour ${esc(APP_VERSION)}</p>`;
+      <p class="muted" style="font-size:12px;text-align:center">ST-Lotsen ${esc(APP_VERSION)}</p>`;
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }
