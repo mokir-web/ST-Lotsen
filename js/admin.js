@@ -140,7 +140,9 @@ function drawAdmin(root) {
 
     ${_admin.clinics ? clinicCard() : ''}
 
-    ${shiftCard()}
+    ${moduleCard()}
+
+    ${(me.modules || ['opjour']).includes('opjour') ? shiftCard() : ''}
 
     <div class="card">
       <h2>Lägg till användare</h2>
@@ -372,6 +374,35 @@ function onUserChange(e) {
     if (a === 'director') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { isDirector: on } });
     return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { active: on } });
   }, 'Sparat.');
+}
+
+// ── Moduler (klinikens admin) ────────────────────────────────────────────
+const MODULE_INFO = [
+  ['opjour', 'Opjour', 'Operationsjourlinjen: kalender, bokning, reserv och visningsskärm.'],
+  ['schema', 'Veckoschema', 'ST-gruppens schema vecka för vecka med raden "I tjänst". Typer och krav ställs in under ST-inställningar.']
+];
+
+function moduleCard() {
+  const on = _admin.me.modules || ['opjour'];
+  return `<div class="card">
+      <h2>Moduler</h2>
+      <p class="muted" style="margin:0 0 6px">Vilka delar av ST-Lotsen kliniken använder. Minst en måste vara påslagen.</p>
+      ${MODULE_INFO.map(([id, name, info]) => `<label class="row" style="gap:8px;font-weight:normal;align-items:flex-start;margin-top:8px">
+        <input type="checkbox" data-mod="${id}"${on.includes(id) ? ' checked' : ''} style="margin-top:4px"> <span><strong>${name}</strong><br><span class="muted" style="font-size:14px">${info}</span></span></label>`).join('')}
+      <div class="row" style="margin-top:10px"><button class="btn" onclick="saveModules()">Spara</button></div>
+      <div class="status" id="mod-status"></div>
+    </div>`;
+}
+
+async function saveModules() {
+  const box = el('mod-status');
+  const modules = [...document.querySelectorAll('[data-mod]')].filter(c => c.checked).map(c => c.dataset.mod);
+  try {
+    await api('/admin/clinic', { method: 'PUT', body: { modules } });
+    await reloadAdmin();
+    setMenuForUser(_admin.me);
+    const b = el('mod-status'); b.textContent = 'Sparat.'; b.className = 'status ok';
+  } catch (err) { box.textContent = err.message; box.className = 'status err'; }
 }
 
 // ── Jourbyte (klinikens admin) ───────────────────────────────────────────

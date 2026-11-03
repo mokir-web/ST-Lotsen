@@ -36,6 +36,8 @@ async function renderApp(root) {
     const view = defaultView(todayStockholm());
     const [cal, me] = await Promise.all([fetchCalendar(view), api('/me')]);
     setMenuForUser(me);
+    // Kliniker utan opjourmodulen landar i veckoschemat.
+    if (!(me.modules || ['opjour']).includes('opjour')) { location.hash = '#/schema'; return; }
     _app = { cal, me, view, acting: me.userId, sheet: null };
     drawApp(root);
     scrollToToday();
