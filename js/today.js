@@ -47,7 +47,7 @@ function todoCard({ me, todo }) {
   const items = todo?.items || [];
   if (!items.length && !(me.isDirector || me.isAdmin || me.isSupervisor)) return '';
   return todayCard('Att göra', items.length
-    ? `<ul class="todo">${items.map(i => `<li><a href="${esc(i.href)}">${esc(i.text)}</a>${i.names ? `<br><span class="muted" style="font-size:13px">${esc(i.names.join(', '))}</span>` : ''}</li>`).join('')}</ul>`
+    ? `<ul class="todo">${items.map(i => `<li>${i.href ? `<a href="${esc(i.href)}">${esc(i.text)}</a>` : `<strong>${esc(i.text)}</strong>`}${i.names ? `<br><span class="muted" style="font-size:13px">${esc(i.names.join(', '))}</span>` : ''}</li>`).join('')}</ul>`
     : '<p class="muted" style="margin:0">Inget att göra just nu.</p>');
 }
 
@@ -106,6 +106,6 @@ function progressCard({ plan }) {
     <div class="pbar"><span style="width:${pct}%"></span></div>
     <p style="margin:6px 0 0"><strong>${done} av ${reqs.length}</strong> obligatoriska krav klara${booked ? ` · ${booked} bokade` : ''}</p>
     ${goals.length ? `<p style="margin:4px 0 0">${signed} av ${goals.length} delmål signerade</p>` : ''}
-    ${p.stMonths != null ? `<p class="muted" style="margin:4px 0 0">ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths}${p.expectedEnd ? ` · beräknat klar ${esc(fmtMonth(p.expectedEnd))}` : ''}${p.nextReview ? ` · nästa revidering ${esc(p.nextReview)}` : ''}</p>` : ''}`,
+    ${p.stMonths != null ? `<p class="muted" style="margin:4px 0 0">ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths} av 60${p.expectedEnd ? ` · beräknat klar ${esc(fmtMonth(p.expectedEnd))}` : ''}${p.nextReview ? ` · nästa revidering ${esc(p.nextReview)}` : ''}</p>` : ''}`,
     ['#/plan', 'Min utbildningsplan']);
 }

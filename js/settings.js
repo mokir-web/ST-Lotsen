@@ -34,13 +34,20 @@ async function renderSettings(root) {
       <div class="card">
         <h2>Byt PIN</h2>
         <label for="st-pin-cur" style="margin-top:0">Nuvarande PIN</label>
-        <input type="password" id="st-pin-cur" inputmode="numeric" maxlength="4" autocomplete="current-password">
-        <label for="st-pin-new">Ny PIN (4 siffror)</label>
-        <input type="password" id="st-pin-new" inputmode="numeric" maxlength="4" autocomplete="new-password">
+        <input type="password" id="st-pin-cur" inputmode="numeric" maxlength="6" autocomplete="current-password">
+        <label for="st-pin-new">Ny PIN (${me.isAdmin || me.isDirector || me.isGlobalAdmin ? '6 siffror — krävs för admin och studierektor' : '4 eller 6 siffror'})</label>
+        <input type="password" id="st-pin-new" inputmode="numeric" maxlength="6" autocomplete="new-password">
         <label for="st-pin-rep">Upprepa ny PIN</label>
-        <input type="password" id="st-pin-rep" inputmode="numeric" maxlength="4" autocomplete="new-password">
+        <input type="password" id="st-pin-rep" inputmode="numeric" maxlength="6" autocomplete="new-password">
+        <p class="hint">Byter du PIN loggas du ut på alla andra enheter.</p>
         <div class="row" style="margin-top:10px"><button class="btn" onclick="savePin()">Byt PIN</button></div>
         <div id="st-pin-status" class="status"></div>
+      </div>
+
+      <div class="card">
+        <h2>Inloggade enheter</h2>
+        <p class="hint" style="margin-top:0">Du förblir inloggad på en enhet så länge du använder appen. Har du loggat in på en dator eller telefon som inte är din, eller tappat bort en telefon: logga ut överallt. Du loggas också ut här.</p>
+        <div class="row" style="margin-top:10px"><button class="btn-ghost" onclick="logoutAll()">Logga ut på alla enheter</button></div>
       </div>
 
       <p class="muted" style="font-size:12px;text-align:center">ST-Lotsen ${esc(APP_VERSION)}</p>`;
@@ -67,8 +74,17 @@ async function savePin() {
   const cur = el('st-pin-cur').value, a = el('st-pin-new').value, b = el('st-pin-rep').value;
   if (a !== b) return stStatus('st-pin-status', 'De nya PIN-koderna matchar inte.', false);
   try {
-    await api('/auth/change-pin', { method: 'POST', body: { currentPin: cur, newPin: a } });
+    const r = await api('/auth/change-pin', { method: 'POST', body: { currentPin: cur, newPin: a } });
+    if (r.token) saveSession(r.token, state.scope, state.clinicName);
     el('st-pin-cur').value = el('st-pin-new').value = el('st-pin-rep').value = '';
     stStatus('st-pin-status', 'PIN ändrad.', true);
   } catch (err) { stStatus('st-pin-status', err.message, false); }
+}
+
+async function logoutAll() {
+  if (!confirm('Logga ut på alla enheter, även den här?')) return;
+  try {
+    await api('/auth/logout-all', { method: 'POST' });
+    logout();
+  } catch (err) { toast(err.message, 'err'); }
 }

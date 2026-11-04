@@ -329,7 +329,7 @@ function drawUserPanel() {
   el('sheet-root')?.remove();
   const root = document.createElement('div');
   root.id = 'sheet-root'; root.className = 'sp-overlay';
-  root.innerHTML = `<aside class="sidepanel" role="dialog" aria-label="${p.kind === 'user' ? 'Användare' : title}">
+  root.innerHTML = `<aside class="sidepanel" role="dialog" aria-label="${p.kind === 'user' ? 'Användare' : esc(title.replace(/<[^>]*>/g, ''))}">
     <div class="sp-head"><h2 style="margin:0">${title}</h2><button class="btn-ghost" onclick="closeUserPanel()" aria-label="Stäng">✕</button></div>
     <div class="sp-body">${body}</div>${foot}</aside>`;
   root.addEventListener('click', e => {

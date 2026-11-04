@@ -12,7 +12,7 @@ let _plan = null;
 async function renderPlan(root, userId) {
   root.innerHTML = '<p class="muted">Laddar…</p>';
   try {
-    const [me, data] = await Promise.all([api('/me'), api('/plan/' + encodeURIComponent(userId || 'me'))]);
+    const [me, data] = await Promise.all([api('/me'), api('/plan/' + encodeURIComponent(userId || 'me')).then(d => (ovMarkDue(d.cells), ovMarkDue(d.goals), d))]);
     setMenuForUser(me);
     _plan = { me, data, userId: userId || 'me', openGoal: null, tab: _plan?.userId === (userId || 'me') ? _plan.tab : 'oversikt' };
     drawPlan(root);
@@ -24,6 +24,7 @@ async function renderPlan(root, userId) {
 async function reloadPlan() {
   const y = window.scrollY;
   _plan.data = await api('/plan/' + encodeURIComponent(_plan.userId));
+  ovMarkDue(_plan.data.cells); ovMarkDue(_plan.data.goals);
   drawPlan(el('view'));
   window.scrollTo(0, y);
 }
@@ -41,7 +42,7 @@ const planBar = (done, total, label) => {
 function drawPlan(root) {
   const { data, me } = _plan;
   const p = data.person, tab = _plan.tab || 'oversikt';
-  const yr = p.stMonths == null ? '' : ` · ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths}`;
+  const yr = p.stMonths == null ? '' : ` · ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths} av 60`;
   const supNames = data.supervisors.map(s => s.displayName).join(', ');
   const pane = (k, html, cls = '') => `<section class="pl-pane${k === tab ? '' : ' pl-hide'}${cls}" data-pane="${k}">${html}</section>`;
 
@@ -58,7 +59,8 @@ function drawPlan(root) {
       </div>
       <p style="margin:8px 0 0">ST-start ${esc(fmtMonth(p.stStart))}${p.stEnd ? ` · ST-slut ${esc(fmtMonth(p.stEnd))}` : ''}${esc(yr)}</p>
       ${p.expectedEnd ? `<p style="margin:4px 0 0">Beräknat ST-slut: <strong>${esc(fmtMonth(p.expectedEnd))}</strong>
-        <span class="muted">(5 år${p.leaveWeeks ? ` + ${p.leaveWeeks} veckors ledighet som förlänger` : ''})</span></p>` : ''}
+        <span class="muted">(5 år${p.leaveWeeks ? ` + ${p.leaveWeeks} veckors ledighet som förlänger` : ''})</span>${ovPassedEnd(p, data.today)
+          ? ' <span class="pchip st-saknas" title="Beräknat ST-slut har passerats men inget ST-slut är angivet">Passerat — ange ST-slut</span>' : ''}</p>` : ''}
       <p style="margin:4px 0 0">Målbeskrivning: ${data.framework ? `<strong>${esc(data.framework.label)}</strong>${data.framework.fromClinic ? ' <span class="muted">(klinikens förval)</span>' : ''}` : '<span class="muted">ingen vald — sätts under ST-utbildning → Inställningar → ST-läkare och handledare</span>'}</p>
       <p style="margin:4px 0 0">Handledare: ${supNames ? esc(supNames) : '<span class="muted">ingen angiven</span>'}</p>
       <p style="margin:4px 0 0">Senast genomgången: ${p.reviewedAt ? `${esc(p.reviewedAt)}${p.reviewedByName ? ' av ' + esc(p.reviewedByName) : ''}` : '<span class="muted">–</span>'}

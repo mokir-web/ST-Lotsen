@@ -96,6 +96,8 @@
       border: 1px solid rgba(255,255,255,0.28); border-radius: 5px; padding: 7px 12px; font-size: 14px;
     }
     main { max-width: 920px; margin: 0 auto; padding: 16px; }
+    #login, #changepin { max-width: 400px; }
+    #login input, #changepin input { width: 100%; box-sizing: border-box; }
     main#view.wide { max-width: 1440px; }
     @media (min-width: 1100px) { main#view.wide { padding: 20px 28px; } }
 
@@ -104,7 +106,7 @@
       padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(20,30,38,0.06);
     }
 
-    input[type=text], input[type=password], input[type=tel], input[type=number], input[type=date], input[type=month], input[type=search], select {
+    input[type=text], input[type=password], input[type=tel], input[type=email], input[type=number], input[type=date], input[type=month], input[type=search], select {
       width: 100%; max-width: 360px; padding: 11px 10px; font-size: 17px;
       border: 1.5px solid var(--line); border-radius: 5px; background: #eef1f3; color: var(--ink);
     }
@@ -355,7 +357,10 @@
     .prog .pct .pbar.sm { display: block; height: 5px; margin-bottom: 2px; }
     .prog thead .pct { text-align: center; }
     .prog .ov-sort { font: inherit; font-weight: bold; color: inherit; text-decoration: none; padding: 0; }
-    #ov-cat { flex-wrap: wrap; }
+    /* Kategorivalet rullar i sidled på smal skärm i stället för att bryta raden inuti ramen. */
+    #ov-cat { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+    #ov-cat::-webkit-scrollbar, .subtabs::-webkit-scrollbar { display: none; }
+    #ov-cat button { flex: none; white-space: nowrap; }
     .prog .pc.edit:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
     .st-klart { background: #d7ecdf; color: #1f5a3a; }
     .st-tidigare { background: #e6eee9; color: #3d5a4a; }
@@ -363,9 +368,11 @@
     .st-forslag { background: #fff; color: #23466b; font-style: italic; box-shadow: inset 0 0 0 1px #9bb8d6; }
     .st-plan { background: #fbf1d9; color: #6b5317; }
     .st-saknas { background: #f8e7e4; color: var(--danger); }
+    .st-ejgjort { background: #eef1f3; color: var(--ink-soft); }
     .pchip { display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 12px; }
     .prog .pname a { color: inherit; }
-    .subtabs { display: flex; gap: 2px; border-bottom: 1.5px solid var(--line); margin: 0 0 14px; overflow-x: auto; }
+    .subtabs { display: flex; gap: 2px; border-bottom: 1.5px solid var(--line); margin: 0 0 14px; overflow-x: auto; scrollbar-width: none; }
+    .hint a, .sp-body a:not(.btn):not(.btn-ghost) { color: var(--interest); }
     .subtabs a { padding: 10px 14px; color: var(--ink-soft); text-decoration: none; font-size: 15px; white-space: nowrap; border-bottom: 3px solid transparent; margin-bottom: -1.5px; }
     .subtabs a:hover { color: var(--ink); }
     .subtabs a.active { color: var(--ink); font-weight: bold; border-bottom-color: var(--accent); }
@@ -496,7 +503,7 @@
       body { background: white; }
       .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
       .sch-scroll { overflow: visible; }
-      .pchip, .st-klart, .st-tidigare, .st-bokad, .st-plan, .st-saknas { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .pchip, .st-klart, .st-tidigare, .st-bokad, .st-plan, .st-saknas, .st-ejgjort { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
     .imp-table tr.exists td { color: var(--ink-soft); }
     input[type=file] { font-size: 14px; max-width: 100%; }
@@ -534,6 +541,7 @@
         <input type="password" id="li-pin" inputmode="numeric" autocomplete="current-password">
         <div class="row" style="margin-top:14px;"><button type="submit" class="btn">Logga in</button></div>
         <div id="li-status" class="status err"></div>
+        <p class="hint" style="margin:10px 0 0">Glömt din PIN eller spärrad? Kontakta din klinikadmin — admin kan ge dig en ny tillfällig PIN.</p>
       </form>
     </div>
     <p class="muted" style="font-size:12px;text-align:center" id="ver-login"></p>
@@ -544,10 +552,10 @@
     <h1>Välj en ny PIN</h1>
     <div class="card">
       <form onsubmit="return doChangePin(event)">
-        <label for="cp-pin">Ny PIN (4 siffror)</label>
-        <input type="password" id="cp-pin" inputmode="numeric" maxlength="4" autocomplete="new-password">
+        <label for="cp-pin" id="cp-label">Ny PIN (4 eller 6 siffror)</label>
+        <input type="password" id="cp-pin" inputmode="numeric" maxlength="6" autocomplete="new-password">
         <label for="cp-pin2">Upprepa</label>
-        <input type="password" id="cp-pin2" inputmode="numeric" maxlength="4" autocomplete="new-password">
+        <input type="password" id="cp-pin2" inputmode="numeric" maxlength="6" autocomplete="new-password">
         <div class="row" style="margin-top:14px;"><button type="submit" class="btn">Spara</button></div>
         <div id="cp-status" class="status err"></div>
       </form>
@@ -625,7 +633,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.25.1';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.26.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -748,7 +756,7 @@
       if (res.status === 401 && !isLogin) { logout(); throw new Error('Sessionen har gått ut.'); }
       const text = await res.text();
       const data = text ? JSON.parse(text) : null;
-      if (res.status === 403 && data?.mustChangePin) { showOnly('changepin'); throw new Error(data.error); }
+      if (res.status === 403 && data?.mustChangePin) { showChangePin(data.pinLength); throw new Error(data.error); }
       if (!res.ok) {
         logSession({ type: 'api', method: opts.method || 'GET', path: path.split('?')[0], status: res.status, error: data?.error || null });
         throw new Error(data?.error || ('HTTP ' + res.status));
@@ -782,10 +790,16 @@
         const r = await api('/auth/login', { method: 'POST', body: { username: el('li-username').value, pin: el('li-pin').value } });
         saveSession(r.token, r.scope, r.clinicName);
         el('li-pin').value = '';
-        if (r.mustChangePin) { showOnly('changepin'); return false; }
+        if (r.mustChangePin) { showChangePin(r.pinLength); return false; }
         enterApp();
       } catch (err) { el('li-status').textContent = err.message; }
       return false;
+    }
+
+    // Admin och studierektor ska välja 6 siffror (servern avgör, pinLength); övriga 4 eller 6.
+    function showChangePin(pinLength) {
+      el('cp-label').textContent = pinLength === 6 ? 'Ny PIN (6 siffror — krävs för admin och studierektor)' : 'Ny PIN (4 eller 6 siffror)';
+      showOnly('changepin');
     }
 
     async function doChangePin(e) {
@@ -794,7 +808,9 @@
       el('cp-status').textContent = '';
       if (a !== b) { el('cp-status').textContent = 'PIN-koderna matchar inte.'; return false; }
       try {
-        await api('/auth/change-pin', { method: 'POST', body: { newPin: a } });
+        const r = await api('/auth/change-pin', { method: 'POST', body: { newPin: a } });
+        if (r.token) saveSession(r.token, state.scope, state.clinicName);   // ny PIN loggar ut andra enheter; den här får ny token
+        el('cp-pin').value = el('cp-pin2').value = '';
         enterApp();
       } catch (err) { el('cp-status').textContent = err.message; }
       return false;

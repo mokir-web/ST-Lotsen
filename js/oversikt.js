@@ -10,13 +10,23 @@
 
 let _ov = null;
 
-const OV_LABEL = { klart: 'Klart', tidigare: 'Tidigare', bokad: 'Bokad', forslag: 'Förslag', plan: 'Plan', saknas: 'Saknas', ej: 'Ej i planen' };
-const weekShort = iso => `v${isoWeek(iso)} -${iso.slice(2, 4)}`;
+const OV_LABEL = { klart: 'Klart', tidigare: 'Tidigare', bokad: 'Bokad', forslag: 'Förslag', plan: 'Plan', saknas: 'Saknas', ejgjort: 'Ej gjort', ej: 'Ej i planen' };
+
+// Saknas är rött bara när personen passerat kravets ST-år (late från servern); annars grått "Ej gjort" — inte gjort än.
+function ovMarkDue(o) {
+  if (!o || typeof o !== 'object') return o;
+  if (o.status === 'saknas' && !o.late) o.status = 'ejgjort';
+  for (const v of Object.values(o)) ovMarkDue(v);
+  return o;
+}
+const weekShort = iso => `v${isoWeek(iso)} ${iso.slice(0, 4)}`;
+// Beräknat ST-slut har passerats men inget ST-slut är angivet (troligen klar — studierektorn får en påminnelse på Idag).
+const ovPassedEnd = (p, today) => !p.stEnd && p.expectedEnd && p.expectedEnd < today;
 
 async function renderOversikt(root) {
   root.innerHTML = '<p class="muted">Laddar…</p>';
   try {
-    const [me, data] = await Promise.all([api('/me'), api('/progress')]);
+    const [me, data] = await Promise.all([api('/me'), api('/progress').then(d => (ovMarkDue(d.cells), d))]);
     setMenuForUser(me);
     let compact = true; try { compact = localStorage.getItem('ov_compact') !== '0'; } catch {}
     const mobile = window.matchMedia('(max-width: 640px)').matches;
@@ -29,6 +39,7 @@ async function renderOversikt(root) {
 
 async function reloadOversikt() {
   _ov.data = await api('/progress');
+  ovMarkDue(_ov.data.cells);
   drawOversikt(el('view'));
 }
 
@@ -41,8 +52,8 @@ function ovCellText(s) {
   return OV_LABEL[s.status];
 }
 
-// Kompakt: ✓ klart/tidigare, ◷ + vecka bokad, ? + vecka förslag, ✎ plan, · saknas, – borttaget ur personens plan.
-const OV_ICON = { klart: '✓', tidigare: '✓', bokad: '◷', forslag: '?', plan: '✎', saknas: '·', ej: '–' };
+// Kompakt: ✓ klart/tidigare, ◷ + vecka bokad, ? + vecka förslag, ✎ plan, · ej gjort, ! saknas (försenat), – borttaget ur personens plan.
+const OV_ICON = { klart: '✓', tidigare: '✓', bokad: '◷', forslag: '?', plan: '✎', saknas: '!', ejgjort: '·', ej: '–' };
 function ovCompact(s) {
   if (!s || !s.status) return '';
   const wk = s.week ? ' ' + isoWeek(s.week) : '';
@@ -74,14 +85,15 @@ function drawOversikt(root) {
   const head1 = byCat.map(g => `<th colspan="${g.rs.length}" class="cat">${esc(g.c)}</th>`).join('');
   const head2 = ordered.map(r => `<th title="${esc(r.name + (r.location ? ' (' + r.location + ')' : '') + (r.mandatory ? '' : ' — valfritt'))}">${esc(r.name)}${r.mandatory ? '' : '<sup>*</sup>'}</th>`).join('');
   const rows = people.map(p => {
-    const yr = p.stMonths == null ? '' : `år ${Math.floor(p.stMonths / 12) + 1} · mån ${p.stMonths}`;
+    const yr = p.stMonths == null ? '' : `ST-år ${Math.floor(p.stMonths / 12) + 1} · mån ${p.stMonths}`;
     const cells = ordered.map(r => {
       const s = data.cells[p.id][r.id];
       const edit = ovCanEdit(p.id) && s.status !== 'ej';
       return `<td class="pc st-${s.status || 'none'}${edit ? ' edit' : ''}"${edit ? ` data-p="${esc(p.id)}" data-r="${esc(r.id)}" role="button" tabindex="0"` : ''} title="${esc(r.name + ' — ' + ovTip(s))}">${esc(_ov.compact ? ovCompact(s) : ovCellText(s))}</td>`;
     }).join('');
     const pc = pct(p);
-    return `<tr><th class="pname${p.id === data.me ? ' me' : ''}"><a href="#/plan/${esc(p.id)}" title="Utbildningsplan">${esc(p.displayName)}</a><br><span class="muted" style="font-weight:normal;font-size:11px">${esc(yr)}${ovEnded(p) ? ' · ST klar' : ''}</span></th>
+    return `<tr><th class="pname${p.id === data.me ? ' me' : ''}"><a href="#/plan/${esc(p.id)}" title="Utbildningsplan">${esc(p.displayName)}</a><br><span class="muted" style="font-weight:normal;font-size:11px">${esc(yr)}${ovEnded(p) ? ' · ST klar' : ''}${ovPassedEnd(p, data.today)
+      ? '<br><span style="color:var(--danger)" title="Beräknat ST-slut har passerats men inget ST-slut är angivet">passerat ST-slut</span>' : ''}</span></th>
       <td class="pct" title="${pc} % av de obligatoriska kraven klara"><span class="pbar sm"><span style="width:${pc}%"></span></span>${pc} %</td>${cells}</tr>`;
   }).join('');
   const done = ordered.map(r => {
@@ -93,7 +105,7 @@ function drawOversikt(root) {
     <div class="card">
       <h1 class="page" style="margin-top:0">Måluppfyllelse</h1>
       <div class="row" style="justify-content:space-between;gap:8px">
-        <span class="muted" style="font-size:14px">Läget ${esc(weekShort(data.thisMonday))}. Klart = passerat i schemat eller angett för hand.</span>
+        <span class="muted" style="font-size:14px">Läget vecka ${isoWeek(data.thisMonday)}, ${esc(data.thisMonday.slice(0, 4))}. Klart = passerat i schemat eller angett för hand.</span>
         ${data.canEditAll && endedCount ? `<label class="row" style="gap:6px;font-weight:normal;margin:0"><input type="checkbox" ${_ov.showEnded ? 'checked' : ''} onchange="_ov.showEnded=this.checked;drawOversikt(el('view'))"> Visa avslutade ST (${endedCount})</label>` : ''}
       </div>
       <div class="row" style="gap:8px;margin:10px 0 2px">
@@ -112,7 +124,7 @@ function drawOversikt(root) {
           ${data.canEditAll ? '<a class="btn" href="#/st/krav" style="text-decoration:none">Lägg in krav</a>' : '<p class="hint">Studierektor lägger in dem.</p>'}</div>`)}
       <p style="margin:12px 0 0;line-height:2;font-size:13px">
         <span class="pchip st-klart">✓ Klart</span> <span class="pchip st-tidigare">✓ Tidigare</span> <span class="pchip st-bokad">◷ Bokad (vecka)</span>
-        <span class="pchip st-forslag">? Förslag/Ev.</span> <span class="pchip st-plan">✎ Plan</span> <span class="pchip st-saknas">· Saknas</span>
+        <span class="pchip st-forslag">? Förslag/Ev.</span> <span class="pchip st-plan">✎ Plan</span> <span class="pchip st-ejgjort">· Ej gjort</span> <span class="pchip st-saknas">! Saknas (försenat)</span>
         <span class="muted">* = valfritt · % klart = obligatoriska krav</span></p>
       <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan.' : 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan för dig själv.'}</p>
     </div>`;

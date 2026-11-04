@@ -187,8 +187,11 @@
   }
 
   // ── Mall och nedladdningar ─────────────────────────────────────────────
+  // Celler som Excel skulle tolka som formel (=, @, eller + / - följt av annat än ett telefonnummer) får en apostrof först.
+  const formulaSafe = s => /^[=@\t\r]/.test(s) || /^[+-](?![\d\s()-]*$)/.test(s) ? "'" + s : s;
+
   function toCsv(rows, delim = ';') {
-    const q = v => { const s = String(v ?? ''); return /[";\n\r]/.test(s) || s.includes(delim) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const q = v => { const s = formulaSafe(String(v ?? '')); return /[";\n\r]/.test(s) || s.includes(delim) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     return '﻿' + rows.map(r => r.map(q).join(delim)).join('\r\n') + '\r\n';
   }
 

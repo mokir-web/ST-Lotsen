@@ -20,7 +20,7 @@ const HELP = [
     'Raden "I tjänst" räknar hur många som är i tjänst varje vecka. Röd = under klinikens gräns.',
     'På mobil: välj <em>Jag</em> eller <em>Alla</em> för en lista per vecka.']],
   ['#/oversikt', 'ST-utbildning · Måluppfyllelse', [
-    'Alla ST-läkare mot klinikens krav. ✓ klart, ◷ bokat i schemat, ? förslag, ✎ plan, · saknas. Peka på en ruta för hela texten, klicka för att ange status för hand.',
+    'Alla ST-läkare mot klinikens krav. ✓ klart, ◷ bokat i schemat, ? förslag, ✎ plan, · ej gjort än, ! saknas (personen har passerat kravets ST-år). Peka på en ruta för hela texten, klicka för att ange status för hand.',
     'Filtrera på kategori, sortera på "% klart" och växla mellan kompakt och detaljerad vy.']],
   ['#/plan', 'Utbildningsplan', [
     '<strong>Översikt:</strong> förloppet per ST-år och kraven med status. <strong>Delmål:</strong> målbeskrivningens delmål med kopplade krav; handledaren signerar. <strong>Historik:</strong> signeringar, genomgångar och ändrad status.',
