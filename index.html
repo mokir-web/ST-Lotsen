@@ -268,6 +268,25 @@
     .ulist .status:empty { display: none; }
     .ulist .body { display: none; padding: 0 2px 14px 20px; }
     .ulist .ublock.open .body { display: block; }
+    /* Startsidan Idag (js/today.js) */
+    .today-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+    .today-grid .card { margin: 0; }
+    .today-card a { color: var(--interest); font-weight: bold; }
+    .today-card .sact { font-size: 14px; padding: 2px 8px; }
+    .today-card h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-soft); margin-bottom: 8px; }
+    .today-sub { font-size: 13px; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-soft); margin: 14px 0 4px; }
+    .big-name { font-size: 24px; font-weight: bold; }
+    .todo, .today-list { list-style: none; margin: 0; padding: 0; }
+    .todo li, .today-list li { padding: 6px 0; border-top: 1px solid #eef1f3; }
+    .todo li:first-child, .today-list li:first-child { border-top: none; }
+    .today-list .muted { display: inline-block; min-width: 64px; font-size: 14px; }
+    .staff-row { display: flex; gap: 6px; }
+    .staff-row div { flex: 1; text-align: center; background: #f2f5f7; border-radius: 6px; padding: 6px 2px; }
+    .staff-row div.cur { background: var(--accent-soft); outline: 1.5px solid var(--accent); }
+    .staff-row span { display: block; font-size: 12px; color: var(--ink-soft); }
+    .staff-row strong { font-size: 20px; }
+    .pbar { height: 12px; border-radius: 6px; background: #e3e8eb; overflow: hidden; }
+    .pbar span { display: block; height: 100%; background: var(--ok); border-radius: 6px; }
     /* Användarlista (U1) */
     .urows { display: flex; flex-direction: column; }
     .urow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; text-align: left; background: none; border: none; border-top: 1px solid var(--line); border-radius: 0; padding: 10px 6px; font: inherit; color: inherit; }
@@ -451,7 +470,8 @@
         <span class="brand-text"><span class="brand-name">ST-Lotsen</span><span class="clinic" id="app-clinic"></span></span>
       </a>
       <nav id="worlds" class="hidden" aria-label="Moduler">
-        <a href="#/" id="world-op" class="hidden">Opjour</a>
+        <a href="#/" id="world-today">Idag</a>
+        <a href="#/kalender" id="world-op" class="hidden">Opjour</a>
         <a href="#/schema" id="world-st" class="hidden">ST-utbildning</a>
       </nav>
       <span class="spacer"></span>
@@ -479,7 +499,7 @@
       <nav id="subnav" class="hidden" aria-label="Undersidor">
         <div data-world="op" class="hidden">
           <div class="sn-title">Opjour</div>
-          <a href="#/" data-route="#/">Kalender</a>
+          <a href="#/kalender" data-route="#/kalender">Kalender</a>
           <a href="#/stats" data-route="#/stats" id="nav-stats" class="hidden">Statistik</a>
           <a href="#/opjour-settings" data-route="#/opjour-settings" id="nav-opset" class="hidden">Inställningar</a>
         </div>
@@ -505,7 +525,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.17.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.18.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -685,16 +705,17 @@
       const h = location.hash;
       markNav(h);
       const root = el('view');
-      root.classList.toggle('wide', !['#/settings', '#/admin', '#/stats', '#/opjour-settings'].includes(h));   // bred vy för kalendern, schemat och ST-inställningarna
+      root.classList.toggle('wide', !['#/settings', '#/admin', '#/stats', '#/opjour-settings'].includes(h) && worldOf(h) !== 'today');   // bred vy för kalendern, schemat och ST-inställningarna
       if (h === '#/settings') renderSettings(root);
       else if (h === '#/admin') renderAdmin(root);
       else if (h === '#/opjour-settings') renderOpSettings(root);
+      else if (h === '#/kalender') renderApp(root);
       else if (h === '#/stats') renderStats(root);
       else if (h === '#/schema') renderSchema(root);
       else if (h === '#/st' || h.startsWith('#/st/')) renderStSettings(root, h.split('/')[2]);
       else if (h === '#/oversikt') renderOversikt(root);
       else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
-      else renderApp(root);
+      else renderToday(root);
       window.scrollTo(0, 0);
     }
     window.addEventListener('hashchange', route);
@@ -712,11 +733,14 @@
     function worldOf(h) {
       if (h === '#/settings' || h === '#/admin') return 'acc';
       if (['#/schema', '#/oversikt', '#/st'].includes(h) || h.startsWith('#/st/') || h.startsWith('#/plan')) return 'st';
-      return 'op';
+      if (['#/kalender', '#/stats', '#/opjour-settings'].includes(h)) return 'op';
+      return 'today';
     }
     function markNav(h) {
       const world = worldOf(h), key = !h || h === '#' ? '#/' : h.startsWith('#/plan') ? '#/plan' : h.startsWith('#/st/') ? '#/st' : h;
+      el('world-today').classList.toggle('active', world === 'today');
       el('world-op').classList.toggle('active', world === 'op');
+      el('subnav').classList.toggle('hidden', state.scope !== 'user' || world === 'today');   // Idag har inga undersidor
       el('world-st').classList.toggle('active', world === 'st');
       el('tool-admin').classList.toggle('active', h === '#/admin');
       el('subnav').querySelectorAll('[data-world]').forEach(g => g.classList.toggle('hidden', g.dataset.world !== world));
@@ -880,5 +904,6 @@
   <script src="js/stsettings.js"></script>
   <script src="js/oversikt.js"></script>
   <script src="js/plan.js"></script>
+  <script src="js/today.js"></script>
 </body>
 </html>
