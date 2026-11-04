@@ -48,8 +48,7 @@ async function renderSettings(root) {
 }
 
 function stStatus(id, text, ok) {
-  const box = el(id); if (!box) return;
-  box.textContent = text; box.className = 'status ' + (ok ? 'ok' : 'err');
+  showStatus(el(id), text, ok);
 }
 
 async function saveContact() {

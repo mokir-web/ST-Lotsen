@@ -98,7 +98,7 @@ function shiftCard() {
 
 async function saveShiftChange() {
   const box = el('sc-status');
-  const done = (text, ok) => { box.textContent = text; box.className = 'status ' + (ok ? 'ok' : 'err'); };
+  const done = (text, ok) => showStatus(box, text, ok);
   try {
     const r = await api('/admin/clinic', { method: 'PUT', body: { shiftChange: el('sc-time').value } });
     _admin.me.shiftChange = r.shiftChange;

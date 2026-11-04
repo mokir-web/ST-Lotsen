@@ -282,7 +282,7 @@ function drawUserPanel() {
 
 // Kör en ändring på personen i panelen, ritar om sidan (panelen öppnas igen på samma flik) och visar resultatet i panelen.
 async function panelAction(fn, okText) {
-  const show = (text, ok) => { const b = el('up-status'); if (b) { b.textContent = text; b.className = 'status ' + (ok ? 'ok' : 'err'); } };
+  const show = (text, ok) => showStatus(el('up-status'), text, ok);
   try {
     await fn(_admin.panel.id);
     await reloadAdmin();
@@ -427,7 +427,7 @@ function downloadPinList() {
 // ── Användarlista ─────────────────────────────────────────────────────────
 function userStatus(detailsEl, text, ok) {
   const box = detailsEl.querySelector('[data-s]'); if (!box) return;
-  box.textContent = text; box.className = 'status ' + (ok ? 'ok' : 'err');
+  showStatus(box, text, ok);
 }
 
 // Kör en ändring på en användare och ritar om listan med bibehållen scrollposition (reglagen sitter långt ner på sidan).
@@ -524,7 +524,7 @@ async function saveModules() {
     await api('/admin/clinic', { method: 'PUT', body: { modules } });
     await reloadAdmin();
     setMenuForUser(_admin.me);
-    const b = el('mod-status'); b.textContent = 'Sparat.'; b.className = 'status ok';
+    showStatus(el('mod-status'), 'Modulerna är sparade.', true);
   } catch (err) { box.textContent = err.message; box.className = 'status err'; }
 }
 

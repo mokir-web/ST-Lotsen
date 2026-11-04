@@ -1,13 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <title>Opjour</title>
+  <title>ST-Lotsen</title>
+  <!-- Fyr efter Häradskärs fyr: rött öppet järnskelett med central stolpe, räcke, lykta och kopparstrålar. Opjours kalender: opjour.svg -->
   <rect width="64" height="64" rx="14" fill="#1c2b36"/>
-  <rect x="11" y="16" width="42" height="38" rx="6" fill="none" stroke="#e8a33d" stroke-width="3.2"/>
-  <path d="M11 27h42" stroke="#e8a33d" stroke-width="3.2"/>
-  <path d="M22 10.5v9M42 10.5v9" stroke="#e8a33d" stroke-width="3.4" stroke-linecap="round"/>
-  <g transform="translate(15.4 48.1) rotate(-24) scale(0.7)">
-    <g fill="#1c2b36" stroke="#1c2b36" stroke-width="3.4" stroke-linejoin="round"><path d="M2.6 -3.7 H22.5 L25 -2.7 V2.7 L22.5 3.7 H2.6 A3.7 3.7 0 0 1 2.6 -3.7 Z"/><path d="M24.6 -1.5 H31 V1.5 H24.6 Z"/><path d="M30 -1.5 L33.4 -3.6 Q43.5 -4.4 52.5 0.6 Q44 7.2 33.2 3.6 L30 1.5 Z"/></g>
-    <g fill="#e8a33d"><path d="M2.6 -3.7 H22.5 L25 -2.7 V2.7 L22.5 3.7 H2.6 A3.7 3.7 0 0 1 2.6 -3.7 Z"/><path d="M24.6 -1.5 H31 V1.5 H24.6 Z"/><path d="M30 -1.5 L33.4 -3.6 Q43.5 -4.4 52.5 0.6 Q44 7.2 33.2 3.6 L30 1.5 Z"/></g>
-    <path d="M7 -2.5v5M11 -2.5v5M15 -2.5v5" stroke="#1c2b36" stroke-width="1.15" stroke-linecap="round"/>
-    <path d="M34.5 -0.9 Q42 -2.4 48.6 0.35" fill="none" stroke="#1c2b36" stroke-width="0.9" stroke-linecap="round" opacity=".55"/>
-  </g>
+  <path d="M32 13.5 L62 3 V27 Z" fill="#b5641a"/>
+  <path d="M32 13.5 L2 3 V27 Z" fill="#b5641a" opacity=".45"/>
+  <path d="M27 9 Q32 3.6 37 9 Z" fill="#c8322a"/>
+  <path d="M32 2.6 V5" stroke="#c8322a" stroke-width="1.4" stroke-linecap="round"/>
+  <rect x="27.3" y="9" width="9.4" height="8" rx="1" fill="#f4c27a"/>
+  <path d="M30.4 9v8M33.6 9v8" stroke="#1c2b36" stroke-width=".9"/>
+  <rect x="24.5" y="17" width="15" height="2.4" rx=".6" fill="#c8322a"/>
+  <g stroke="#c8322a" stroke-width="1" fill="none"><path d="M28.00 20L32 29M36.00 20L32 29M32 20L26.75 29M32 20L37.25 29"/><path d="M26.75 29L32 38M37.25 29L32 38M32 29L25.50 38M32 29L38.50 38"/><path d="M25.50 38L32 47M38.50 38L32 47M32 38L24.25 47M32 38L39.75 47"/><path d="M24.25 47L32 56M39.75 47L32 56M32 47L23.00 56M32 47L41.00 56"/></g>
+  <g stroke="#c8322a" stroke-width="1.6" stroke-linecap="round" fill="none"><path d="M26.75 29H37.25"/><path d="M25.50 38H38.50"/><path d="M24.25 47H39.75"/></g>
+  <path d="M28 19.4 L23 56 M36 19.4 L41 56" stroke="#c8322a" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M32 19.4 V56" stroke="#e0503f" stroke-width="3.4"/>
+  <rect x="19.5" y="55.5" width="25" height="3.5" rx="1.2" fill="#eef1f3"/>
 </svg>

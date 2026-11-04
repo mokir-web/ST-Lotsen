@@ -161,9 +161,11 @@ function drawSchema(root) {
             ${rows}
           </tbody>
         </table>
-      </div>`}` : '<p class="muted">Inga ST-läkare i perioden. Markera ST-läkare under Administration → användare.</p>'}
+      </div>`}` : `<div class="empty"><p><strong>Inga ST-läkare i perioden.</strong></p><p class="hint">Vem som är ST-läkare och när ST började sätts under ST-utbildning → Inställningar.</p>
+        ${data.canEditAll ? '<a class="btn" href="#/st/personer" style="text-decoration:none">ST-läkare och handledare</a>' : ''}</div>`}
       ${types.length ? `<p style="margin:12px 0 0;line-height:2">${legend}<span class="sact ev" style="--c:#9aa5ad">Ev.</span> <span class="muted" style="font-size:13px">preliminär</span></p>`
-        : `<p class="hint">Inga aktivitetstyper än. ${data.canEditAll ? 'Lägg in dem under Inställningar i vänsterspalten.' : 'Studierektor lägger in dem.'}</p>`}
+        : `<div class="empty"><p><strong>Inga aktivitetstyper än.</strong> ${data.canEditAll ? 'Börja med standardtyperna — allt går att ändra efteråt.' : 'Studierektor lägger in dem.'}</p>
+          ${data.canEditAll ? '<a class="btn" href="#/schema/installningar" style="text-decoration:none">Till inställningarna</a>' : ''}</div>`}
       <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att lägga till eller ändra.' : 'Tryck på en ruta i din egen rad för att lägga till eller ändra.'}
         ${_sch.view === 'table' ? 'Dra över flera veckor i en rad för att lägga in en period.' : ''}</p>
     </div>`;

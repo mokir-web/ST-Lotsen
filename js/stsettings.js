@@ -37,19 +37,21 @@ async function reloadStSettings(msg) {
   [_sts.cfg, _sts.people] = await Promise.all([api('/admin/st/config'), _sts.tab === 'personer' ? api('/admin/st/people').then(r => r.people) : null]);
   drawStSettings(el('view'));
   window.scrollTo(0, y);
-  if (msg) { const b = el(msg.box); if (b) { b.textContent = msg.text; b.className = 'status ok'; } }
+  if (msg) showStatus(el(msg.box), msg.text, true);
 }
 
-function typeRow(t) {
-  return `<tr data-id="${esc(t.id)}"${t.active ? '' : ' class="inactive"'}>
-    <td><input type="text" data-f="code" value="${esc(t.code)}" maxlength="20" style="width:90px"></td>
-    <td><input type="text" data-f="label" value="${esc(t.label)}" maxlength="40"></td>
-    <td><input type="color" data-f="color" value="${esc(t.color)}"></td>
-    <td><select data-f="serviceEffect">${effectOptions(t.serviceEffect)}</select></td>
-    <td style="text-align:center"><input type="checkbox" data-f="givesProgress"${t.givesProgress ? ' checked' : ''}></td>
-    <td style="text-align:center"><input type="checkbox" data-f="active"${t.active ? ' checked' : ''}></td>
-    <td><button class="btn-ghost" data-a="save-type">Spara</button></td>
-  </tr>`;
+// Aktivitetstyper som kort (5f): påverkan på "I tjänst" med tre knappar, klicka för att ändra i panelen, dra (eller ↑↓) för ordningen.
+const EFFECT_SHORT = [['i_tjanst', 'I tjänst'], ['ej_i_tjanst', 'Ej i tjänst'], ['neutral', 'Påverkar inte']];
+function typeCard(t) {
+  return `<div class="tcard${t.active ? '' : ' inactive'}" data-id="${esc(t.id)}" draggable="true">
+    <span class="tgrip" title="Dra för att ändra ordningen" aria-hidden="true">⋮⋮</span>
+    <button type="button" class="tmain" data-t="edit" title="Ändra">
+      <span class="sact" style="--c:${esc(t.color)}">${esc(t.code)}</span> <span class="tlabel">${esc(t.label)}</span>
+      ${t.givesProgress ? '<span class="tagchip">Krav</span>' : ''}${t.active ? '' : '<span class="tagchip">Inaktiv</span>'}
+    </button>
+    <div class="seg sm" role="group" aria-label="Påverkan på i tjänst">${EFFECT_SHORT.map(([v, l]) => `<button type="button" data-t="effect" data-e="${v}"${t.serviceEffect === v ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"'}>${l}</button>`).join('')}</div>
+    <span class="tmove"><button type="button" class="btn-ghost" data-t="up" aria-label="Flytta upp">↑</button><button type="button" class="btn-ghost" data-t="down" aria-label="Flytta ned">↓</button></span>
+  </div>`;
 }
 
 const stsDefaultGoals = () => (_sts.frameworks.find(f => f.id === _sts.cfg.defaultFrameworkId) || { goals: [] }).goals;
@@ -62,7 +64,7 @@ function drawStSettings(root) {
     <h1 class="page">Inställningar för ST-utbildning</h1>
     <nav class="subtabs" aria-label="Flikar">${STS_TABS.map(([k, l]) => `<a href="#/st/${k}"${k === tab ? ' class="active" aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
     ${tab === 'delmal' ? stsGoalsTab() : tab === 'personer' ? stsPeopleTab() : stsReqTab()}`;
-  root.querySelectorAll('.st-table').forEach(t => t.addEventListener('click', onStTableClick));
+  attachTypeCards(root);
   attachYearBoard(root, { onMove: moveReq, onEdit: id => openReqPanel(id), onAdd: y => openReqPanel(null, y) });
   root.querySelectorAll('.stp').forEach(t => t.addEventListener('click', onStPeopleClick));
 }
@@ -81,30 +83,20 @@ function stsTypesTab() {
       <div class="status" id="st-min-status"></div>
     </div>
     <div class="card">
-      <h2>Aktivitetstyper</h2>
-      <p class="hint" style="margin-top:0">Kodorden i veckoschemat. <strong>Påverkan</strong> styr raden "I tjänst": en vecka med någon aktivitet som är
-        <em>ej i tjänst</em> räknas bort; <em>neutral</em> (t.ex. Körkort) påverkar inte. <strong>Mål</strong> = aktiviteten kan kopplas till ett krav.</p>
-      ${types.length ? `<div class="sch-scroll"><table class="imp-table st-table">
-        <thead><tr><th>Kod</th><th>Namn</th><th>Färg</th><th>Påverkan på i tjänst</th><th>Mål</th><th>Aktiv</th><th></th></tr></thead>
-        <tbody id="st-types">${types.map(typeRow).join('')}</tbody>
-      </table></div>`
-      : `<p>Kliniken har inga aktivitetstyper än.</p>
-         <button class="btn" onclick="addDefaultTypes()">Lägg in standardtyperna</button>
-         <p class="hint">Rand, Kurs, Körkort, Projekt, Natt, FoU, Frv (frånvaro), FL, Idre och Admin — med Morakirurgens påverkan på i tjänst. Allt går att ändra efteråt.</p>`}
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <p class="hint" style="margin:0;flex:1 1 300px"><strong>Aktivitetstyper</strong> är kodorden i veckoschemat. Knapparna styr raden "I tjänst": en vecka med
+          någon aktivitet som är <em>ej i tjänst</em> räknas bort; <em>påverkar inte</em> (t.ex. Körkort) räknas varken bort eller till.
+          <strong>Krav</strong> = aktiviteten kan kopplas till ett krav. Klicka på en typ för att ändra, dra för att ändra ordningen i schemat.</p>
+        ${types.length ? '<button class="btn" onclick="openTypePanel(null)">+ Ny typ</button>' : ''}
+      </div>
+      ${types.length ? `<div class="tcards" id="st-types">${types.map(typeCard).join('')}</div>`
+      : `<div class="empty">
+          <p><strong>Inga aktivitetstyper än.</strong> Börja med standardtyperna — allt går att ändra efteråt.</p>
+          <p class="hint">Rand, Kurs, Körkort, Projekt, Natt, FoU, Frv (frånvaro), FL, Idre och Admin — med Morakirurgens påverkan på i tjänst.</p>
+          <div class="row" style="gap:8px;justify-content:center"><button class="btn" onclick="addDefaultTypes()">Lägg in standardtyperna</button>
+            <button class="btn-ghost" onclick="openTypePanel(null)">Egen typ</button></div>
+        </div>`}
       <div class="status" id="st-types-status"></div>
-      <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:bold">Ny aktivitetstyp</summary>
-        <div class="field-row">
-          <div><label for="nt-code">Kod</label><input type="text" id="nt-code" maxlength="20" placeholder="t.ex. Rand"></div>
-          <div><label for="nt-label">Namn</label><input type="text" id="nt-label" maxlength="40" placeholder="t.ex. Randning"></div>
-        </div>
-        <div class="field-row">
-          <div><label for="nt-color">Färg</label><input type="color" id="nt-color" value="#9aa5ad"></div>
-          <div><label for="nt-effect">Påverkan på i tjänst</label><select id="nt-effect">${effectOptions('ej_i_tjanst')}</select></div>
-        </div>
-        <label class="row" style="gap:8px;font-weight:normal;margin-top:10px"><input type="checkbox" id="nt-progress"> Kan kopplas till krav (måluppfyllelse)</label>
-        <div class="row" style="margin-top:10px"><button class="btn" onclick="addType()">Lägg till</button></div>
-        <div class="status err" id="nt-status"></div>
-      </details>
     </div>`;
 }
 
@@ -132,7 +124,7 @@ function stsReqTab() {
     </div>`;
 }
 
-function stsReqStatus(text, ok) { const b = el('st-reqs-status'); if (b) { b.textContent = text; b.className = 'status ' + (ok ? 'ok' : 'err'); } }
+function stsReqStatus(text, ok) { showStatus(el('st-reqs-status'), text, ok); }
 
 async function moveReq(id, year) {
   const r = _sts.cfg.requirements.find(x => x.id === id);
@@ -308,8 +300,7 @@ async function onStPeopleClick(e) {
   try {
     await api('/admin/st/people/' + encodeURIComponent(id), { method: 'PATCH', body });
     await reloadStSettings();
-    const again = document.querySelector(`.stp-row[data-id="${CSS.escape(id)}"] [data-s]`);
-    if (again) { again.textContent = `Sparat: ${who.displayName}.`; again.className = 'status ok'; }
+    toast(`Sparat: ${who.displayName}.`);
   } catch (err) { const b = row.querySelector('[data-s]'); b.textContent = err.message; b.className = 'status err'; }
 }
 
@@ -327,17 +318,88 @@ async function saveDefaultFramework() {
   } catch (err) { const b = el('st-fw-status'); b.textContent = err.message; b.className = 'status err'; }
 }
 
-const rowVal = (tr, f) => { const n = tr.querySelector(`[data-f="${f}"]`); return n.type === 'checkbox' ? n.checked : n.value; };
+function attachTypeCards(root) {
+  const list = root.querySelector('#st-types');
+  if (!list) return;
+  list.addEventListener('click', e => {
+    const b = e.target.closest('[data-t]'); if (!b) return;
+    const id = b.closest('.tcard').dataset.id;
+    if (b.dataset.t === 'edit') openTypePanel(id);
+    else if (b.dataset.t === 'effect') setTypeEffect(id, b.dataset.e);
+    else moveType(id, b.dataset.t === 'up' ? -1 : 1);
+  });
+  let dragId = null;
+  list.addEventListener('dragstart', e => { const c = e.target.closest('.tcard'); if (!c) return; dragId = c.dataset.id; c.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+  list.addEventListener('dragend', e => { e.target.closest('.tcard')?.classList.remove('dragging'); });
+  list.addEventListener('dragover', e => {
+    if (!dragId) return;
+    e.preventDefault();
+    const card = list.querySelector('.dragging'), after = [...list.querySelectorAll('.tcard:not(.dragging)')].find(c => e.clientY < c.getBoundingClientRect().top + c.offsetHeight / 2);
+    if (card) list.insertBefore(card, after || null);
+  });
+  list.addEventListener('drop', e => { e.preventDefault(); if (!dragId) return; dragId = null; saveTypeOrder([...list.querySelectorAll('.tcard')].map(c => c.dataset.id)); });
+}
 
-async function onStTableClick(e) {
-  const btn = e.target.closest('button[data-a]');
-  if (!btn) return;
-  const tr = btn.closest('tr'), id = tr.dataset.id, box = el('st-types-status');
-  const body = Object.fromEntries(['code', 'label', 'color', 'serviceEffect', 'givesProgress', 'active'].map(f => [f, rowVal(tr, f)]));
+async function saveTypeOrder(ids) {
   try {
-    await api(`/admin/st/types/${encodeURIComponent(id)}`, { method: 'PATCH', body });
-    await reloadStSettings({ box: box.id, text: `Sparat: ${body.code}.` });
-  } catch (err) { box.textContent = err.message; box.className = 'status err'; }
+    await api('/admin/st/types/order', { method: 'PUT', body: { ids } });
+    await reloadStSettings({ box: 'st-types-status', text: 'Ordningen är sparad.' });
+  } catch (err) { showStatus(el('st-types-status'), err.message, false); }
+}
+function moveType(id, dir) {
+  const ids = _sts.cfg.types.map(t => t.id), i = ids.indexOf(id), j = i + dir;
+  if (j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  saveTypeOrder(ids);
+}
+async function setTypeEffect(id, serviceEffect) {
+  const t = _sts.cfg.types.find(x => x.id === id);
+  if (!t || t.serviceEffect === serviceEffect) return;
+  try {
+    await api(`/admin/st/types/${encodeURIComponent(id)}`, { method: 'PATCH', body: { serviceEffect } });
+    await reloadStSettings({ box: 'st-types-status', text: `${t.code}: ${EFFECT_LABEL[serviceEffect].replace(' (påverkar inte)', '').toLowerCase()}.` });
+  } catch (err) { showStatus(el('st-types-status'), err.message, false); }
+}
+
+function openTypePanel(id) {
+  const t = id ? _sts.cfg.types.find(x => x.id === id) : { code: '', label: '', color: '#9aa5ad', serviceEffect: 'ej_i_tjanst', givesProgress: false, active: true };
+  el('sheet-root')?.remove();
+  const root = document.createElement('div');
+  root.id = 'sheet-root'; root.className = 'sp-overlay';
+  root.innerHTML = `<aside class="sidepanel" role="dialog" aria-label="${id ? 'Ändra aktivitetstyp' : 'Ny aktivitetstyp'}">
+    <div class="sp-head"><h2 style="margin:0">${id ? esc(t.code + ' · ' + t.label) : 'Ny aktivitetstyp'}</h2><button class="btn-ghost" onclick="closeReqPanel()" aria-label="Stäng">✕</button></div>
+    <div class="sp-body">
+      <div class="field-row">
+        <div><label for="tp-code">Kod</label><input type="text" id="tp-code" maxlength="20" value="${esc(t.code)}" placeholder="t.ex. Rand"></div>
+        <div><label for="tp-label">Namn</label><input type="text" id="tp-label" maxlength="40" value="${esc(t.label)}" placeholder="t.ex. Randning"></div>
+      </div>
+      <label for="tp-color">Färg</label><input type="color" id="tp-color" value="${esc(t.color)}">
+      <label>Räknas i "I tjänst" som</label>
+      <div class="seg" id="tp-effect">${EFFECT_SHORT.map(([v, l]) => `<button type="button" data-e="${v}"${t.serviceEffect === v ? ' class="on"' : ''}>${l}</button>`).join('')}</div>
+      <label class="check"><input type="checkbox" id="tp-progress"${t.givesProgress ? ' checked' : ''}> Kan kopplas till krav (måluppfyllelse)</label>
+      ${id ? `<label class="check"><input type="checkbox" id="tp-active"${t.active ? ' checked' : ''}> Aktiv (inaktiva går inte att välja i schemat)</label>` : ''}
+    </div>
+    <div class="sp-foot"><button class="btn" onclick="saveTypePanel(${id ? `'${esc(id)}'` : 'null'})">${id ? 'Spara' : 'Lägg till'}</button>
+      <button class="btn-ghost" onclick="closeReqPanel()">Avbryt</button><div class="status" id="tp-status"></div></div>
+  </aside>`;
+  root.addEventListener('click', e => { if (e.target === root) closeReqPanel(); });
+  root.querySelector('#tp-effect').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    root.querySelectorAll('#tp-effect button').forEach(x => x.classList.toggle('on', x === b));
+  });
+  document.body.appendChild(root);
+  el('tp-code').focus();
+}
+
+async function saveTypePanel(id) {
+  const body = { code: el('tp-code').value, label: el('tp-label').value, color: el('tp-color').value,
+    serviceEffect: document.querySelector('#tp-effect button.on')?.dataset.e, givesProgress: el('tp-progress').checked };
+  if (id) body.active = el('tp-active').checked;
+  try {
+    await api(id ? `/admin/st/types/${encodeURIComponent(id)}` : '/admin/st/types', { method: id ? 'PATCH' : 'POST', body });
+    closeReqPanel();
+    await reloadStSettings({ box: 'st-types-status', text: `${id ? 'Sparat' : 'Tillagt'}: ${body.code}.` });
+  } catch (err) { showStatus(el('tp-status'), err.message, false); }
 }
 
 async function addDefaultTypes() {
@@ -347,13 +409,4 @@ async function addDefaultTypes() {
   } catch (err) { const b = el('st-types-status'); b.textContent = err.message; b.className = 'status err'; }
 }
 
-async function addType() {
-  try {
-    await api('/admin/st/types', { method: 'POST', body: {
-      code: el('nt-code').value, label: el('nt-label').value, color: el('nt-color').value,
-      serviceEffect: el('nt-effect').value, givesProgress: el('nt-progress').checked
-    } });
-    await reloadStSettings({ box: 'st-types-status', text: 'Aktivitetstypen är tillagd.' });
-  } catch (err) { el('nt-status').textContent = err.message; }
-}
 

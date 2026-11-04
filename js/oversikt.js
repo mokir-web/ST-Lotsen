@@ -106,7 +106,9 @@ function drawOversikt(root) {
             <th rowspan="2" class="pct"><button type="button" class="link-btn ov-sort" data-sort="pct" title="Andel obligatoriska krav klara — klicka för att sortera">% klart${_ov.sort === 'pct' ? ' ▾' : ''}</button></th>${head1}</tr><tr>${head2}</tr></thead>
           <tbody>${rows}<tr class="svc-row"><th class="pname">Klara</th><td></td>${done}</tr></tbody>
         </table>
-      </div>` : `<p class="muted">${ordered.length ? 'Inga ST-läkare att visa.' : 'Inga krav än — lägg in dem under Inställningar i vänsterspalten.'}</p>`}
+      </div>` : (ordered.length ? '<p class="muted">Inga ST-läkare att visa.</p>'
+        : `<div class="empty"><p><strong>Inga krav än.</strong> Kraven är klinikens mall per ST-år — det ST-läkarna ska uppnå.</p>
+          ${data.canEditAll ? '<a class="btn" href="#/st/krav" style="text-decoration:none">Lägg in krav</a>' : '<p class="hint">Studierektor lägger in dem.</p>'}</div>`)}
       <p style="margin:12px 0 0;line-height:2;font-size:13px">
         <span class="pchip st-klart">✓ Klart</span> <span class="pchip st-tidigare">✓ Tidigare</span> <span class="pchip st-bokad">◷ Bokad (vecka)</span>
         <span class="pchip st-forslag">? Förslag/Ev.</span> <span class="pchip st-plan">✎ Plan</span> <span class="pchip st-saknas">· Saknas</span>
