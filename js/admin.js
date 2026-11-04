@@ -1,7 +1,7 @@
 // ── Admin (#/admin) ──────────────────────────────────────────────────────
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser() och js/import.js (OpjourImport).
-// Varje användare är en rad med snabbreglage (Admin, Aktiv) som ändrar direkt; namn, telefon,
-// ST-uppgifter (ST-läkare, studierektor, ST-start/-slut), PIN-återställning och radering ligger i en uppfällbar del under raden.
+// Användare (U1): sökbar lista med filter; klick öppnar en panel från höger med flikarna Uppgifter, Roller (grupperade per modul,
+// med förklaring) och Konto (aktiv, PIN, radera). Lägg till och Importera öppnar också panelen.
 // Endast för admin (annars skickas man till startsidan). Hantera klinikens användare, moduler och (global admin) kliniker och felrapporter.
 // Opjours inställningar — jourbyte, reserv, statistikbehörighet och väggskärmar — finns i js/opsettings.js (#/opjour-settings).
 // Backend skyddar allt (admin-krav, egen klinik, ingen självinaktivering) — detta är bara UI:t.
@@ -26,7 +26,7 @@ async function renderAdmin(root) {
     const me = await api('/me');
     setMenuForUser(me);
     if (!me.isAdmin) { location.hash = '#/'; return; }
-    _admin = { me, draw: drawAdmin, open: new Set(), notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
+    _admin = { me, draw: drawAdmin, open: new Set(), filter: 'alla', q: '', panel: null, notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
     if (me.isGlobalAdmin) {
       _admin.clinics = (await api('/admin/clinics')).clinics;
       _admin.errors = await api('/error-reports').catch(() => null);
@@ -135,77 +135,199 @@ function drawAdmin(root) {
   const { me } = _admin;
   const opjour = (me.modules || ['opjour']).includes('opjour');
   const roster = sortedRoster().filter(u => !u.isDisplay);   // väggskärmarna hanteras under Opjour → Inställningar
-  const active = roster.filter(u => u.active), inactive = roster.filter(u => !u.active);
 
   root.innerHTML = `
     <h1 class="page">Administration</h1>
 
     ${noticeCard()}
 
-    ${_admin.clinics ? clinicCard() : ''}
+    ${opjour ? `<p class="hint" style="margin:-4px 0 14px">Jourbyte, väggskärmar och en samlad lista över reserver och statistik finns under <a href="#/opjour-settings">Opjour → Inställningar</a>.</p>` : ''}
 
-    ${_admin.errors ? errorCard() : ''}
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Användare (${roster.filter(u => u.active).length})</h2>
+        <div class="row" style="gap:8px">
+          <button class="btn-ghost" onclick="openUserPanel({ kind: 'import' })">Importera…</button>
+          <button class="btn" onclick="openUserPanel({ kind: 'add' })">+ Lägg till</button>
+        </div>
+      </div>
+      <div class="row" style="margin:12px 0 8px;gap:8px">
+        <input type="search" id="u-q" placeholder="Sök namn eller användarnamn…" value="${esc(_admin.q)}" oninput="_admin.q=this.value;drawUserRows()" style="flex:1 1 220px;max-width:none">
+        <div class="seg" id="u-filter">${U_FILTERS.map(([k, l]) => `<button type="button" data-f="${k}" class="${_admin.filter === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      </div>
+      <div id="u-rows" class="urows"></div>
+    </div>
 
     ${moduleCard()}
 
-    ${opjour ? `<p class="hint" style="margin:-4px 0 14px">Jourbyte, reserver, statistikbehörighet och väggskärmar ställs in under <a href="#/opjour-settings">Opjour → Inställningar</a>.</p>` : ''}
+    ${_admin.errors ? errorCard() : ''}
 
-    <div class="card">
-      <h2>Lägg till användare</h2>
-      <form id="au-form" onsubmit="return addUser(event)">
-        <div class="field-row">
-          <div><label for="au-name" style="margin-top:0">Fullständigt namn</label>
-            <input type="text" id="au-name" maxlength="60" required oninput="onAuName(this.value)"></div>
-          <div><label for="au-user" style="margin-top:0">Användarnamn</label>
-            <input type="text" id="au-user" autocapitalize="none" spellcheck="false" required oninput="_admin.userTouched=true"></div>
-        </div>
-        <div class="field-row">
-          <div><label for="au-role">Roll</label>
-            <select id="au-role">
-              <option value="user">Användare</option>
-              <option value="admin">Admin</option>
-            </select></div>
-          <div id="au-phone-wrap"><label for="au-phone">Telefon (valfritt)</label>
-            <input type="tel" id="au-phone" maxlength="30" inputmode="tel" placeholder="070-123 45 67"></div>
-        </div>
-        <div class="field-row">
-          <div><label for="au-pin">Tillfällig PIN</label>
-            <div class="row" style="flex-wrap:nowrap">
-              <input type="text" id="au-pin" inputmode="numeric" maxlength="4" value="${esc(_admin.pin)}" style="max-width:120px" required>
-              <button type="button" class="btn-ghost" onclick="el('au-pin').value=randomPin()">Slumpa</button>
-            </div></div>
-        </div>
+    ${_admin.clinics ? clinicCard() : ''}
+  `;
+  el('u-filter').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { _admin.filter = b.dataset.f; drawAdmin(el('view')); } });
+  el('u-rows').addEventListener('click', e => { const r = e.target.closest('[data-uid]'); if (r) openUserPanel({ kind: 'user', id: r.dataset.uid, tab: 'roller' }); });
+  drawUserRows();
+  if (_admin.panel) drawUserPanel();
+}
+
+
+// ── Användarlista (U1) ────────────────────────────────────────────────────
+const U_FILTERS = [['alla', 'Alla'], ['st', 'ST-läkare'], ['handl', 'Handledare'], ['admin', 'Admin'], ['inaktiva', 'Inaktiva']];
+const adeptsOf = id => (_admin.me.roster || []).filter(x => x.active && (x.supervisorIds || []).includes(id));
+const nameOf = id => (_admin.me.roster || []).find(x => x.id === id)?.displayName || '?';
+const mods = () => _admin.me.modules || ['opjour'];
+
+function drawUserRows() {
+  const q = _admin.q.trim().toLowerCase(), f = _admin.filter;
+  const list = sortedRoster().filter(u => !u.isDisplay)
+    .filter(u => f === 'inaktiva' ? !u.active : u.active)
+    .filter(u => f === 'st' ? u.isSt : f === 'handl' ? adeptsOf(u.id).length : f === 'admin' ? u.isAdmin : true)
+    .filter(u => !q || (u.displayName + ' ' + (u.username || '')).toLowerCase().includes(q));
+  el('u-rows').innerHTML = list.map(u => {
+    const n = adeptsOf(u.id).length;
+    return `<button type="button" class="urow${_admin.panel?.id === u.id ? ' on' : ''}" data-uid="${esc(u.id)}">
+      <span class="uname">${esc(u.displayName)}${u.id === _admin.me.userId ? ' <span class="muted">(du)</span>' : ''}</span>
+      <span class="uuser">${esc(u.username || '')}</span>
+      <span class="uchips">${adminChips(u)}${n ? ` <span class="tagchip">Handledare (${n})</span>` : ''}</span>
+    </button>`;
+  }).join('') || `<p class="muted">${q ? 'Ingen träff.' : 'Inga användare här.'}</p>`;
+}
+
+function openUserPanel(p) { _admin.panel = p; drawUserPanel(); if (el('u-rows')) drawUserRows(); }
+function closeUserPanel() { _admin.panel = null; _admin.plan = null; el('sheet-root')?.remove(); if (el('u-rows')) drawUserRows(); }
+
+function roleRow(title, info, attr, checked, disabled, why) {
+  return `<label class="role-row"${why ? ` title="${esc(why)}"` : ''}><span><strong>${title}</strong><small>${info}</small></span>${sw(`data-r="${attr}"`, checked, disabled)}</label>`;
+}
+
+function drawUserPanel() {
+  const p = _admin.panel;
+  let title, body, foot = '';
+  if (p.kind === 'add') {
+    title = 'Lägg till användare';
+    body = `<form id="au-form" onsubmit="return addUser(event)">
+        <label for="au-name">Fullständigt namn</label><input type="text" id="au-name" maxlength="60" required oninput="onAuName(this.value)">
+        <label for="au-user">Användarnamn</label><input type="text" id="au-user" autocapitalize="none" spellcheck="false" required oninput="_admin.userTouched=true">
+        <label for="au-phone">Telefon (valfritt)</label><input type="tel" id="au-phone" maxlength="30" inputmode="tel" placeholder="070-123 45 67">
+        <label for="au-role">Roll</label><select id="au-role"><option value="user">Användare</option><option value="admin">Admin</option></select>
+        <label for="au-pin">Tillfällig PIN</label>
+        <div class="row" style="flex-wrap:nowrap"><input type="text" id="au-pin" inputmode="numeric" maxlength="4" value="${esc(_admin.pin)}" style="max-width:120px" required>
+          <button type="button" class="btn-ghost" onclick="el('au-pin').value=randomPin()">Slumpa</button></div>
+        <p class="hint">Personen väljer en egen PIN vid första inloggningen. Övriga roller (ST-läkare, reserv …) sätts i personens panel efteråt.</p>
         <div class="row" style="margin-top:12px"><button type="submit" class="btn">Lägg till</button></div>
         <div id="au-status" class="status err"></div>
-      </form>
-    </div>
-
-    <div class="card">
-      <h2>Importera användare</h2>
-      <p class="hint" style="margin-top:0">Ladda upp en lista som CSV eller Excel (.xlsx). Kolumner: <strong>Fullständigt namn</strong> (obligatorisk), Användarnamn, Telefon, Roll och Reserv. Filen läses i din webbläsare; en förhandsvisning visas innan något skapas. Befintliga användarnamn hoppas över.</p>
+      </form>`;
+  } else if (p.kind === 'import') {
+    title = 'Importera användare';
+    body = `<p class="hint" style="margin-top:8px">Ladda upp en lista som CSV eller Excel (.xlsx). Kolumner: <strong>Fullständigt namn</strong> (obligatorisk), Användarnamn, Telefon, Roll och Reserv. Filen läses i din webbläsare; en förhandsvisning visas innan något skapas. Befintliga användarnamn hoppas över.</p>
       <div class="row" style="margin-top:10px">
         <button class="btn-ghost" onclick="downloadImportTemplate()">Ladda ner mall (CSV)</button>
         <input type="file" id="imp-file" accept=".csv,.txt,.xlsx" onchange="onImportFile(this.files[0])">
       </div>
-      <div id="imp-out"></div>
-    </div>
-
-    <div class="card">
-      <h2>Användare (${active.length})</h2>
-      <div class="ulist" id="ulist-active">${active.map(u => userBlock(u, me.userId)).join('') || '<p class="muted">Inga användare.</p>'}</div>
-    </div>
-
-    ${inactive.length ? `<div class="card">
-      <h2>Inaktiva (${inactive.length})</h2>
-      <div class="ulist" id="ulist-inactive">${inactive.map(u => userBlock(u, me.userId)).join('')}</div>
-    </div>` : ''}
-  `;
-
-  root.querySelectorAll('.ulist').forEach(list => {
-    list.addEventListener('click', onUserClick);
-    list.addEventListener('change', onUserChange);
+      <div id="imp-out"></div>`;
+  } else {
+    const u = (_admin.me.roster || []).find(x => x.id === p.id);
+    if (!u) { closeUserPanel(); return; }
+    const isSelf = u.id === _admin.me.userId, locked = u.isGlobalAdmin && !_admin.me.isGlobalAdmin;
+    const fixed = isSelf || u.isGlobalAdmin || locked;
+    const why = isSelf ? 'Du kan inte ändra detta på dig själv.' : u.isGlobalAdmin ? 'Globalt adminkonto.' : '';
+    const tab = p.tab || 'roller';
+    title = esc(u.displayName) + (isSelf ? ' <span class="muted" style="font-weight:normal">(du)</span>' : '');
+    const tabs = [['roller', 'Roller'], ['uppgifter', 'Uppgifter'], ['konto', 'Konto']];
+    const adepts = adeptsOf(u.id), st = mods().includes('schema') || mods().includes('mal');
+    const panes = {
+      uppgifter: `
+        <label for="up-name">Fullständigt namn</label><input type="text" id="up-name" value="${esc(u.displayName)}" maxlength="60">
+        <label for="up-user">Användarnamn</label><input type="text" id="up-user" value="${esc(u.username || '')}" maxlength="60" autocapitalize="none" spellcheck="false">
+        <label for="up-phone">Telefon</label><input type="tel" id="up-phone" value="${esc(u.phone || '')}" maxlength="30" inputmode="tel" placeholder="070-123 45 67">
+        <div class="row" style="margin-top:12px"><button class="btn" onclick="saveUserDetails()" ${locked ? 'disabled' : ''}>Spara</button></div>`,
+      roller: `
+        <h3>Klinik</h3>
+        ${roleRow('Admin', 'Hanterar användare, moduler och alla inställningar på kliniken.', 'admin', u.isAdmin, fixed, why)}
+        ${mods().includes('opjour') ? `<h3>Opjour</h3>
+        ${roleRow('Reserv', 'Ingår i utlottningen när ingen har bokat dagen. Personen kan också slå på det själv.', 'reserve', u.availableReserve, locked, '')}
+        ${roleRow('Statistik', u.isAdmin ? 'Ser sidan Statistik — admin ser den alltid.' : 'Ser sidan Statistik.', 'stats', u.isAdmin || u.canSeeStats, u.isAdmin || locked, '')}` : ''}
+        ${st ? `<h3>ST-utbildning</h3>
+        ${roleRow('ST-läkare', 'Syns i veckoschemat och måluppfyllelsen och har en utbildningsplan.', 'st', u.isSt, locked, '')}
+        ${roleRow('Studierektor', 'Ställer in ST-utbildningen (krav, typer, delmål, handledare) och ser alla ST-läkare.', 'director', u.isDirector, locked, '')}
+        <div class="role-info"><strong>Handledare för</strong><small>${adepts.length ? adepts.map(a => esc(a.displayName)).join(', ') : 'ingen'}</small></div>
+        ${u.isSt ? `<div class="role-info"><strong>Handledare</strong><small>${(u.supervisorIds || []).length ? u.supervisorIds.map(id => esc(nameOf(id))).join(', ') : 'ingen angiven'}</small></div>` : ''}
+        <p class="hint">ST-start, målbeskrivning och handledare ändras under <a href="#/st/personer">ST-utbildning → Inställningar</a>.</p>` : ''}`,
+      konto: `
+        ${roleRow('Aktiv', 'Ett inaktivt konto kan inte logga in. Bokningar och historik ligger kvar.', 'active', u.active, fixed, why)}
+        <h3>PIN</h3>
+        ${locked ? '<p class="hint">Globalt adminkonto — kan bara ändras av en global admin.</p>' : '<button class="btn-ghost" onclick="resetUserPin()">Återställ PIN…</button><p class="hint">Personen får en tillfällig PIN och väljer en egen vid nästa inloggning.</p>'}
+        ${isSelf || u.isGlobalAdmin ? '<p class="hint">Du kan inte inaktivera, ta bort eller degradera dig själv.</p>' : `<h3>Radera</h3>
+        <button class="btn-ghost" style="color:var(--danger);border-color:#e3b3ab" onclick="deleteUser()">Radera användare…</button>
+        <p class="hint">Raderar kontot och personens bokningar permanent. Vill du behålla historiken: stäng av Aktiv i stället.</p>`}`
+    };
+    body = `<nav class="subtabs" style="margin:6px 0 4px">${tabs.map(([k, l]) => `<a href="#" data-tab="${k}"${k === tab ? ' class="active"' : ''}>${l}</a>`).join('')}</nav>
+      <div class="status" id="up-status"></div>${panes[tab]}`;
+  }
+  el('sheet-root')?.remove();
+  const root = document.createElement('div');
+  root.id = 'sheet-root'; root.className = 'sp-overlay';
+  root.innerHTML = `<aside class="sidepanel" role="dialog" aria-label="${p.kind === 'user' ? 'Användare' : title}">
+    <div class="sp-head"><h2 style="margin:0">${title}</h2><button class="btn-ghost" onclick="closeUserPanel()" aria-label="Stäng">✕</button></div>
+    <div class="sp-body">${body}</div>${foot}</aside>`;
+  root.addEventListener('click', e => {
+    if (e.target === root) { closeUserPanel(); return; }
+    const t = e.target.closest('[data-tab]');
+    if (t) { e.preventDefault(); _admin.panel.tab = t.dataset.tab; drawUserPanel(); }
   });
-  if (_admin.plan) drawImportPlan();
+  root.addEventListener('change', e => { const box = e.target.closest('input[data-r]'); if (box) onRoleChange(box); });
+  document.body.appendChild(root);
+  if (p.kind === 'import' && _admin.plan) drawImportPlan();
+}
+
+// Kör en ändring på personen i panelen, ritar om sidan (panelen öppnas igen på samma flik) och visar resultatet i panelen.
+async function panelAction(fn, okText) {
+  const show = (text, ok) => { const b = el('up-status'); if (b) { b.textContent = text; b.className = 'status ' + (ok ? 'ok' : 'err'); } };
+  try {
+    await fn(_admin.panel.id);
+    await reloadAdmin();
+    if (okText) show(okText, true);
+  } catch (err) {
+    await reloadAdmin().catch(() => {});   // återställ reglage som inte gick igenom
+    show(err.message, false);
+  }
+}
+
+function onRoleChange(box) {
+  const u = (_admin.me.roster || []).find(x => x.id === _admin.panel.id), a = box.dataset.r, on = box.checked;
+  if (a === 'active' && !on && !confirm(`Inaktivera ${u.displayName}? Kontot kan inte längre logga in. Befintliga bokningar ligger kvar i kalendern.`)) { box.checked = true; return; }
+  const patch = body => api('/admin/users/' + encodeURIComponent(u.id), { method: 'PATCH', body });
+  panelAction(() => a === 'reserve' ? api('/reserve', { method: 'PUT', body: { available: on, userId: u.id } })
+    : patch({ [{ admin: 'isAdmin', stats: 'canSeeStats', st: 'isSt', director: 'isDirector', active: 'active' }[a]]: on }), 'Sparat.');
+}
+
+function saveUserDetails() {
+  panelAction(id => api('/profile', { method: 'PUT', body: { userId: id, displayName: el('up-name').value, username: el('up-user').value, phone: el('up-phone').value } }), 'Sparat.');
+}
+
+function resetUserPin() {
+  const u = (_admin.me.roster || []).find(x => x.id === _admin.panel.id);
+  if (!confirm(`Återställa PIN för ${u.displayName}? Den gamla slutar gälla och personen måste välja en ny vid nästa inloggning.`)) return;
+  const pin = randomPin();
+  panelAction(async id => {
+    await api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { newTempPin: pin } });
+    _admin.notice = { tone: 'warn', html: `Ny tillfällig PIN för <strong>${esc(u.displayName)}</strong> (${esc(u.username || '')}): <strong>${pin}</strong><br><span class="muted">Visas bara nu.</span>` };
+  }, `Ny tillfällig PIN: ${pin} (visas bara nu).`);
+}
+
+function deleteUser() {
+  const u = (_admin.me.roster || []).find(x => x.id === _admin.panel.id);
+  const n = u.claimCount || 0, f = u.futureClaimCount || 0;
+  const warn = n ? `\n\n${u.displayName} har ${n} bokning${n === 1 ? '' : 'ar'}${f ? ` (varav ${f} kommande)` : ''} som också raderas ur kalendern och statistiken. Vill du behålla historiken ska du i stället stänga av "Aktiv".` : '';
+  if (!confirm(`Radera ${u.displayName} (${u.username}) PERMANENT?${warn}\n\nDet går inte att ångra.`)) return;
+  (async () => {
+    try {
+      const r = await api('/admin/users/' + encodeURIComponent(u.id), { method: 'DELETE' });
+      _admin.panel = null; el('sheet-root')?.remove();
+      _admin.notice = { tone: 'warn', html: `<strong>${esc(r.deleted)}</strong> är raderad${r.claimsRemoved ? ` (${r.claimsRemoved} bokning${r.claimsRemoved === 1 ? '' : 'ar'} togs bort)` : ''}.` };
+      await reloadAdmin(); window.scrollTo(0, 0);
+    } catch (err) { const b = el('up-status'); if (b) { b.textContent = err.message; b.className = 'status err'; } }
+  })();
 }
 
 function onAuName(v) {
@@ -225,10 +347,11 @@ async function addUser(e) {
   try {
     await api('/admin/users', { method: 'POST', body });
     _admin.notice = { tone: 'ok', html:
-      `${esc(ROLE_LABEL[body.role])}skonto skapat: <strong>${esc(body.displayName)}</strong><br>`
+      `Konto skapat${body.role === 'admin' ? ' (admin)' : ''}: <strong>${esc(body.displayName)}</strong><br>`
       + `Användarnamn <strong>${esc(body.username)}</strong> · PIN <strong>${esc(body.tempPin)}</strong><br>`
       + `<span class="muted">Visas bara nu. ${body.role === 'display' ? 'Logga in på skärmen med dessa uppgifter.' : 'Personen väljer en egen PIN vid första inloggningen.'}</span>` };
     _admin.pin = randomPin(); _admin.userTouched = false;
+    _admin.panel = null; el('sheet-root')?.remove();
     await reloadAdmin();
     window.scrollTo(0, 0);
   } catch (err) { st.textContent = err.message; }
@@ -273,7 +396,7 @@ function drawImportPlan() {
     </table></div>
     <div class="row" style="margin-top:12px">
       ${p.counts.ok ? `<button class="btn" onclick="confirmImport()">Importera ${p.counts.ok} användare</button>` : ''}
-      <button class="btn-ghost" onclick="_admin.plan=null;el('imp-file').value='';el('imp-out').innerHTML=''">Avbryt</button>
+      <button class="btn-ghost" onclick="_admin.plan=null;el('imp-file').value='';el('imp-out').innerHTML=''">Välj annan fil</button>
     </div>
     ${p.counts.error ? '<p class="hint">Rader med fel hoppas över. Rätta filen och ladda upp den igen om de ska med.</p>' : ''}
     <div id="imp-status" class="status err"></div>`;
@@ -285,6 +408,7 @@ async function confirmImport() {
     const r = await api('/admin/users/import', { method: 'POST', body: { rows: _admin.plan.rows } });
     _admin.created = r.created;
     _admin.plan = null;
+    _admin.panel = null; el('sheet-root')?.remove();
     _admin.notice = { tone: 'ok', csv: true, html:
       `<strong>${r.created.length} användare skapade.</strong> Dela ut användarnamn och tillfällig PIN — de visas bara nu.`
       + `<div style="overflow-x:auto;margin-top:8px"><table class="imp-table"><tr><th>Namn</th><th>Användarnamn</th><th>Roll</th><th>PIN</th></tr>`

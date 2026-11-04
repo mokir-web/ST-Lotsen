@@ -268,6 +268,18 @@
     .ulist .status:empty { display: none; }
     .ulist .body { display: none; padding: 0 2px 14px 20px; }
     .ulist .ublock.open .body { display: block; }
+    /* Användarlista (U1) */
+    .urows { display: flex; flex-direction: column; }
+    .urow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; text-align: left; background: none; border: none; border-top: 1px solid var(--line); border-radius: 0; padding: 10px 6px; font: inherit; color: inherit; }
+    .urow:first-child { border-top: none; }
+    .urow:hover, .urow.on { background: var(--accent-soft); }
+    .urow .uname { font-weight: bold; min-width: 160px; }
+    .urow .uuser { color: var(--ink-soft); font-size: 14px; min-width: 120px; }
+    .urow .uchips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .role-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 0; padding: 10px 0; border-top: 1px solid #eef1f3; font-weight: normal; cursor: pointer; }
+    .role-row small, .role-info small { display: block; color: var(--ink-soft); font-size: 13px; margin-top: 2px; }
+    .role-info { padding: 10px 0; border-top: 1px solid #eef1f3; font-size: 15px; }
+    .sidepanel input[type=text], .sidepanel input[type=tel], .sidepanel select { max-width: none; }
     .tagchip { display: inline-block; font-size: 11px; font-weight: bold; padding: 1px 8px; border-radius: 9px; background: #eef1f3; color: var(--ink-soft); border: 1px solid var(--line); }
     .tagchip.admin { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
     .tagchip.off { background: #f6e3df; color: var(--danger); border-color: #e3b3ab; }
@@ -493,7 +505,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.16.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.17.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
