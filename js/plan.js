@@ -57,6 +57,8 @@ function drawPlan(root) {
         <button class="btn-ghost no-print" onclick="window.print()" title="Översikt och delmål på A4, med signaturrad">Skriv ut</button>
       </div>
       <p style="margin:8px 0 0">ST-start ${esc(fmtMonth(p.stStart))}${p.stEnd ? ` · ST-slut ${esc(fmtMonth(p.stEnd))}` : ''}${esc(yr)}</p>
+      ${p.expectedEnd ? `<p style="margin:4px 0 0">Beräknat ST-slut: <strong>${esc(fmtMonth(p.expectedEnd))}</strong>
+        <span class="muted">(5 år${p.leaveWeeks ? ` + ${p.leaveWeeks} veckors ledighet som förlänger` : ''})</span></p>` : ''}
       <p style="margin:4px 0 0">Målbeskrivning: ${data.framework ? `<strong>${esc(data.framework.label)}</strong>${data.framework.fromClinic ? ' <span class="muted">(klinikens förval)</span>' : ''}` : '<span class="muted">ingen vald — sätts under ST-utbildning → Inställningar → ST-läkare och handledare</span>'}</p>
       <p style="margin:4px 0 0">Handledare: ${supNames ? esc(supNames) : '<span class="muted">ingen angiven</span>'}</p>
       <p style="margin:4px 0 0">Senast genomgången: ${p.reviewedAt ? `${esc(p.reviewedAt)}${p.reviewedByName ? ' av ' + esc(p.reviewedByName) : ''}` : '<span class="muted">–</span>'}
@@ -79,6 +81,49 @@ function drawPlan(root) {
     e.preventDefault(); _plan.tab = a.dataset.tab; drawPlan(root);
   }));
   root.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', onPlanGoal));
+  root.querySelectorAll('[data-pi="restore"]').forEach(b => b.addEventListener('click', () => savePlanItem(b.dataset.id, { removed: false })));
+  if (_plan.data.canEditPlan) attachYearBoard(root.querySelector('[data-pane="oversikt"]'), {
+    onMove: (id, y) => savePlanItem(id, { stYear: y || 0 }), onEdit: openPlanItemPanel });
+}
+
+// ── Personens plan: flytta, ta bort, tillbaka till mallen ────────────────
+async function savePlanItem(requirementId, change) {
+  try {
+    await api(`/plan/${encodeURIComponent(_plan.userId)}/items`, { method: 'PUT', body: { requirementId, ...change } });
+    el('sheet-root')?.remove();
+    await reloadPlan();
+    const r = [..._plan.data.requirements, ...(_plan.data.removedRequirements || [])].find(x => x.id === requirementId);
+    toast(`${r ? r.name + ': ' : ''}${change.reset ? 'som mallen' : 'removed' in change ? (change.removed ? 'borttaget ur planen' : 'tillbaka i planen') : change.stYear ? 'år ' + change.stYear : 'inget år'}.`);
+  } catch (err) { await reloadPlan().catch(() => {}); showStatus(el('pi-status'), err.message, false); }
+}
+
+function openPlanItemPanel(id) {
+  const r = _plan.data.requirements.find(x => x.id === id);
+  if (!r) return;
+  const tmpl = r.personal ? r.templateYear : r.stYear;
+  el('sheet-root')?.remove();
+  const root = document.createElement('div');
+  root.id = 'sheet-root'; root.className = 'sp-overlay';
+  root.innerHTML = `<aside class="sidepanel" role="dialog" aria-label="Kravet i planen">
+    <div class="sp-head"><h2 style="margin:0">${esc(r.category + ' ' + r.name)}</h2><button class="btn-ghost" onclick="el('sheet-root').remove()" aria-label="Stäng">✕</button></div>
+    <div class="sp-body">
+      <p style="margin:6px 0 0">${planChip(_plan.data.cells[r.id])} <span class="muted">Mallen: ${tmpl ? 'år ' + tmpl : 'inget år'}</span></p>
+      <h3>ST-år i den här planen</h3>
+      <div class="seg" id="pi-year">${[1, 2, 3, 4, 5, 6, 0].map(y => `<button type="button" data-y="${y}" class="${(r.stYear || 0) === y ? 'on' : ''}">${y || '–'}</button>`).join('')}</div>
+      <p class="hint">Gäller bara den här planen. Klinikens mall ändras under ST-utbildning → Inställningar → Krav.</p>
+      <div class="row" style="gap:8px;margin-top:14px">
+        ${r.personal ? `<button class="btn-ghost" onclick="savePlanItem('${esc(r.id)}', { reset: true })">Som mallen</button>` : ''}
+        <button class="btn-ghost" style="color:var(--danger);border-color:#e3b3ab" onclick="savePlanItem('${esc(r.id)}', { removed: true })">Ta bort ur planen</button>
+      </div>
+      <p class="hint">Borttagna krav räknas inte i förloppet eller måluppfyllelsen och kan läggas tillbaka.</p>
+      <div class="status" id="pi-status"></div>
+    </div></aside>`;
+  root.addEventListener('click', e => { if (e.target === root) root.remove(); });
+  root.querySelector('#pi-year').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b || b.classList.contains('on')) return;
+    savePlanItem(r.id, { stYear: Number(b.dataset.y) });
+  });
+  document.body.appendChild(root);
 }
 
 // Översikt: förlopp (obligatoriska krav per ST-år, delmål signerade) och kraven per ST-år med status.
@@ -104,8 +149,12 @@ function planOverview() {
     <div class="card">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Per ST-år</h2>
         ${me.isDirector || me.isAdmin ? '<a class="btn-ghost no-print" href="#/st/krav" style="text-decoration:none">Ändra mallen</a>' : ''}</div>
-      <p class="hint">Kraven enligt klinikens mall, med status. * = valfritt.</p>
-      ${yearBoardHtml(data.requirements, { status: r => planChip(data.cells[r.id]) })}
+      <p class="hint">${data.canEditPlan ? '<span class="no-print"><strong>Dra</strong> ett krav till ett annat år eller <strong>klicka</strong> för att flytta eller ta bort det — bara i den här planen, mallen ändras inte. </span>' : ''}Status per krav. * = valfritt.</p>
+      ${yearBoardHtml(data.requirements, { editable: data.canEditPlan, add: false, status: r => planChip(data.cells[r.id]),
+        detail: r => r.personal ? `<div class="yb-tags"><span title="Avviker från mallen">Egen plan · mall: ${r.templateYear ? 'år ' + r.templateYear : 'inget år'}</span></div>` : '' })}
+      ${(data.removedRequirements || []).length ? `<details class="no-print" style="margin-top:12px"><summary style="cursor:pointer;font-weight:bold">Borttagna ur planen (${data.removedRequirements.length})</summary>
+        <ul class="today-list">${data.removedRequirements.map(r => `<li>${esc(r.category)} <strong>${esc(r.name)}</strong>
+          ${data.canEditPlan ? `<button type="button" class="link-btn" style="color:var(--interest)" data-pi="restore" data-id="${esc(r.id)}">Lägg tillbaka</button>` : ''}</li>`).join('')}</ul></details>` : ''}
     </div>`;
 }
 
@@ -142,9 +191,10 @@ function planGoals() {
 // Historik: signeringar, genomgångar och status satt för hand, senaste först (backend: plan_events).
 function planHistory() {
   const { data } = _plan;
-  const goal = id => (data.goals || []).find(g => g.id === id), req = id => data.requirements.find(r => r.id === id);
+  const goal = id => (data.goals || []).find(g => g.id === id), req = id => [...data.requirements, ...(data.removedRequirements || [])].find(r => r.id === id);
   const text = e => {
     const g = goal(e.goalId), r = req(e.requirementId);
+    if (e.kind === 'item') return `<strong>${esc(r?.name || 'Borttaget krav')}</strong> i planen: ${esc(e.detail || '')}`;
     if (e.kind === 'sign') return `Delmål <strong>${esc(g?.code || '?')}</strong> signerat${e.detail ? ` · ${esc(e.detail)}` : ''}`;
     if (e.kind === 'unsign') return `Signeringen av delmål <strong>${esc(g?.code || '?')}</strong> togs bort`;
     if (e.kind === 'review') return `Planen genomgången${e.detail ? ` · nästa revidering ${esc(String(e.detail).slice(0, 10))}` : ''}`;
@@ -159,7 +209,7 @@ function planHistory() {
   const h = data.history || [];
   return `<div class="card">
     <h2>Historik</h2>
-    <p class="hint" style="margin-top:0">Signeringar, genomgångar och status som satts för hand. Bokningar i veckoschemat syns under Översikt.</p>
+    <p class="hint" style="margin-top:0">Signeringar, genomgångar, ändringar i planen och status som satts för hand. Bokningar i veckoschemat syns under Översikt.</p>
     ${h.length ? `<ul class="pl-hist">${h.map(e => `<li><span class="muted">${esc(when(e.at))}</span><span>${text(e)}</span><span class="muted">${esc(e.byName || '')}</span></li>`).join('')}</ul>`
       : '<p class="muted" style="margin:0">Inget har hänt i planen än.</p>'}
   </div>`;

@@ -14,7 +14,7 @@ const HELP = [
   ['#/opjour-settings', 'Opjour · Inställningar', ['När passet byter person, vilka som räknas som reserv och i statistiken, och väggskärmar som visar dagens opjour.']],
   ['#/schema/installningar', 'Planering · Inställningar', [
     '<strong>Bemanning:</strong> minsta antal ST-läkare i tjänst. Veckor under gränsen blir röda i schemat och på startsidan.',
-    '<strong>Aktivitetstyper:</strong> kodorden i schemat. De tre knapparna styr om en vecka med typen räknas som i tjänst, ej i tjänst eller inte påverkar. Klicka på en typ för att ändra namn och färg; dra (eller ↑↓ på mobil) för att ändra ordningen.']],
+    '<strong>Aktivitetstyper:</strong> kodorden i schemat. De tre knapparna styr om en vecka med typen räknas som i tjänst, ej i tjänst eller inte påverkar. Klicka på en typ för att ändra namn, färg och om den <em>förlänger ST</em> (föräldra- och tjänstledighet skjuter fram beräknat ST-slut); dra (eller ↑↓ på mobil) för att ändra ordningen.']],
   ['#/schema', 'Planering · Veckoschema', [
     'En rad per ST-läkare, en kolumn per vecka. Klicka i en cell för att lägga in eller ändra en aktivitet. Dra över flera veckor i en rad för att lägga in en period.',
     'Raden "I tjänst" räknar hur många som är i tjänst varje vecka. Röd = under klinikens gräns.',
@@ -24,6 +24,8 @@ const HELP = [
     'Filtrera på kategori, sortera på "% klart" och växla mellan kompakt och detaljerad vy.']],
   ['#/plan', 'Utbildningsplan', [
     '<strong>Översikt:</strong> förloppet per ST-år och kraven med status. <strong>Delmål:</strong> målbeskrivningens delmål med kopplade krav; handledaren signerar. <strong>Historik:</strong> signeringar, genomgångar och ändrad status.',
+    '<strong>Ändra planen:</strong> dra ett krav till ett annat år, eller klicka på det för att flytta eller ta bort det. Det gäller bara den här ST-läkarens plan — klinikens mall ändras inte. Ändringarna syns i Historik.',
+    '<strong>Beräknat ST-slut</strong> är ST-start + 5 år + veckor med föräldra- eller tjänstledighet i veckoschemat.',
     '<strong>Skriv ut</strong> ger en A4 med översikt, delmål och rader för underskrift.']],
   ['#/st/delmal', 'ST-utbildning · Delmål', ['Klinikens målbeskrivning och hur väl kraven täcker delmålen. Koppla krav till delmål under fliken Krav.']],
   ['#/st/personer', 'ST-utbildning · ST-läkare och handledare', ['Vem som är ST-läkare, ST-start och -slut, målbeskrivning och handledare. Studierektorsrollen sätts under Administration.']],

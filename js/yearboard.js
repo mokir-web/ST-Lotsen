@@ -1,8 +1,9 @@
 // ── Kraven per ST-år (K3) ────────────────────────────────────────────────
 // Klassiskt script. Beror på index.html: esc(). Delas av ST-utbildning → Inställningar → Krav (redigerbar) och utbildningsplanen
 // (läsläge med status per krav), så att studierektorn redigerar i samma vy som ST-läkaren ser.
-//   yearBoardHtml(reqs, { editable, status(r) → html|'' , detail(r) → html|'' })
-//   attachYearBoard(rootEl, { onMove(id, year|null), onEdit(id), onAdd(year|null) })   — bara i redigerbart läge
+//   yearBoardHtml(reqs, { editable, add (standard true; false = inga "+ Krav"-knappar), status(r) → html|'' , detail(r) → html|'' })
+//   attachYearBoard(rootEl, { onMove(id, year|null), onEdit(id), onAdd?(year|null) })   — bara i redigerbart läge
+// Utbildningsplanen använder samma tavla redigerbar utan "+ Krav" för personens egen plan (mallen ändras inte).
 // Kolumner: År 1–5 (År 6 om något krav ligger där) och "Inget år". Inom en kolumn sorteras kraven på kategori och namn.
 
 const YB_COLORS = { 'körkort': '#d9a441', 'kurs': '#8e6bbf', 'randning': '#4f8fc0', 'projekt': '#7fb069', 'bedömning': '#c0587e' };
@@ -26,9 +27,9 @@ function yearBoardHtml(reqs, opts = {}) {
     const rs = sorted.filter(r => (r.stYear || 0) === y);
     if (y === 0 && !rs.length && !opts.editable) return '';
     return `<div class="yb-col${y === 0 ? ' none' : ''}" data-year="${y}">
-      <h3>${title} <span class="muted">${rs.length || ''}</span></h3>
+      <h3>${title}</h3>
       <div class="yb-list">${rs.map(card).join('') || (opts.editable ? '' : '<p class="muted" style="margin:0">–</p>')}</div>
-      ${opts.editable ? `<button type="button" class="yb-add" data-add="${y}">+ Krav</button>` : ''}
+      ${opts.editable && opts.add !== false ? `<button type="button" class="yb-add" data-add="${y}">+ Krav</button>` : ''}
     </div>`;
   }).join('')}</div>`;
 }
@@ -39,7 +40,7 @@ function attachYearBoard(root, h) {
   let dragId = null;
   board.addEventListener('click', e => {
     const add = e.target.closest('[data-add]');
-    if (add) { h.onAdd(Number(add.dataset.add) || null); return; }
+    if (add) { h.onAdd?.(Number(add.dataset.add) || null); return; }
     const c = e.target.closest('.yb-card');
     if (c) h.onEdit(c.dataset.id);
   });

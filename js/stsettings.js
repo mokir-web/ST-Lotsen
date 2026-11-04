@@ -47,7 +47,7 @@ function typeCard(t) {
     <span class="tgrip" title="Dra för att ändra ordningen" aria-hidden="true">⋮⋮</span>
     <button type="button" class="tmain" data-t="edit" title="Ändra">
       <span class="sact" style="--c:${esc(t.color)}">${esc(t.code)}</span> <span class="tlabel">${esc(t.label)}</span>
-      ${t.givesProgress ? '<span class="tagchip">Krav</span>' : ''}${t.active ? '' : '<span class="tagchip">Inaktiv</span>'}
+      ${t.givesProgress ? '<span class="tagchip">Krav</span>' : ''}${t.extendsSt ? '<span class="tagchip" title="Veckorna räknas inte som ST-tid och skjuter fram beräknat ST-slut">Förlänger ST</span>' : ''}${t.active ? '' : '<span class="tagchip">Inaktiv</span>'}
     </button>
     <div class="seg sm" role="group" aria-label="Påverkan på i tjänst">${EFFECT_SHORT.map(([v, l]) => `<button type="button" data-t="effect" data-e="${v}"${t.serviceEffect === v ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"'}>${l}</button>`).join('')}</div>
     <span class="tmove"><button type="button" class="btn-ghost" data-t="up" aria-label="Flytta upp">↑</button><button type="button" class="btn-ghost" data-t="down" aria-label="Flytta ned">↓</button></span>
@@ -86,7 +86,8 @@ function stsTypesTab() {
       <div class="row" style="justify-content:space-between;align-items:flex-start">
         <p class="hint" style="margin:0;flex:1 1 300px"><strong>Aktivitetstyper</strong> är kodorden i veckoschemat. Knapparna styr raden "I tjänst": en vecka med
           någon aktivitet som är <em>ej i tjänst</em> räknas bort; <em>påverkar inte</em> (t.ex. Körkort) räknas varken bort eller till.
-          <strong>Krav</strong> = aktiviteten kan kopplas till ett krav. Klicka på en typ för att ändra, dra för att ändra ordningen i schemat.</p>
+          <strong>Krav</strong> = aktiviteten kan kopplas till ett krav. <strong>Förlänger ST</strong> = veckorna räknas inte som ST-tid (föräldra- och tjänstledighet).
+          Klicka på en typ för att ändra, dra för att ändra ordningen i schemat.</p>
         ${types.length ? '<button class="btn" onclick="openTypePanel(null)">+ Ny typ</button>' : ''}
       </div>
       ${types.length ? `<div class="tcards" id="st-types">${types.map(typeCard).join('')}</div>`
@@ -362,7 +363,7 @@ async function setTypeEffect(id, serviceEffect) {
 }
 
 function openTypePanel(id) {
-  const t = id ? _sts.cfg.types.find(x => x.id === id) : { code: '', label: '', color: '#9aa5ad', serviceEffect: 'ej_i_tjanst', givesProgress: false, active: true };
+  const t = id ? _sts.cfg.types.find(x => x.id === id) : { code: '', label: '', color: '#9aa5ad', serviceEffect: 'ej_i_tjanst', givesProgress: false, extendsSt: false, active: true };
   el('sheet-root')?.remove();
   const root = document.createElement('div');
   root.id = 'sheet-root'; root.className = 'sp-overlay';
@@ -377,6 +378,8 @@ function openTypePanel(id) {
       <label>Räknas i "I tjänst" som</label>
       <div class="seg" id="tp-effect">${EFFECT_SHORT.map(([v, l]) => `<button type="button" data-e="${v}"${t.serviceEffect === v ? ' class="on"' : ''}>${l}</button>`).join('')}</div>
       <label class="check"><input type="checkbox" id="tp-progress"${t.givesProgress ? ' checked' : ''}> Kan kopplas till krav (måluppfyllelse)</label>
+      <label class="check"><input type="checkbox" id="tp-extends"${t.extendsSt ? ' checked' : ''}> Förlänger ST-utbildningen</label>
+      <p class="hint" style="margin-top:2px">För föräldraledighet och tjänstledighet: veckorna räknas inte som ST-tid och skjuter fram beräknat ST-slut (5 år + ledigheten). Övrig ledighet påverkar inte.</p>
       ${id ? `<label class="check"><input type="checkbox" id="tp-active"${t.active ? ' checked' : ''}> Aktiv (inaktiva går inte att välja i schemat)</label>` : ''}
     </div>
     <div class="sp-foot"><button class="btn" onclick="saveTypePanel(${id ? `'${esc(id)}'` : 'null'})">${id ? 'Spara' : 'Lägg till'}</button>
@@ -393,7 +396,7 @@ function openTypePanel(id) {
 
 async function saveTypePanel(id) {
   const body = { code: el('tp-code').value, label: el('tp-label').value, color: el('tp-color').value,
-    serviceEffect: document.querySelector('#tp-effect button.on')?.dataset.e, givesProgress: el('tp-progress').checked };
+    serviceEffect: document.querySelector('#tp-effect button.on')?.dataset.e, givesProgress: el('tp-progress').checked, extendsSt: el('tp-extends').checked };
   if (id) body.active = el('tp-active').checked;
   try {
     await api(id ? `/admin/st/types/${encodeURIComponent(id)}` : '/admin/st/types', { method: id ? 'PATCH' : 'POST', body });

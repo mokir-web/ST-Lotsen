@@ -10,7 +10,7 @@
 
 let _ov = null;
 
-const OV_LABEL = { klart: 'Klart', tidigare: 'Tidigare', bokad: 'Bokad', forslag: 'Förslag', plan: 'Plan', saknas: 'Saknas' };
+const OV_LABEL = { klart: 'Klart', tidigare: 'Tidigare', bokad: 'Bokad', forslag: 'Förslag', plan: 'Plan', saknas: 'Saknas', ej: 'Ej i planen' };
 const weekShort = iso => `v${isoWeek(iso)} -${iso.slice(2, 4)}`;
 
 async function renderOversikt(root) {
@@ -41,8 +41,8 @@ function ovCellText(s) {
   return OV_LABEL[s.status];
 }
 
-// Kompakt: ✓ klart/tidigare, ◷ + vecka bokad, ? + vecka förslag, ✎ plan, · saknas.
-const OV_ICON = { klart: '✓', tidigare: '✓', bokad: '◷', forslag: '?', plan: '✎', saknas: '·' };
+// Kompakt: ✓ klart/tidigare, ◷ + vecka bokad, ? + vecka förslag, ✎ plan, · saknas, – borttaget ur personens plan.
+const OV_ICON = { klart: '✓', tidigare: '✓', bokad: '◷', forslag: '?', plan: '✎', saknas: '·', ej: '–' };
 function ovCompact(s) {
   if (!s || !s.status) return '';
   const wk = s.week ? ' ' + isoWeek(s.week) : '';
@@ -57,7 +57,8 @@ const ovCanEdit = userId => _ov.data.canEditAll || userId === _ov.data.me || (_o
 function drawOversikt(root) {
   const { data } = _ov;
   const mand = data.requirements.filter(r => r.mandatory);
-  const pct = p => mand.length ? Math.round(100 * mand.filter(r => ovDone(data.cells[p.id][r.id])).length / mand.length) : 0;
+  // Krav som tagits bort ur personens plan (status 'ej') räknas inte.
+  const pct = p => { const m = mand.filter(r => data.cells[p.id][r.id]?.status !== 'ej'); return m.length ? Math.round(100 * m.filter(r => ovDone(data.cells[p.id][r.id])).length / m.length) : 0; };
   const people = data.people.filter(p => _ov.showEnded || !ovEnded(p))
     .sort((a, b) => _ov.sort === 'pct' ? pct(b) - pct(a) || a.displayName.localeCompare(b.displayName, 'sv') : 0);
   const allReqs = data.requirements;
@@ -76,7 +77,7 @@ function drawOversikt(root) {
     const yr = p.stMonths == null ? '' : `år ${Math.floor(p.stMonths / 12) + 1} · mån ${p.stMonths}`;
     const cells = ordered.map(r => {
       const s = data.cells[p.id][r.id];
-      const edit = ovCanEdit(p.id);
+      const edit = ovCanEdit(p.id) && s.status !== 'ej';
       return `<td class="pc st-${s.status || 'none'}${edit ? ' edit' : ''}"${edit ? ` data-p="${esc(p.id)}" data-r="${esc(r.id)}" role="button" tabindex="0"` : ''} title="${esc(r.name + ' — ' + ovTip(s))}">${esc(_ov.compact ? ovCompact(s) : ovCellText(s))}</td>`;
     }).join('');
     const pc = pct(p);

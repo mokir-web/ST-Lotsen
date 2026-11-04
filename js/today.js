@@ -106,6 +106,6 @@ function progressCard({ plan }) {
     <div class="pbar"><span style="width:${pct}%"></span></div>
     <p style="margin:6px 0 0"><strong>${done} av ${reqs.length}</strong> obligatoriska krav klara${booked ? ` · ${booked} bokade` : ''}</p>
     ${goals.length ? `<p style="margin:4px 0 0">${signed} av ${goals.length} delmål signerade</p>` : ''}
-    ${p.stMonths != null ? `<p class="muted" style="margin:4px 0 0">ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths}${p.nextReview ? ` · nästa revidering ${esc(p.nextReview)}` : ''}</p>` : ''}`,
+    ${p.stMonths != null ? `<p class="muted" style="margin:4px 0 0">ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths}${p.expectedEnd ? ` · beräknat klar ${esc(fmtMonth(p.expectedEnd))}` : ''}${p.nextReview ? ` · nästa revidering ${esc(p.nextReview)}` : ''}</p>` : ''}`,
     ['#/plan', 'Min utbildningsplan']);
 }

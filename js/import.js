@@ -158,12 +158,13 @@
     displayName: ['fullständigt namn', 'fullstandigt namn', 'namn', 'name', 'för- och efternamn'],
     username: ['användarnamn', 'anvandarnamn', 'användare', 'username', 'login'],
     phone: ['telefon', 'telefonnummer', 'mobil', 'mobilnummer', 'phone', 'tel'],
+    email: ['e-post', 'epost', 'e-postadress', 'email', 'e-mail', 'mejl', 'mail'],
     role: ['roll', 'role'],
     reserve: ['reserv', 'reserve', 'tillgänglig som reserv']
   };
   const norm = s => String(s ?? '').trim().toLowerCase();
 
-  // Returnerar { rows: [{displayName, username, phone, role, reserve}], lines: [radnummer i filen] }.
+  // Returnerar { rows: [{displayName, username, phone, email, role, reserve}], lines: [radnummer i filen] }.
   // Rader vars första cell börjar med # är kommentarer och hoppas över (mallen använder det).
   function rowsFromTable(table) {
     const hIdx = table.findIndex(r => r.some(c => HEADERS.displayName.includes(norm(c))));
@@ -179,7 +180,7 @@
       const get = key => (cols[key] === undefined ? '' : String(r[cols[key]] ?? '').trim());
       let phone = get('phone');
       if (/^7\d{8}$/.test(phone)) phone = '0' + phone;           // Excel äter inledande 0 i nummerceller
-      rows.push({ displayName: get('displayName'), username: get('username'), phone, role: get('role'), reserve: get('reserve') });
+      rows.push({ displayName: get('displayName'), username: get('username'), phone, email: get('email'), role: get('role'), reserve: get('reserve') });
       lines.push(hIdx + 2 + k);
     });
     return { rows, lines };
@@ -193,11 +194,12 @@
 
   function templateCsv() {
     return toCsv([
-      ['Fullständigt namn', 'Användarnamn', 'Telefon', 'Roll', 'Reserv'],
+      ['Fullständigt namn', 'Användarnamn', 'Telefon', 'E-post', 'Roll', 'Reserv'],
       ['#Rader som börjar med # hoppas över. Bara Fullständigt namn är obligatoriskt.'],
       ['#Användarnamn: lämna tomt så skapas det (anna.a). Roll: Användare, Admin eller Visning. Reserv: Ja eller Nej.'],
-      ['#Exempel →', '', '', '', ''],
-      ['#Anna Andersson', 'anna.a', '070-123 45 67', 'Användare', 'Ja']
+      ['#Finns personen redan (samma namn, inget användarnamn i filen) skapas inget nytt konto — tom telefon/e-post fylls i.'],
+      ['#Exempel →', '', '', '', '', ''],
+      ['#Anna Andersson', 'anna.a', '070-123 45 67', 'anna.andersson@region.se', 'Användare', 'Ja']
     ]);
   }
 

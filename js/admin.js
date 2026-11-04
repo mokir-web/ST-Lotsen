@@ -155,6 +155,7 @@ function drawAdmin(root) {
         <input type="search" id="u-q" placeholder="Sök namn eller användarnamn…" value="${esc(_admin.q)}" oninput="_admin.q=this.value;drawUserRows()" style="flex:1 1 220px;max-width:none">
         <div class="seg" id="u-filter">${U_FILTERS.map(([k, l]) => `<button type="button" data-f="${k}" class="${_admin.filter === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       </div>
+      ${dupBox()}
       <div id="u-rows" class="urows"></div>
     </div>
 
@@ -166,6 +167,7 @@ function drawAdmin(root) {
   `;
   el('u-filter').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { _admin.filter = b.dataset.f; drawAdmin(el('view')); } });
   el('u-rows').addEventListener('click', e => { const r = e.target.closest('[data-uid]'); if (r) openUserPanel({ kind: 'user', id: r.dataset.uid, tab: 'roller' }); });
+  root.querySelector('.dup-box')?.addEventListener('click', e => { const b = e.target.closest('[data-merge]'); if (b) openUserPanel({ kind: 'merge', ids: b.dataset.merge.split(',') }); });
   drawUserRows();
   if (_admin.panel) drawUserPanel();
 }
@@ -176,6 +178,46 @@ const U_FILTERS = [['alla', 'Alla'], ['st', 'ST-läkare'], ['handl', 'Handledare
 const adeptsOf = id => (_admin.me.roster || []).filter(x => x.active && (x.supervisorIds || []).includes(id));
 const nameOf = id => (_admin.me.roster || []).find(x => x.id === id)?.displayName || '?';
 const mods = () => _admin.me.modules || ['opjour'];
+
+// ── Dubbletter och sammanslagning ─────────────────────────────────────────
+// Samma namn (oavsett versaler och extra mellanslag) på flera personkonton = möjlig dubblett, t.ex. efter en import.
+const normName = n => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
+function dupGroups() {
+  const by = new Map();
+  for (const u of (_admin.me.roster || []).filter(x => !x.isDisplay)) by.set(normName(u.displayName), [...(by.get(normName(u.displayName)) || []), u]);
+  return [...by.values()].filter(g => g.length > 1);
+}
+function dupBox() {
+  const g = dupGroups();
+  if (!g.length) return '';
+  return `<div class="dup-box"><strong>Möjliga dubbletter (${g.length})</strong> — samma namn på flera konton. Slå ihop dem så att pass, schema och
+    måluppfyllelse hamnar på ett konto.
+    <ul>${g.map(us => `<li>${esc(us[0].displayName)} <span class="muted">(${us.map(u => esc(u.username || '')).join(', ')})</span>
+      <button type="button" class="btn-ghost" data-merge="${esc(us[0].id)},${esc(us[1].id)}">Slå ihop…</button></li>`).join('')}</ul></div>`;
+}
+// Vilket konto ska behållas som förval: ditt eget, ett globalt adminkonto, annars det äldsta (originalet — dubbletten
+// kommer oftast från en senare import), vid samma tid det med flest pass.
+function defaultKeep(a, b) {
+  const me = _admin.me.userId;
+  if (a.id === me || a.isGlobalAdmin) return a.id;
+  if (b.id === me || b.isGlobalAdmin) return b.id;
+  const ca = String(a.createdAt || ''), cb = String(b.createdAt || '');
+  if (ca !== cb) return ca < cb ? a.id : b.id;
+  return (a.claimCount || 0) >= (b.claimCount || 0) ? a.id : b.id;
+}
+function mergeCard(u, keep) {
+  const roles = [u.isAdmin && 'Admin', u.isSt && 'ST-läkare', u.isDirector && 'Studierektor', u.availableReserve && 'Reserv', !u.active && 'Inaktiv'].filter(Boolean);
+  const n = adeptsOf(u.id).length;
+  return `<label class="merge-card${u.id === keep ? ' on' : ''}">
+    <input type="radio" name="mg-keep" value="${esc(u.id)}"${u.id === keep ? ' checked' : ''}>
+    <span><strong>${esc(u.displayName)}</strong>${u.id === _admin.me.userId ? ' <span class="muted">(du)</span>' : ''}
+      <small>Användarnamn: ${esc(u.username || '–')}</small>
+      <small>Telefon: ${esc(u.phone || '–')} · E-post: ${esc(u.email || '–')}</small>
+      <small>Roller: ${roles.length ? roles.join(', ') : 'Användare'}${n ? ` · handledare för ${n}` : ''}</small>
+      <small>Pass: ${u.claimCount || 0}${u.futureClaimCount ? ` (${u.futureClaimCount} kommande)` : ''} · skapat ${esc(String(u.createdAt || '').slice(0, 10) || '–')}</small>
+      <em class="mg-tag">${u.id === keep ? 'Behålls' : 'Slås in och raderas'}</em></span>
+  </label>`;
+}
 
 function drawUserRows() {
   const q = _admin.q.trim().toLowerCase(), f = _admin.filter;
@@ -219,12 +261,25 @@ function drawUserPanel() {
       </form>`;
   } else if (p.kind === 'import') {
     title = 'Importera användare';
-    body = `<p class="hint" style="margin-top:8px">Ladda upp en lista som CSV eller Excel (.xlsx). Kolumner: <strong>Fullständigt namn</strong> (obligatorisk), Användarnamn, Telefon, Roll och Reserv. Filen läses i din webbläsare; en förhandsvisning visas innan något skapas. Befintliga användarnamn hoppas över.</p>
+    body = `<p class="hint" style="margin-top:8px">Ladda upp en lista som CSV eller Excel (.xlsx). Kolumner: <strong>Fullständigt namn</strong> (obligatorisk), Användarnamn, Telefon, E-post, Roll och Reserv. Filen läses i din webbläsare; en förhandsvisning visas innan något skapas. Personer som redan finns (samma namn) får bara tom telefon och e-post ifylld — inget nytt konto. Befintliga användarnamn hoppas över.</p>
       <div class="row" style="margin-top:10px">
         <button class="btn-ghost" onclick="downloadImportTemplate()">Ladda ner mall (CSV)</button>
         <input type="file" id="imp-file" accept=".csv,.txt,.xlsx" onchange="onImportFile(this.files[0])">
       </div>
       <div id="imp-out"></div>`;
+  } else if (p.kind === 'merge') {
+    const [a, b] = p.ids.map(id => (_admin.me.roster || []).find(x => x.id === id));
+    if (!a || !b) { closeUserPanel(); return; }
+    p.keep = p.keep || defaultKeep(a, b);
+    title = 'Slå ihop konton';
+    body = `<p class="hint" style="margin-top:6px">Välj vilket konto som ska <strong>behållas</strong>. Det behåller namn, användarnamn, PIN och roller.
+        Allt från det andra kontot flyttas över — pass, intresseanmälningar, veckoschema, måluppfyllelse, handledning och signeringar —
+        och tomma uppgifter (telefon, e-post, ST-datum) fylls i. Är det andra ST-läkare eller reserv blir det behållna det också.
+        Sedan raderas det andra kontot. Det går inte att ångra.</p>
+      <div class="merge-pair" id="mg-pair">${mergeCard(a, p.keep)}${mergeCard(b, p.keep)}</div>
+      <div class="row" style="margin-top:12px"><button class="btn" onclick="performMerge()">Slå ihop</button>
+        <button class="btn-ghost" onclick="closeUserPanel()">Avbryt</button></div>
+      <div class="status" id="up-status"></div>`;
   } else {
     const u = (_admin.me.roster || []).find(x => x.id === p.id);
     if (!u) { closeUserPanel(); return; }
@@ -240,6 +295,7 @@ function drawUserPanel() {
         <label for="up-name">Fullständigt namn</label><input type="text" id="up-name" value="${esc(u.displayName)}" maxlength="60">
         <label for="up-user">Användarnamn</label><input type="text" id="up-user" value="${esc(u.username || '')}" maxlength="60" autocapitalize="none" spellcheck="false">
         <label for="up-phone">Telefon</label><input type="tel" id="up-phone" value="${esc(u.phone || '')}" maxlength="30" inputmode="tel" placeholder="070-123 45 67">
+        <label for="up-email">E-post</label><input type="email" id="up-email" value="${esc(u.email || '')}" maxlength="120" autocapitalize="none" spellcheck="false">
         <div class="row" style="margin-top:12px"><button class="btn" onclick="saveUserDetails()" ${locked ? 'disabled' : ''}>Spara</button></div>`,
       roller: `
         <h3>Klinik</h3>
@@ -257,6 +313,12 @@ function drawUserPanel() {
         ${roleRow('Aktiv', 'Ett inaktivt konto kan inte logga in. Bokningar och historik ligger kvar.', 'active', u.active, fixed, why)}
         <h3>PIN</h3>
         ${locked ? '<p class="hint">Globalt adminkonto — kan bara ändras av en global admin.</p>' : '<button class="btn-ghost" onclick="resetUserPin()">Återställ PIN…</button><p class="hint">Personen får en tillfällig PIN och väljer en egen vid nästa inloggning.</p>'}
+        <h3>Slå ihop</h3>
+        <div class="row" style="gap:8px;flex-wrap:nowrap"><select id="up-merge" style="flex:1;min-width:0"><option value="">Välj dubblett…</option>${sortedRoster()
+          .filter(x => !x.isDisplay && x.id !== u.id).sort((x, y) => (normName(y.displayName) === normName(u.displayName)) - (normName(x.displayName) === normName(u.displayName)))
+          .map(x => `<option value="${esc(x.id)}">${esc(x.displayName)} (${esc(x.username || '')})</option>`).join('')}</select>
+          <button class="btn-ghost" onclick="el('up-merge').value && openUserPanel({ kind: 'merge', ids: ['${esc(u.id)}', el('up-merge').value], keep: '${esc(u.id)}' })">Slå ihop…</button></div>
+        <p class="hint">Har personen två konton? Allt flyttas till ett av dem och det andra raderas — du väljer vilket som behålls.</p>
         ${isSelf || u.isGlobalAdmin ? '<p class="hint">Du kan inte inaktivera, ta bort eller degradera dig själv.</p>' : `<h3>Radera</h3>
         <button class="btn-ghost" style="color:var(--danger);border-color:#e3b3ab" onclick="deleteUser()">Radera användare…</button>
         <p class="hint">Raderar kontot och personens bokningar permanent. Vill du behålla historiken: stäng av Aktiv i stället.</p>`}`
@@ -275,7 +337,10 @@ function drawUserPanel() {
     const t = e.target.closest('[data-tab]');
     if (t) { e.preventDefault(); _admin.panel.tab = t.dataset.tab; drawUserPanel(); }
   });
-  root.addEventListener('change', e => { const box = e.target.closest('input[data-r]'); if (box) onRoleChange(box); });
+  root.addEventListener('change', e => {
+    const box = e.target.closest('input[data-r]'); if (box) onRoleChange(box);
+    if (e.target.name === 'mg-keep') { _admin.panel.keep = e.target.value; drawUserPanel(); }
+  });
   document.body.appendChild(root);
   if (p.kind === 'import' && _admin.plan) drawImportPlan();
 }
@@ -302,7 +367,7 @@ function onRoleChange(box) {
 }
 
 function saveUserDetails() {
-  panelAction(id => api('/profile', { method: 'PUT', body: { userId: id, displayName: el('up-name').value, username: el('up-user').value, phone: el('up-phone').value } }), 'Sparat.');
+  panelAction(id => api('/profile', { method: 'PUT', body: { userId: id, displayName: el('up-name').value, username: el('up-user').value, phone: el('up-phone').value, email: el('up-email').value } }), 'Sparat.');
 }
 
 function resetUserPin() {
@@ -367,6 +432,18 @@ function downloadFile(name, text, type = 'text/csv;charset=utf-8') {
 }
 function downloadImportTemplate() { downloadFile('opjour-importmall.csv', OpjourImport.templateCsv()); }
 
+async function performMerge() {
+  const p = _admin.panel, from = p.ids.find(id => id !== p.keep);
+  const k = (_admin.me.roster || []).find(x => x.id === p.keep), f = (_admin.me.roster || []).find(x => x.id === from);
+  if (!confirm(`Slå ihop ${f.displayName} (${f.username}) in i ${k.displayName} (${k.username})?\n\n${f.username} raderas. Det går inte att ångra.`)) return;
+  try {
+    const r = await api(`/admin/users/${encodeURIComponent(p.keep)}/merge`, { method: 'POST', body: { fromId: from } });
+    _admin.panel = null; el('sheet-root')?.remove();
+    await reloadAdmin();
+    toast(`Ihopslaget: ${r.kept} (${k.username}) — ${f.username} är borttaget.`);
+  } catch (err) { showStatus(el('up-status'), err.message, false); }
+}
+
 async function onImportFile(file) {
   const out = el('imp-out');
   if (!file) return;
@@ -385,17 +462,19 @@ async function onImportFile(file) {
 
 function drawImportPlan() {
   const out = el('imp-out'), p = _admin.plan;
-  const label = { ok: '<span class="tagchip" style="color:var(--ok)">Ny</span>', exists: '<span class="tagchip">Finns redan</span>', error: '<span class="tagchip off">Fel</span>' };
+  const label = { ok: '<span class="tagchip" style="color:var(--ok)">Ny</span>', update: '<span class="tagchip" style="color:var(--interest)">Kompletteras</span>',
+    exists: '<span class="tagchip">Finns redan</span>', error: '<span class="tagchip off">Fel</span>' };
+  const fillText = it => it.fill ? 'Fylls i: ' + [it.fill.phone && 'telefon', it.fill.email && 'e-post'].filter(Boolean).join(' och ') : '';
   out.innerHTML = `
-    <p style="margin:14px 0 6px"><strong>${esc(p.fileName)}</strong>: ${p.counts.ok} nya · ${p.counts.exists} finns redan · ${p.counts.error} med fel</p>
+    <p style="margin:14px 0 6px"><strong>${esc(p.fileName)}</strong>: ${p.counts.ok} nya · ${p.counts.update || 0} kompletteras · ${p.counts.exists} finns redan · ${p.counts.error} med fel</p>
     <div style="overflow-x:auto"><table class="imp-table">
-      <tr><th>Rad</th><th>Namn</th><th>Användarnamn</th><th>Roll</th><th>Telefon</th><th>Status</th></tr>
+      <tr><th>Rad</th><th>Namn</th><th>Användarnamn</th><th>Roll</th><th>Telefon</th><th>E-post</th><th>Status</th></tr>
       ${p.items.map((it, i) => `<tr class="${it.status}">
         <td>${p.lines[i]}</td><td>${esc(it.displayName)}</td><td>${esc(it.username)}</td><td>${esc(ROLE_LABEL[it.role] || '')}${it.reserve ? ' · reserv' : ''}</td>
-        <td>${esc(it.phone || '')}</td><td>${label[it.status]} ${esc(it.error || '')}</td></tr>`).join('')}
+        <td>${esc(it.phone || '')}</td><td>${esc(it.email || '')}</td><td>${label[it.status]} ${esc(it.error || fillText(it))}</td></tr>`).join('')}
     </table></div>
     <div class="row" style="margin-top:12px">
-      ${p.counts.ok ? `<button class="btn" onclick="confirmImport()">Importera ${p.counts.ok} användare</button>` : ''}
+      ${p.counts.ok || p.counts.update ? `<button class="btn" onclick="confirmImport()">${[p.counts.ok && `Skapa ${p.counts.ok}`, p.counts.update && `komplettera ${p.counts.update}`].filter(Boolean).join(' och ')}</button>` : ''}
       <button class="btn-ghost" onclick="_admin.plan=null;el('imp-file').value='';el('imp-out').innerHTML=''">Välj annan fil</button>
     </div>
     ${p.counts.error ? '<p class="hint">Rader med fel hoppas över. Rätta filen och ladda upp den igen om de ska med.</p>' : ''}
@@ -409,8 +488,10 @@ async function confirmImport() {
     _admin.created = r.created;
     _admin.plan = null;
     _admin.panel = null; el('sheet-root')?.remove();
+    const upd = (r.updated || []).length;
+    if (!r.created.length) { await reloadAdmin(); toast(`${upd} befintliga konton kompletterade.`); return; }
     _admin.notice = { tone: 'ok', csv: true, html:
-      `<strong>${r.created.length} användare skapade.</strong> Dela ut användarnamn och tillfällig PIN — de visas bara nu.`
+      `<strong>${r.created.length} användare skapade${upd ? `, ${upd} befintliga kompletterade` : ''}.</strong> Dela ut användarnamn och tillfällig PIN — de visas bara nu.`
       + `<div style="overflow-x:auto;margin-top:8px"><table class="imp-table"><tr><th>Namn</th><th>Användarnamn</th><th>Roll</th><th>PIN</th></tr>`
       + r.created.map(c => `<tr><td>${esc(c.displayName)}</td><td>${esc(c.username)}</td><td>${esc(ROLE_LABEL[c.role])}</td><td><strong>${esc(c.pin)}</strong></td></tr>`).join('')
       + `</table></div>` };
@@ -510,8 +591,7 @@ function moduleCard() {
   return `<div class="card">
       <h2>Moduler</h2>
       <p class="muted" style="margin:0 0 6px">Vilka delar av ST-Lotsen kliniken använder. Minst en måste vara påslagen.</p>
-      ${MODULE_INFO.map(([id, name, info]) => `<label class="row" style="gap:8px;font-weight:normal;align-items:flex-start;margin-top:8px">
-        <input type="checkbox" data-mod="${id}"${on.includes(id) ? ' checked' : ''} style="margin-top:4px"> <span><strong>${name}</strong><br><span class="muted" style="font-size:14px">${info}</span></span></label>`).join('')}
+      ${MODULE_INFO.map(([id, name, info]) => `<label class="role-row"><span><strong>${name}</strong><small>${info}</small></span>${sw(`data-mod="${id}"`, on.includes(id))}</label>`).join('')}
       <div class="row" style="margin-top:10px"><button class="btn" onclick="saveModules()">Spara</button></div>
       <div class="status" id="mod-status"></div>
     </div>`;

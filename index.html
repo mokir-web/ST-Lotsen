@@ -443,6 +443,18 @@
     .empty { text-align: center; padding: 18px 12px; border: 1.5px dashed var(--line); border-radius: 10px; margin-top: 12px; }
     .empty p { margin: 0 0 8px; }
     .help p { line-height: 1.5; }
+    /* Dubbletter och sammanslagning (Administration) */
+    .dup-box { background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px; font-size: 15px; }
+    .dup-box ul { margin: 6px 0 0; padding-left: 18px; }
+    .dup-box li { margin: 4px 0; }
+    .dup-box .btn-ghost { padding: 3px 10px; font-size: 14px; margin-left: 6px; }
+    .merge-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .merge-card { display: flex; gap: 8px; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 8px; padding: 10px; font-weight: normal; margin: 0; cursor: pointer; }
+    .merge-card.on { border-color: var(--accent); background: var(--accent-soft); }
+    .merge-card small { display: block; color: var(--ink-soft); font-size: 13px; margin-top: 2px; }
+    .merge-card .mg-tag { display: block; margin-top: 6px; font-size: 13px; font-style: normal; font-weight: bold; color: var(--danger); }
+    .merge-card.on .mg-tag { color: var(--ok); }
+    @media (max-width: 760px) { .merge-pair { grid-template-columns: 1fr; } }
     /* Toast (5d) */
     #toasts { position: fixed; right: 16px; bottom: 16px; z-index: 300; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
     .toast { pointer-events: auto; display: flex; gap: 10px; align-items: center; background: var(--ink); color: #fff; padding: 10px 8px 10px 14px; border-radius: 8px;
@@ -613,7 +625,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.23.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.25.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
