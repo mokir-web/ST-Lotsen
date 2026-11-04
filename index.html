@@ -422,8 +422,34 @@
     .goals-table .gtoggle { font-weight: normal; }
     .goals-table .gtext { min-width: 220px; max-width: 420px; font-size: 13px; }
     .goals-table .greq { display: inline-block; margin: 0 6px 4px 0; font-size: 13px; white-space: nowrap; }
+    /* Utbildningsplanen: flikar, förloppsstaplar, historik och A4-utskrift */
+    .pl-hide { display: none; }
+    .print-only { display: none; }
+    .pl-prog { display: grid; max-width: 640px; grid-template-columns: 9.5em 1fr 3.5em; gap: 10px; align-items: center; margin: 6px 0; }
+    .pl-prog .pbar { margin: 0; }
+    .pl-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: 14px; }
+    .pl-hist { list-style: none; margin: 0; padding: 0; }
+    .pl-hist li { display: grid; grid-template-columns: 9em 1fr auto; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+    .pl-hist li:last-child { border-bottom: none; }
+    @media (max-width: 760px) {
+      .pl-prog { grid-template-columns: 6.5em 1fr 3em; }
+      .pl-hist li { grid-template-columns: 1fr; gap: 2px; }
+    }
+    @page { size: A4; margin: 14mm 12mm; }
     @media print {
       header, #subnav, .no-print, #sheet-root { display: none !important; }
+      .pl-hide { display: block; }
+      .print-only { display: block; }
+      .gtext .print-only { display: inline; }
+      .pl-printhead { border-bottom: 2px solid #333; padding-bottom: 6px; margin-bottom: 10px; font-size: 13px; line-height: 1.5; }
+      .pl-printhead + .card h1 { font-size: 20px; }
+      .pl-pane[data-pane="delmal"] { break-before: page; }
+      .pl-sign { display: grid !important; grid-template-columns: 1fr 1fr; gap: 28px 24px; margin-top: 28px; break-inside: avoid; }
+      .pl-sign div { border-bottom: 1px solid #333; height: 34px; position: relative; }
+      .pl-sign span { position: absolute; bottom: -18px; left: 0; font-size: 12px; color: #555; }
+      .pbar, .pbar span { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .yb { grid-template-columns: repeat(3, 1fr) !important; }
+      .goals-table { font-size: 11px; }
       body { background: white; }
       .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
       .sch-scroll { overflow: visible; }
@@ -553,7 +579,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.21.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.22.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
