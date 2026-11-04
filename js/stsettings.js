@@ -251,7 +251,9 @@ function stsGoalsTab() {
 function stsPeopleTab() {
   const people = _sts.people || [], st = people.filter(p => p.isSt), others = people.filter(p => !p.isSt);
   const name = id => people.find(p => p.id === id)?.displayName || '?';
-  const active = st.filter(p => !p.stEnd), done = st.filter(p => p.stEnd);
+  // Avslutad = ST-slut har passerats (ett planerat ST-slut framåt i tiden räknas inte, samma som i måluppfyllelsen).
+  const today = todayStockholm(), ended = p => p.stEnd && String(p.stEnd).slice(0, 10) <= today;
+  const active = st.filter(p => !ended(p)), done = st.filter(ended);
   const card = p => `<div class="stp-row" data-id="${esc(p.id)}">
       <div class="stp-head"><strong>${esc(p.displayName)}</strong> <span class="muted">${esc(p.username || '')}</span>
         <a href="#/plan/${esc(p.id)}" style="margin-left:auto;font-size:14px">Utbildningsplan</a></div>

@@ -49,7 +49,7 @@ function adminChips(u) {
     u.isGlobalAdmin ? '<span class="tagchip admin">Global admin</span>' : '',
     u.isAdmin && !u.isGlobalAdmin ? '<span class="tagchip admin">Admin</span>' : '',
     u.isDirector ? '<span class="tagchip">Studierektor</span>' : '',
-    u.isSt ? `<span class="tagchip">ST${u.stEnd ? ' klar' : ''}</span>` : '',
+    u.isSt ? `<span class="tagchip">ST${u.stEnd && String(u.stEnd).slice(0, 10) <= todayStockholm() ? ' klar' : ''}</span>` : '',
     !u.isDisplay && !u.isAdmin && u.canSeeStats ? '<span class="tagchip">Statistik</span>' : '',
     !u.active ? '<span class="tagchip off">Inaktiv</span>' : '',
     u.active && u.availableReserve && !u.isDisplay ? '<span class="tagchip">Reserv</span>' : ''
