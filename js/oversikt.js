@@ -80,7 +80,7 @@ function drawOversikt(root) {
           <thead><tr><th class="pname" rowspan="2">ST-läkare</th>${head1}</tr><tr>${head2}</tr></thead>
           <tbody>${rows}<tr class="svc-row"><th class="pname">Klara</th>${done}</tr></tbody>
         </table>
-      </div>` : `<p class="muted">${ordered.length ? 'Inga ST-läkare att visa.' : 'Inga krav än — lägg in dem under ST-inställningar.'}</p>`}
+      </div>` : `<p class="muted">${ordered.length ? 'Inga ST-läkare att visa.' : 'Inga krav än — lägg in dem under Inställningar i vänsterspalten.'}</p>`}
       <p style="margin:12px 0 0;line-height:2;font-size:13px">
         <span class="pchip st-klart">Klart</span> <span class="pchip st-tidigare">Tidigare</span> <span class="pchip st-bokad">Bokad</span>
         <span class="pchip st-forslag">Förslag (Ev.)</span> <span class="pchip st-plan">Plan</span> <span class="pchip st-saknas">Saknas</span>

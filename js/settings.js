@@ -1,4 +1,4 @@
-// ── Inställningar (#/settings) ───────────────────────────────────────────
+// ── Mitt konto (#/settings) ───────────────────────────────────────────
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser(), state, APP_VERSION.
 // Alla kan ändra alla sina egna uppgifter — namn, användarnamn och telefon — och byta PIN. Det enda man inte kan
 // ändra är kliniktillhörigheten. (Reservtoggeln finns på startsidan; admin hanterar andras uppgifter på Admin-sidan.)
@@ -12,7 +12,7 @@ async function renderSettings(root) {
     setMenuForUser(me);
     _settings = { me };
     root.innerHTML = `
-      <h1 class="page">Inställningar</h1>
+      <h1 class="page">Mitt konto</h1>
 
       <div class="card">
         <h2>Mina uppgifter</h2>

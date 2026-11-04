@@ -33,11 +33,6 @@ const planChip = s => `<span class="pchip st-${s.status || 'none'}" title="${esc
 function drawPlan(root) {
   const { data } = _plan;
   const p = data.person;
-  const years = [1, 2, 3, 4, 5];
-  const byYear = y => data.requirements.filter(r => (r.stYear || 0) === y);
-  const yearCol = (title, reqs) => `<div class="plan-year"><h3>${title}</h3>${reqs.length ? reqs.map(r =>
-    `<div class="plan-req"><span class="muted" style="font-size:12px">${esc(r.category)}</span> ${esc(r.name)}${r.mandatory ? '' : '<sup>*</sup>'} ${planChip(data.cells[r.id])}</div>`).join('')
-    : '<p class="muted" style="margin:0">–</p>'}</div>`;
   const yr = p.stMonths == null ? '' : ` · ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths}`;
 
   const goals = data.goals || [];
@@ -62,7 +57,7 @@ function drawPlan(root) {
         <button class="btn-ghost no-print" onclick="window.print()">Skriv ut</button>
       </div>
       <p style="margin:8px 0 0">ST-start ${esc(fmtMonth(p.stStart))}${p.stEnd ? ` · ST-slut ${esc(fmtMonth(p.stEnd))}` : ''}${esc(yr)}</p>
-      <p style="margin:4px 0 0">Målbeskrivning: ${data.framework ? `<strong>${esc(data.framework.label)}</strong>${data.framework.fromClinic ? ' <span class="muted">(klinikens förval)</span>' : ''}` : '<span class="muted">ingen vald — sätts under Admin eller ST-inställningar</span>'}</p>
+      <p style="margin:4px 0 0">Målbeskrivning: ${data.framework ? `<strong>${esc(data.framework.label)}</strong>${data.framework.fromClinic ? ' <span class="muted">(klinikens förval)</span>' : ''}` : '<span class="muted">ingen vald — sätts under Administration eller ST-utbildning → Inställningar</span>'}</p>
       <p style="margin:4px 0 0">Handledare: ${data.supervisors.length ? data.supervisors.map(s => esc(s.displayName)).join(', ') : '<span class="muted">ingen angiven</span>'}</p>
       <p style="margin:4px 0 0">Senast genomgången: ${p.reviewedAt ? `${esc(p.reviewedAt)}${p.reviewedByName ? ' av ' + esc(p.reviewedByName) : ''}` : '<span class="muted">–</span>'}
         · Nästa revidering: ${p.nextReview ? esc(p.nextReview) : '<span class="muted">–</span>'}</p>
@@ -73,9 +68,10 @@ function drawPlan(root) {
     </div>
 
     <div class="card">
-      <h2>Per ST-år</h2>
-      <p class="hint" style="margin-top:0">Kraven enligt klinikens mall (ST-år sätts under ST-inställningar). * = valfritt.</p>
-      <div class="plan-years">${years.map(y => yearCol('År ' + y, byYear(y))).join('')}${yearCol('Inget år angivet', byYear(0))}</div>
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Per ST-år</h2>
+        ${_plan.me.isDirector || _plan.me.isAdmin ? '<a class="btn-ghost no-print" href="#/st/krav" style="text-decoration:none">Ändra mallen</a>' : ''}</div>
+      <p class="hint">Kraven enligt klinikens mall, med status. * = valfritt.</p>
+      ${yearBoardHtml(data.requirements, { status: r => planChip(data.cells[r.id]) })}
     </div>
 
     <div class="card">

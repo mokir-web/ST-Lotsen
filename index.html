@@ -55,12 +55,42 @@
     header .brand-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
     header .brand-name { font-weight: bold; font-size: 17px; letter-spacing: 0.2px; }
     header .clinic { font-size: 12px; color: #9fb2c0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Navigering (hybrid): modulflikar i headern, modulens undersidor i en vänsterspalt (mobil: vågrät rad under headern). */
+    #worlds { display: flex; gap: 2px; align-self: stretch; margin: -12px 0 -12px 8px; }
+    #worlds a { display: flex; align-items: center; padding: 0 16px; color: #c6d3dc; text-decoration: none; font-size: 15px; border-bottom: 3px solid transparent; white-space: nowrap; }
+    #worlds a:hover { color: #fff; }
+    #worlds a.active { color: #fff; font-weight: bold; border-bottom-color: #e8a35c; background: rgba(255,255,255,0.07); }
+    header .spacer { flex: 1; }
+    #tools { display: flex; align-items: center; gap: 6px; }
+    header .iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 34px; padding: 0; color: #eef1f3; text-decoration: none; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.28); border-radius: 5px; }
+    header .iconbtn.active { background: #e8a35c; border-color: #e8a35c; color: var(--chrome); }
+    header .iconbtn svg { width: 20px; height: 20px; }
     #menu-wrap { position: relative; }
+    #menu-btn { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 190px; background: #fff; border: 1.5px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(20,30,38,0.28); z-index: 20; overflow: hidden; }
     header #menu a, header #menu button { display: block; width: 100%; text-align: left; padding: 13px 16px; font-size: 16px; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
     header #menu a:hover, header #menu button:hover { background: #eef1f3; }
     header #menu a.active { font-weight: bold; background: var(--accent-soft); }
     header #menu hr { border: none; border-top: 1px solid var(--line); margin: 0; }
+    .shell { display: flex; align-items: flex-start; }
+    .shell > main { flex: 1; min-width: 0; }
+    #subnav { flex: none; width: 210px; position: sticky; top: 0; min-height: calc(100vh - 60px); background: #fff; border-right: 1px solid var(--line); padding: 12px 0; }
+    #subnav .sn-title { padding: 4px 18px 8px; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-soft); }
+    #subnav a { display: block; padding: 10px 18px; font-size: 15px; color: var(--ink); text-decoration: none; border-right: 3px solid transparent; }
+    #subnav a:hover { background: #eef1f3; }
+    #subnav a.active { background: var(--accent-soft); color: var(--accent); font-weight: bold; border-right-color: var(--accent); }
+    @media (max-width: 760px) {
+      header { flex-wrap: wrap; padding-bottom: 0; row-gap: 8px; }
+      #worlds { order: 3; flex: 0 0 calc(100% + 32px); margin: 0 -16px; height: 42px; border-top: 1px solid rgba(255,255,255,0.12); }
+      #worlds a { flex: 1; justify-content: center; padding: 0 8px; }
+      #menu-btn { max-width: 120px; }
+      .shell { display: block; }
+      #subnav [data-world] { display: flex; }
+      #subnav { position: relative; width: auto; min-height: 0; overflow-x: auto; padding: 0 8px; border-right: none; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
+      #subnav .sn-title { display: none; }
+      #subnav a { padding: 11px 12px; font-size: 14px; white-space: nowrap; border-right: none; border-bottom: 3px solid transparent; }
+      #subnav a.active { background: none; border-bottom-color: var(--accent); }
+    }
     header button {
       background: rgba(255,255,255,0.12); color: #eef1f3;
       border: 1px solid rgba(255,255,255,0.28); border-radius: 5px; padding: 7px 12px; font-size: 14px;
@@ -228,9 +258,11 @@
       background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; border-radius: 0; box-shadow: none; }
     .ulist .uinfo::before { content: '▸'; color: var(--ink-soft); }
     .ulist .ublock.open .uinfo::before { content: '▾'; }
+    .ulist .uinfo.plain { cursor: default; }
+    .ulist .uinfo.plain::before { content: none; }
     .ulist .uname { font-weight: bold; }
     .ulist .uuser { color: var(--ink-soft); font-size: 14px; }
-    .ulist .qsws { display: grid; grid-template-columns: repeat(4, 64px); gap: 4px; flex: none; }
+    .ulist .qsws { display: grid; grid-auto-flow: column; grid-auto-columns: 64px; gap: 4px; flex: none; }
     .ulist .qsw { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0; padding: 2px 0; font-size: 11.5px; font-weight: normal; color: var(--ink-soft); cursor: pointer; }
     .ulist .status { margin: 0 2px 6px; }
     .ulist .status:empty { display: none; }
@@ -279,17 +311,65 @@
     .st-saknas { background: #f8e7e4; color: var(--danger); }
     .pchip { display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 12px; }
     .prog .pname a { color: inherit; }
+    .subtabs { display: flex; gap: 2px; border-bottom: 1.5px solid var(--line); margin: 0 0 14px; overflow-x: auto; }
+    .subtabs a { padding: 10px 14px; color: var(--ink-soft); text-decoration: none; font-size: 15px; white-space: nowrap; border-bottom: 3px solid transparent; margin-bottom: -1.5px; }
+    .subtabs a:hover { color: var(--ink); }
+    .subtabs a.active { color: var(--ink); font-weight: bold; border-bottom-color: var(--accent); }
+    .goal-cov td { vertical-align: top; }
+    .goal-cov td:first-child { white-space: nowrap; }
+    .goal-cov .chip { font-size: 13px; padding: 1px 9px; }
+    .goal-cov tr.nocov td { background: #fbf3ea; }
+    .stp-row { border-top: 1px solid var(--line); padding: 12px 0; }
+    .stp-row:first-of-type { border-top: none; }
+    .stp-head { display: flex; gap: 8px; align-items: baseline; }
+    .stp-row.compact { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 0; }
+    .stp-row.compact .status { flex-basis: 100%; margin: 0; }
+    .stp-row .status:empty { display: none; }
+    .sup-pick summary { cursor: pointer; padding: 4px 0; }
+    .sup-pick .chip { font-size: 14px; padding: 1px 10px; }
     .sup-list { max-height: 180px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
     /* Individuell plan (#/plan) */
-    .plan-years { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
-    .plan-year h3 { margin: 0 0 6px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--ink-soft); }
-    .plan-req { padding: 3px 0; border-bottom: 1px solid #eef1f3; font-size: 14px; }
+    /* Kraven per ST-år (js/yearboard.js) */
+    .yb { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+    .yb-col { background: #f2f5f7; border: 1.5px solid var(--line); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .yb-col.none { background: #fafbfc; border-style: dashed; }
+    .yb-col.over { border-color: var(--accent); background: var(--accent-soft); }
+    .yb-col h3 { margin: 0 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--ink-soft); }
+    .yb-list { display: flex; flex-direction: column; gap: 6px; min-height: 30px; flex: 1; }
+    .yb-card { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 6px; padding: 5px 8px; font-size: 14px; }
+    .yb-card.edit { cursor: grab; }
+    .yb-card.edit:hover, .yb-card.edit:focus-visible { border-color: var(--accent); border-left-color: var(--c); outline: none; box-shadow: 0 1px 4px rgba(20,30,38,.15); }
+    .yb-card.dragging { opacity: .4; }
+    .yb-cat { font-size: 11px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .3px; }
+    .yb-name { font-weight: bold; line-height: 1.25; }
+    .yb-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+    .yb-tags span { font-size: 11px; background: #eef1f3; border-radius: 7px; padding: 0 6px; color: var(--ink-soft); }
+    .yb-card .pchip { margin-top: 3px; }
+    .yb-add { background: none; border: 1px dashed var(--line); border-radius: 6px; padding: 4px; font-size: 13px; color: var(--ink-soft); }
+    .yb-add:hover { border-color: var(--accent); color: var(--accent); }
+    .yb-inactive { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    /* Panel från höger (redigering); helskärm på mobil */
+    .sp-overlay { position: fixed; inset: 0; background: rgba(20,30,38,0.35); z-index: 30; display: flex; justify-content: flex-end; }
+    .sidepanel { background: var(--card); width: min(480px, 100%); height: 100%; display: flex; flex-direction: column; box-shadow: -6px 0 24px rgba(20,30,38,.25); outline: none; }
+    .sp-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: calc(var(--safe-top) + 14px) 16px 12px; border-bottom: 1px solid var(--line); }
+    .sp-body { flex: 1; overflow: auto; padding: 4px 16px 16px; }
+    .sp-body h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-soft); margin: 18px 0 4px; }
+    .sp-foot { border-top: 1px solid var(--line); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .sp-foot .status { flex-basis: 100%; margin: 0; }
+    .sidepanel input[type=number], .sidepanel input[type=search] { width: 100%; max-width: 360px; padding: 11px 10px; font-size: 17px; border: 1.5px solid var(--line); border-radius: 5px; background: #eef1f3; color: var(--ink); }
+    .yb-name { overflow-wrap: anywhere; }
+    .yb-col h3 .muted { font-weight: normal; }
+    .goalpick { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; margin-top: 6px; }
+    .goalpick label { display: grid; grid-template-columns: 20px 34px 1fr; gap: 4px; align-items: start; font-weight: normal; font-size: 13.5px; margin: 0; padding: 6px 8px; border-top: 1px solid #eef1f3; cursor: pointer; }
+    .goalpick label:first-child { border-top: none; }
+    .goalpick label:has(input:checked) { background: var(--accent-soft); }
+    .goalpick input { margin-top: 2px; }
     .goals-table .gcode { white-space: nowrap; vertical-align: top; text-transform: none; font-size: 14px; color: var(--ink); }
     .goals-table .gtoggle { font-weight: normal; }
     .goals-table .gtext { min-width: 220px; max-width: 420px; font-size: 13px; }
     .goals-table .greq { display: inline-block; margin: 0 6px 4px 0; font-size: 13px; white-space: nowrap; }
     @media print {
-      header, .no-print, #sheet-root { display: none !important; }
+      header, #subnav, .no-print, #sheet-root { display: none !important; }
       body { background: white; }
       .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
       .sch-scroll { overflow: visible; }
@@ -358,24 +438,54 @@
         <img src="icons/logo.svg" width="34" height="34" alt="">
         <span class="brand-text"><span class="brand-name">ST-Lotsen</span><span class="clinic" id="app-clinic"></span></span>
       </a>
+      <nav id="worlds" class="hidden" aria-label="Moduler">
+        <a href="#/" id="world-op" class="hidden">Opjour</a>
+        <a href="#/schema" id="world-st" class="hidden">ST-utbildning</a>
+      </nav>
+      <span class="spacer"></span>
       <button id="logout-btn" class="hidden" onclick="logout()">Logga ut</button>
-      <div id="menu-wrap" class="hidden">
-        <button id="menu-btn" onclick="toggleMenu(event)" aria-haspopup="true" aria-expanded="false">Meny ▾</button>
-        <nav id="menu" class="hidden">
-          <a href="#/" data-route="" id="menu-opjour">Opjour</a>
-          <a href="#/schema" data-route="#/schema" id="menu-schema" class="hidden">Veckoschema</a>
-          <a href="#/oversikt" data-route="#/oversikt" id="menu-oversikt" class="hidden">Måluppfyllelse</a>
-          <a href="#/plan" data-route="#/plan" id="menu-plan" class="hidden">Min utbildningsplan</a>
-          <a href="#/settings" data-route="#/settings">Inställningar</a>
-          <a href="#/st" data-route="#/st" id="menu-st" class="hidden">ST-inställningar</a>
-          <a href="#/admin" data-route="#/admin" id="menu-admin" class="hidden">Admin</a>
-          <a href="#/stats" data-route="#/stats" id="menu-stats" class="hidden">Statistik</a>
-          <hr>
-          <button onclick="logout()">Logga ut</button>
-        </nav>
+      <div id="tools" class="hidden">
+        <button class="iconbtn" onclick="openFeedback(event)" title="Felanmälan" aria-label="Felanmälan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8M8 13h5M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/></svg>
+        </button>
+        <a class="iconbtn hidden" href="#/admin" id="tool-admin" title="Administration" aria-label="Administration">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V7z"/><circle cx="12" cy="11" r="2.5"/><path d="M12 13.5V16"/></svg>
+        </a>
+        <div id="menu-wrap">
+          <button id="menu-btn" onclick="toggleMenu(event)" aria-haspopup="true" aria-expanded="false">Konto ▾</button>
+          <nav id="menu" class="hidden">
+            <a href="#/settings" data-route="#/settings">Mitt konto</a>
+            <a href="#/admin" data-route="#/admin" id="menu-admin" class="hidden">Administration</a>
+            <a href="#" onclick="openFeedback(event)" id="menu-feedback">Felanmälan</a>
+            <hr>
+            <button onclick="logout()">Logga ut</button>
+          </nav>
+        </div>
       </div>
     </header>
-    <main id="view"></main>
+    <div class="shell">
+      <nav id="subnav" class="hidden" aria-label="Undersidor">
+        <div data-world="op" class="hidden">
+          <div class="sn-title">Opjour</div>
+          <a href="#/" data-route="#/">Kalender</a>
+          <a href="#/stats" data-route="#/stats" id="nav-stats" class="hidden">Statistik</a>
+          <a href="#/opjour-settings" data-route="#/opjour-settings" id="nav-opset" class="hidden">Inställningar</a>
+        </div>
+        <div data-world="st" class="hidden">
+          <div class="sn-title">ST-utbildning</div>
+          <a href="#/schema" data-route="#/schema" id="nav-schema" class="hidden">Veckoschema</a>
+          <a href="#/oversikt" data-route="#/oversikt" id="nav-oversikt" class="hidden">Måluppfyllelse</a>
+          <a href="#/plan" data-route="#/plan" id="nav-plan" class="hidden">Min utbildningsplan</a>
+          <a href="#/st" data-route="#/st" id="nav-st" class="hidden">Inställningar</a>
+        </div>
+        <div data-world="acc" class="hidden">
+          <div class="sn-title">Konto och klinik</div>
+          <a href="#/settings" data-route="#/settings">Mitt konto</a>
+          <a href="#/admin" data-route="#/admin" id="nav-admin" class="hidden">Administration</a>
+        </div>
+      </nav>
+      <main id="view"></main>
+    </div>
   </div>
 
   <script>
@@ -383,7 +493,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.11.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.16.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -400,6 +510,81 @@
     }
     function el(id) { return document.getElementById(id); }
 
+    // ── Felrapportering (som MoraDOPS) ─────────────────────────────────────
+    // Sessionslogg (senaste 30 felen och misslyckade anrop) som bifogas en felanmälan. Okontrollerade fel rapporteras
+    // automatiskt till servern (Admin → Felrapporter); console.error och avvisade promises bara om de ser ut som kodfel.
+    // Nätverks- och sessionsfel räknas inte. Max 10 unika per sidladdning, samma fel bara en gång.
+    const _sessionLog = [];
+    function logSession(entry) { _sessionLog.push(Object.assign({ t: new Date().toISOString() }, entry)); if (_sessionLog.length > 30) _sessionLog.shift(); }
+    const _NOISE_RE = /Failed to fetch|NetworkError|Load failed|network connection|AbortError|aborted|Sessionen har gått ut|^Script error\.?$|ResizeObserver loop/i;
+    const _BUG_RE = /\b(TypeError|ReferenceError|RangeError|SyntaxError)\b|is not defined|is not a function|Cannot read propert|Cannot set propert|before initialization|undefined is not an object|null is not an object|is not iterable|Maximum call stack/;
+    const _reported = new Set();
+    let _reporting = false;
+    function reportClientError(type, message, source) {
+      const msg = String(message || '').slice(0, 1000);
+      if (!msg || !state.token || _reporting || _NOISE_RE.test(msg)) return;
+      const key = msg + '|' + (source || '');
+      if (_reported.has(key) || _reported.size >= 10) return;
+      _reported.add(key);
+      _reporting = true;   // ett misslyckat rapportanrop får inte rapportera sig självt
+      try { api('/error-reports/client-errors', { method: 'POST', body: { type, message: msg, source: source || null, appVersion: APP_VERSION, page: location.hash || '#/' } }).catch(() => {}); }
+      catch (e) { /* tyst */ } finally { _reporting = false; }
+    }
+    const _origConsoleError = console.error;
+    console.error = function (...args) {
+      try {
+        const msg = args.map(a => (a && a.stack) ? a.stack.split('\n')[0] : String(a)).join(' ');
+        logSession({ type: 'console', message: msg });
+        if (_BUG_RE.test(msg)) reportClientError('console', msg);
+      } catch (e) { /* tyst */ }
+      _origConsoleError.apply(console, args);
+    };
+    window.addEventListener('error', e => {
+      const source = (e.filename || '').replace(location.origin, '') + ':' + e.lineno;
+      logSession({ type: 'window', message: e.message, source });
+      reportClientError('window', e.message, source);
+    });
+    window.addEventListener('unhandledrejection', e => {
+      const msg = String(e.reason && e.reason.stack ? e.reason.stack.split('\n')[0] : e.reason);
+      logSession({ type: 'promise', message: msg });
+      if (_BUG_RE.test(msg)) reportClientError('promise', msg);
+    });
+
+    // Felanmälan: ruta där användaren beskriver problemet; teknisk information bifogas automatiskt.
+    function openFeedback(e) {
+      if (e) e.preventDefault();
+      closeMenu();
+      let root = el('feedback-root');
+      if (!root) { root = document.createElement('div'); root.id = 'feedback-root'; document.body.appendChild(root); }
+      root.innerHTML = `
+        <div class="overlay" onclick="if(event.target===this)closeFeedback()">
+          <div class="sheet" role="dialog" aria-label="Felanmälan">
+            <h2>Felanmälan <button class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" onclick="closeFeedback()" aria-label="Stäng">✕</button></h2>
+            <p class="hint" style="margin-top:0">Beskriv vad du gjorde och vad som hände, eller ge ett förbättringsförslag. Version, sida, webbläsare och de senaste felen i appen bifogas automatiskt.</p>
+            <textarea id="fb-message" rows="6" maxlength="4000" style="width:100%;font:inherit;padding:8px;border:1.5px solid var(--line);border-radius:6px" placeholder="Vad hände?"></textarea>
+            <button class="btn btn-block" onclick="sendFeedback()">Skicka</button>
+            <div class="status" id="fb-status"></div>
+          </div>
+        </div>`;
+      el('fb-message').focus();
+    }
+    function closeFeedback() { const r = el('feedback-root'); if (r) r.innerHTML = ''; }
+    async function sendFeedback() {
+      const box = el('fb-status');
+      const message = el('fb-message').value.trim();
+      if (!message) { box.textContent = 'Skriv en beskrivning innan du skickar.'; box.className = 'status err'; return; }
+      const systemInfo = {
+        appVersion: APP_VERSION, page: location.hash || '#/', scope: state.scope, clinic: state.clinicName,
+        userAgent: navigator.userAgent, screen: `${screen.width}x${screen.height}`, viewport: `${innerWidth}x${innerHeight}`,
+        language: navigator.language, time: new Date().toISOString(), log: _sessionLog.slice(-20)
+      };
+      try {
+        await api('/error-reports', { method: 'POST', body: { message, systemInfo } });
+        box.textContent = 'Tack! Din felanmälan har skickats.'; box.className = 'status ok';
+        setTimeout(closeFeedback, 1500);
+      } catch (err) { box.textContent = 'Kunde inte skicka: ' + err.message; box.className = 'status err'; }
+    }
+
     async function api(path, opts = {}) {
       const headers = { 'Content-Type': 'application/json' };
       if (state.token) headers.Authorization = 'Bearer ' + state.token;
@@ -415,7 +600,10 @@
       const text = await res.text();
       const data = text ? JSON.parse(text) : null;
       if (res.status === 403 && data?.mustChangePin) { showOnly('changepin'); throw new Error(data.error); }
-      if (!res.ok) throw new Error(data?.error || ('HTTP ' + res.status));
+      if (!res.ok) {
+        logSession({ type: 'api', method: opts.method || 'GET', path: path.split('?')[0], status: res.status, error: data?.error || null });
+        throw new Error(data?.error || ('HTTP ' + res.status));
+      }
       return data;
     }
 
@@ -468,7 +656,7 @@
     function enterApp() {
       showOnly('app');
       el('app-clinic').textContent = state.clinicName;
-      el('menu-wrap').classList.toggle('hidden', state.scope !== 'user');
+      ['worlds', 'tools', 'subnav'].forEach(id => el(id).classList.toggle('hidden', state.scope !== 'user'));
       el('logout-btn').classList.toggle('hidden', state.scope === 'user');
       if (state.scope === 'display') { el('view').classList.add('wide'); renderDisplay(el('view')); }
       else route();
@@ -483,14 +671,15 @@
       if (typeof _sch !== 'undefined' && _sch) _sch.sheet = null;
       if (typeof _ov !== 'undefined' && _ov) _ov.sheet = null;
       const h = location.hash;
-      el('menu').querySelectorAll('a').forEach(a => a.classList.toggle('active', a.dataset.route === (h === '#/' ? '' : h.startsWith('#/plan') ? '#/plan' : h)));
+      markNav(h);
       const root = el('view');
-      root.classList.toggle('wide', h !== '#/settings' && h !== '#/admin' && h !== '#/stats');   // bred vy för kalendern, schemat och ST-inställningarna
+      root.classList.toggle('wide', !['#/settings', '#/admin', '#/stats', '#/opjour-settings'].includes(h));   // bred vy för kalendern, schemat och ST-inställningarna
       if (h === '#/settings') renderSettings(root);
       else if (h === '#/admin') renderAdmin(root);
+      else if (h === '#/opjour-settings') renderOpSettings(root);
       else if (h === '#/stats') renderStats(root);
       else if (h === '#/schema') renderSchema(root);
-      else if (h === '#/st') renderStSettings(root);
+      else if (h === '#/st' || h.startsWith('#/st/')) renderStSettings(root, h.split('/')[2]);
       else if (h === '#/oversikt') renderOversikt(root);
       else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
       else renderApp(root);
@@ -506,16 +695,45 @@
     function closeMenu() { el('menu').classList.add('hidden'); el('menu-btn').setAttribute('aria-expanded', 'false'); }
     document.addEventListener('click', e => { if (!el('menu-wrap').contains(e.target)) closeMenu(); });
 
-    // Menyval efter roll och klinikens moduler — anropas av varje vy när /me är hämtad.
+    // Navigeringen (hybrid): varje sida hör till en "värld" — Opjour, ST-utbildning eller konto/klinik.
+    // Världens flik i headern markeras och dess undersidor visas i vänsterspalten.
+    function worldOf(h) {
+      if (h === '#/settings' || h === '#/admin') return 'acc';
+      if (['#/schema', '#/oversikt', '#/st'].includes(h) || h.startsWith('#/st/') || h.startsWith('#/plan')) return 'st';
+      return 'op';
+    }
+    function markNav(h) {
+      const world = worldOf(h), key = !h || h === '#' ? '#/' : h.startsWith('#/plan') ? '#/plan' : h.startsWith('#/st/') ? '#/st' : h;
+      el('world-op').classList.toggle('active', world === 'op');
+      el('world-st').classList.toggle('active', world === 'st');
+      el('tool-admin').classList.toggle('active', h === '#/admin');
+      el('subnav').querySelectorAll('[data-world]').forEach(g => g.classList.toggle('hidden', g.dataset.world !== world));
+      document.querySelectorAll('#subnav a, #menu a').forEach(a => a.classList.toggle('active', a.dataset.route === key));
+      scrollSubnav();
+    }
+
+    function scrollSubnav() {   // mobil: undersidorna är en vågrät rad — rulla fram den aktiva
+      const act = el('subnav').querySelector('[data-world]:not(.hidden) a.active:not(.hidden)');
+      if (act) el('subnav').scrollLeft = Math.max(0, act.offsetLeft - 40);
+    }
+
+    // Navigeringsval efter roll och klinikens moduler — anropas av varje vy när /me är hämtad.
     function setMenuForUser(me) {
-      const mods = me.modules || ['opjour'], schema = mods.includes('schema');
-      el('menu-opjour').classList.toggle('hidden', !mods.includes('opjour'));
-      el('menu-schema').classList.toggle('hidden', !(schema && (me.isSt || me.isDirector || me.isAdmin)));
-      el('menu-oversikt').classList.toggle('hidden', !(mods.includes('mal') && (me.isSt || me.isDirector || me.isAdmin || me.isSupervisor)));
-      el('menu-plan').classList.toggle('hidden', !(mods.includes('mal') && me.isSt));
-      el('menu-st').classList.toggle('hidden', !((schema || mods.includes('mal')) && (me.isDirector || me.isAdmin)));
-      el('menu-admin').classList.toggle('hidden', !me.isAdmin);
-      el('menu-stats').classList.toggle('hidden', !me.canSeeStats || !mods.includes('opjour'));
+      const mods = me.modules || ['opjour'], schema = mods.includes('schema'), mal = mods.includes('mal');
+      const show = (id, on) => el(id).classList.toggle('hidden', !on);
+      show('world-op', mods.includes('opjour'));
+      show('nav-stats', me.canSeeStats && mods.includes('opjour'));
+      show('nav-opset', me.isAdmin && mods.includes('opjour'));
+      show('nav-schema', schema && (me.isSt || me.isDirector || me.isAdmin));
+      show('nav-oversikt', mal && (me.isSt || me.isDirector || me.isAdmin || me.isSupervisor));
+      show('nav-plan', mal && me.isSt);
+      show('nav-st', (schema || mal) && (me.isDirector || me.isAdmin));
+      const firstSt = ['nav-schema', 'nav-oversikt', 'nav-plan', 'nav-st'].map(el).find(a => !a.classList.contains('hidden'));
+      show('world-st', !!firstSt);
+      if (firstSt) el('world-st').href = firstSt.getAttribute('href');
+      ['nav-admin', 'menu-admin', 'tool-admin'].forEach(id => show(id, me.isAdmin));
+      el('menu-btn').textContent = (me.displayName || 'Konto') + ' ▾';
+      scrollSubnav();
     }
 
     // ── Delad kalender-render ──────────────────────────────
@@ -642,9 +860,11 @@
   <script src="js/import.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/admin.js"></script>
+  <script src="js/opsettings.js"></script>
   <script src="js/stats.js"></script>
   <script src="js/display.js"></script>
   <script src="js/schema.js"></script>
+  <script src="js/yearboard.js"></script>
   <script src="js/stsettings.js"></script>
   <script src="js/oversikt.js"></script>
   <script src="js/plan.js"></script>

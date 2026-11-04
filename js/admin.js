@@ -1,10 +1,9 @@
 // ── Admin (#/admin) ──────────────────────────────────────────────────────
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser() och js/import.js (OpjourImport).
-// Varje användare är en rad med snabbreglage (Reserv, Admin, Statistik, Aktiv) som ändrar direkt; namn, telefon,
+// Varje användare är en rad med snabbreglage (Admin, Aktiv) som ändrar direkt; namn, telefon,
 // ST-uppgifter (ST-läkare, studierektor, ST-start/-slut), PIN-återställning och radering ligger i en uppfällbar del under raden.
-// Endast för admin (annars skickas man till startsidan). Hantera klinikens användare:
-// lägg till (en och en eller via fil), ändra namn/telefon, reservstatus, admin, aktiv/inaktiv och återställ PIN.
-// Roller: Användare, Admin och Visning (väggskärmen — loggar in som vilket konto som helst men ser bara kalendern).
+// Endast för admin (annars skickas man till startsidan). Hantera klinikens användare, moduler och (global admin) kliniker och felrapporter.
+// Opjours inställningar — jourbyte, reserv, statistikbehörighet och väggskärmar — finns i js/opsettings.js (#/opjour-settings).
 // Backend skyddar allt (admin-krav, egen klinik, ingen självinaktivering) — detta är bara UI:t.
 
 let _admin = null;
@@ -27,18 +26,21 @@ async function renderAdmin(root) {
     const me = await api('/me');
     setMenuForUser(me);
     if (!me.isAdmin) { location.hash = '#/'; return; }
-    _admin = { me, open: new Set(), notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
-    if (me.isGlobalAdmin) _admin.clinics = (await api('/admin/clinics')).clinics;
-    if ((me.modules || []).includes('mal')) _admin.frameworks = (await api('/goals/frameworks')).frameworks;
+    _admin = { me, draw: drawAdmin, open: new Set(), notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
+    if (me.isGlobalAdmin) {
+      _admin.clinics = (await api('/admin/clinics')).clinics;
+      _admin.errors = await api('/error-reports').catch(() => null);
+    }
     drawAdmin(root);
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }
 }
 
+// Administration och Opjour → Inställningar delar användarlistans maskineri (_admin, userBlock, userAction); _admin.draw ritar rätt sida.
 async function reloadAdmin() {
   _admin.me = await api('/me');
-  drawAdmin(el('view'));
+  (_admin.draw || drawAdmin)(el('view'));
 }
 
 function adminChips(u) {
@@ -71,12 +73,10 @@ function userBlock(u, selfId) {
   const fixed = isSelf || u.isGlobalAdmin || locked;   // får inte inaktiveras/degraderas här
   const why = isSelf ? 'Du kan inte ändra detta på dig själv.' : u.isGlobalAdmin ? 'Globalt adminkonto.' : '';
   // Snabbreglagen sitter i huvudraden så att man slipper fälla ut kortet. Visningskonton har bara "Aktiv".
+  // Reserv och Statistik ställs in under Opjour → Inställningar.
   const quick = u.isDisplay
-    ? `<span></span><span></span><span></span>${quickSwitch('Aktiv', 'active', u.active, fixed, why)}`
-    : quickSwitch('Reserv', 'reserve', u.availableReserve, locked, '')
-      + quickSwitch('Admin', 'admin', u.isAdmin, fixed, why)
-      + quickSwitch('Statistik', 'stats', u.isAdmin || u.canSeeStats, u.isAdmin || locked, u.isAdmin ? 'Admin ser alltid statistiken.' : '')
-      + quickSwitch('Aktiv', 'active', u.active, fixed, why);
+    ? quickSwitch('Aktiv', 'active', u.active, fixed, why)
+    : quickSwitch('Admin', 'admin', u.isAdmin, fixed, why) + quickSwitch('Aktiv', 'active', u.active, fixed, why);
   return `
     <div class="ublock${open ? ' open' : ''}" data-id="${esc(u.id)}">
       <div class="uhead">
@@ -94,7 +94,7 @@ function userBlock(u, selfId) {
           ${u.isDisplay ? '' : `<div><label>Telefon</label><input type="tel" data-f="phone" value="${esc(u.phone || '')}" maxlength="30" inputmode="tel" placeholder="070-123 45 67"></div>`}
         </div>
         <div class="row" style="margin-top:10px"><button class="btn" data-a="save">Spara</button></div>
-        ${u.isDisplay ? '' : stSection(u, locked)}
+        ${u.isDisplay || !(_admin.me.modules || []).some(m => m === 'schema' || m === 'mal') ? '' : stSection(u, locked)}
         ${u.isDisplay ? '<p class="hint">Visningskonto: loggar in som alla andra men ser bara kalendern (ingen bokning, ingen reserv).</p>' : ''}
         ${isSelf ? '<p class="hint">Du kan inte inaktivera, ta bort eller degradera dig själv.</p>' : ''}
         ${locked ? '<p class="hint">Globalt adminkonto — kan bara ändras av en global admin.</p>' : ''}
@@ -106,8 +106,7 @@ function userBlock(u, selfId) {
     </div>`;
 }
 
-// ST-uppgifter: rollerna ändras direkt med reglagen, start/slut sparas med knappen (månad, sparas som månadens första dag).
-const toMonth = iso => (iso || '').slice(0, 7);
+// ST-roller: ändras direkt med reglagen. ST-start/-slut, målbeskrivning och handledare sätts under ST-utbildning → Inställningar.
 function stSection(u, locked) {
   return `
         <div class="st-sec" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--line)">
@@ -115,41 +114,41 @@ function stSection(u, locked) {
           <div class="qsws" style="grid-template-columns:repeat(2, 90px);margin:6px 0">
             ${quickSwitch('ST-läkare', 'st', u.isSt, locked, '')}${quickSwitch('Studierektor', 'director', u.isDirector, locked, '')}
           </div>
-          ${u.isSt ? `<div class="field-row">
-            <div><label>ST-start</label><input type="month" data-f="stStart" value="${esc(toMonth(u.stStart))}"></div>
-            <div><label>ST-slut (när ST är klar)</label><input type="month" data-f="stEnd" value="${esc(toMonth(u.stEnd))}"></div>
-          </div>
-          ${_admin.frameworks ? `<div class="field-row">
-            <div><label>Målbeskrivning</label><select data-f="framework"><option value="">Klinikens förval</option>${_admin.frameworks.map(f => `<option value="${esc(f.id)}"${f.id === u.frameworkId ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</select></div>
-          </div>
-          <label>Handledare</label>
-          <div class="sup-list">${(_admin.me.roster || []).filter(x => x.active && !x.isDisplay && x.id !== u.id).map(x =>
-            `<label class="row" style="gap:6px;font-weight:normal;margin:2px 0"><input type="checkbox" data-sup="${esc(x.id)}"${(u.supervisorIds || []).includes(x.id) ? ' checked' : ''}> ${esc(x.displayName)}</label>`).join('')}</div>` : ''}
-          <div class="row" style="margin-top:10px"><button class="btn" data-a="savest"${locked ? ' disabled' : ''}>Spara ST-uppgifter</button></div>` : ''}
+          ${u.isSt ? '<p class="hint" style="margin:4px 0 0">ST-start, målbeskrivning och handledare: <a href="#/st/personer">ST-utbildning → Inställningar</a>.</p>' : ''}
         </div>`;
 }
 
-function drawAdmin(root) {
-  const { me, notice } = _admin;
-  const roster = [...(me.roster || [])].sort((a, b) => a.displayName.localeCompare(b.displayName, 'sv'));
-  const active = roster.filter(u => u.active), inactive = roster.filter(u => !u.active);
-
-  root.innerHTML = `
-    <h1 class="page">Admin</h1>
-
-    ${notice ? `<div class="card notice ${notice.tone === 'warn' ? 'warn' : ''}">
+function noticeCard() {
+  const { notice } = _admin;
+  return notice ? `<div class="card notice ${notice.tone === 'warn' ? 'warn' : ''}">
       <div>${notice.html}</div>
       <div class="row" style="margin-top:8px">
         ${notice.csv ? '<button class="btn-ghost" onclick="downloadPinList()">Ladda ner PIN-lista (CSV)</button>' : ''}
-        <button class="link-btn" style="color:var(--ink-soft)" onclick="_admin.notice=null;_admin.created=null;drawAdmin(el('view'))">Stäng</button>
+        <button class="link-btn" style="color:var(--ink-soft)" onclick="_admin.notice=null;_admin.created=null;_admin.draw(el('view'))">Stäng</button>
       </div>
-    </div>` : ''}
+    </div>` : '';
+}
+
+const sortedRoster = () => [...(_admin.me.roster || [])].sort((a, b) => a.displayName.localeCompare(b.displayName, 'sv'));
+
+function drawAdmin(root) {
+  const { me } = _admin;
+  const opjour = (me.modules || ['opjour']).includes('opjour');
+  const roster = sortedRoster().filter(u => !u.isDisplay);   // väggskärmarna hanteras under Opjour → Inställningar
+  const active = roster.filter(u => u.active), inactive = roster.filter(u => !u.active);
+
+  root.innerHTML = `
+    <h1 class="page">Administration</h1>
+
+    ${noticeCard()}
 
     ${_admin.clinics ? clinicCard() : ''}
 
+    ${_admin.errors ? errorCard() : ''}
+
     ${moduleCard()}
 
-    ${(me.modules || ['opjour']).includes('opjour') ? shiftCard() : ''}
+    ${opjour ? `<p class="hint" style="margin:-4px 0 14px">Jourbyte, reserver, statistikbehörighet och väggskärmar ställs in under <a href="#/opjour-settings">Opjour → Inställningar</a>.</p>` : ''}
 
     <div class="card">
       <h2>Lägg till användare</h2>
@@ -162,10 +161,9 @@ function drawAdmin(root) {
         </div>
         <div class="field-row">
           <div><label for="au-role">Roll</label>
-            <select id="au-role" onchange="onAuRole(this.value)">
+            <select id="au-role">
               <option value="user">Användare</option>
               <option value="admin">Admin</option>
-              <option value="display">Visning (väggskärm)</option>
             </select></div>
           <div id="au-phone-wrap"><label for="au-phone">Telefon (valfritt)</label>
             <input type="tel" id="au-phone" maxlength="30" inputmode="tel" placeholder="070-123 45 67"></div>
@@ -212,9 +210,6 @@ function drawAdmin(root) {
 
 function onAuName(v) {
   if (!_admin.userTouched) el('au-user').value = suggestUsername(v);
-}
-function onAuRole(role) {
-  el('au-phone-wrap').classList.toggle('hidden', role === 'display');
 }
 
 async function addUser(e) {
@@ -342,11 +337,6 @@ function onUserClick(e) {
       if (phone) body.phone = phone.value;
       return api('/profile', { method: 'PUT', body });
     }, 'Sparat.');
-  } else if (btn.dataset.a === 'savest') {
-    const body = { stStart: d.querySelector('[data-f="stStart"]').value, stEnd: d.querySelector('[data-f="stEnd"]').value };
-    const fw = d.querySelector('[data-f="framework"]');
-    if (fw) { body.frameworkId = fw.value || null; body.supervisorIds = [...d.querySelectorAll('[data-sup]')].filter(c => c.checked).map(c => c.dataset.sup); }
-    userAction(d, id => api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body }), 'Sparat.');
   } else if (btn.dataset.a === 'delete') {
     const n = u.claimCount || 0, f = u.futureClaimCount || 0;
     const warn = n
@@ -387,7 +377,7 @@ function onUserChange(e) {
 // ── Moduler (klinikens admin) ────────────────────────────────────────────
 const MODULE_INFO = [
   ['opjour', 'Opjour', 'Operationsjourlinjen: kalender, bokning, reserv och visningsskärm.'],
-  ['schema', 'Veckoschema', 'ST-gruppens schema vecka för vecka med raden "I tjänst". Typer och krav ställs in under ST-inställningar.'],
+  ['schema', 'Veckoschema', 'ST-gruppens schema vecka för vecka med raden "I tjänst". Typer och krav ställs in under ST-utbildning → Inställningar.'],
   ['mal', 'Måluppfyllelse', 'Översikt per ST-läkare och krav: klart, bokat, förslag, plan eller saknas — ur veckoschemat och det som anges för hand.']
 ];
 
@@ -414,29 +404,37 @@ async function saveModules() {
   } catch (err) { box.textContent = err.message; box.className = 'status err'; }
 }
 
-// ── Jourbyte (klinikens admin) ───────────────────────────────────────────
-function shiftCard() {
+// ── Felrapporter (endast global admin) ───────────────────────────────────
+// Användarnas felanmälningar och automatiskt rapporterade fel (öppna först). Ett åtgärdat fel öppnas igen om det inträffar på nytt.
+const fmtTime = iso => iso ? new Date(iso).toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' }) : '';
+function errorCard() {
+  const { reports, clientErrors } = _admin.errors;
+  const openR = reports.filter(r => !r.handledAt).length, openE = clientErrors.filter(e => !e.resolvedAt).length;
+  const rep = r => `<div class="pass-card" style="display:block${r.handledAt ? ';opacity:.55' : ''}">
+      <div class="row" style="justify-content:space-between"><strong>${esc(r.displayName || 'Okänd')} <span class="muted" style="font-weight:normal">${esc(r.clinicName || '')} · ${esc(fmtTime(r.createdAt))}</span></strong>
+        <button class="link-btn" onclick="setReportHandled('${esc(r.id)}', ${!r.handledAt})">${r.handledAt ? 'Öppna igen' : 'Markera hanterad'}</button></div>
+      <p style="margin:4px 0;white-space:pre-wrap">${esc(r.message)}</p>
+      <details><summary class="muted" style="cursor:pointer;font-size:13px">Teknisk information</summary><pre style="white-space:pre-wrap;font-size:12px;max-height:240px;overflow:auto">${esc(JSON.stringify(r.systemInfo, null, 2))}</pre></details></div>`;
+  const ce = e => `<div class="pass-card" style="display:block${e.resolvedAt ? ';opacity:.55' : ''}">
+      <div class="row" style="justify-content:space-between"><strong style="word-break:break-word">${esc(e.message)}</strong>
+        <button class="link-btn" onclick="setClientErrorResolved('${esc(e.id)}', ${!e.resolvedAt})">${e.resolvedAt ? 'Öppna igen' : 'Markera åtgärdat'}</button></div>
+      <div class="muted" style="font-size:13px">${esc(e.type || '')} · ${esc(e.source || 'okänd källa')} · ${e.count} gång${e.count === 1 ? '' : 'er'} · senast ${esc(fmtTime(e.lastSeen))} (${esc(e.lastVersion || '')}, ${esc(e.lastPage || '')}${e.displayName ? ', ' + esc(e.displayName) : ''}) · först ${esc(fmtTime(e.firstSeen))}</div></div>`;
   return `<div class="card">
-      <h2>Jourbyte</h2>
-      <p class="muted" style="margin:0 0 10px">Klockslaget då opjour byter person på visningsskärmen. Ett pass går från det klockslaget till samma tid nästa dag.
-        Kalendern, låsning av dagar och utlottningen (00.00) påverkas inte.</p>
-      <div class="row" style="gap:10px;align-items:flex-end">
-        <div><label for="sc-time" style="margin-top:0">Jourbytestid</label>
-          <input type="time" id="sc-time" value="${esc(_admin.me.shiftChange || '07:30')}" required></div>
-        <button class="btn" onclick="saveShiftChange()">Spara</button>
-      </div>
-      <div class="status" id="sc-status"></div>
+      <h2>Felrapporter</h2>
+      <p class="hint" style="margin-top:0">Felanmälningar från användarna (Felanmälan-knappen överst) och fel som appen rapporterat automatiskt. Synligt bara för global admin.</p>
+      <h3 style="margin:10px 0 4px">Felanmälningar (${openR} öppna)</h3>${reports.length ? reports.map(rep).join('') : '<p class="muted">Inga.</p>'}
+      <h3 style="margin:14px 0 4px">Automatiska fel (${openE} öppna)</h3>${clientErrors.length ? clientErrors.map(ce).join('') : '<p class="muted">Inga.</p>'}
+      <div class="status" id="er-status"></div>
     </div>`;
 }
 
-async function saveShiftChange() {
-  const box = el('sc-status');
-  const done = (text, ok) => { box.textContent = text; box.className = 'status ' + (ok ? 'ok' : 'err'); };
-  try {
-    const r = await api('/admin/clinic', { method: 'PUT', body: { shiftChange: el('sc-time').value } });
-    _admin.me.shiftChange = r.shiftChange;
-    done(`Sparat. Opjour byter person kl. ${r.shiftChange.replace(':', '.')}.`, true);
-  } catch (err) { done(err.message, false); }
+async function setReportHandled(id, handled) {
+  try { await api('/error-reports/' + encodeURIComponent(id), { method: 'PATCH', body: { handled } }); _admin.errors = await api('/error-reports'); drawAdmin(el('view')); }
+  catch (err) { const b = el('er-status'); b.textContent = err.message; b.className = 'status err'; }
+}
+async function setClientErrorResolved(id, resolved) {
+  try { await api('/error-reports/client-errors/' + encodeURIComponent(id), { method: 'PATCH', body: { resolved } }); _admin.errors = await api('/error-reports'); drawAdmin(el('view')); }
+  catch (err) { const b = el('er-status'); b.textContent = err.message; b.className = 'status err'; }
 }
 
 // ── Kliniker (endast global admin) ────────────────────────────────────────

@@ -99,9 +99,9 @@ function drawSchema(root) {
             ${rows}
           </tbody>
         </table>
-      </div>` : '<p class="muted">Inga ST-läkare i perioden. Markera ST-läkare under Admin → användare.</p>'}
+      </div>` : '<p class="muted">Inga ST-läkare i perioden. Markera ST-läkare under Administration → användare.</p>'}
       ${types.length ? `<p style="margin:12px 0 0;line-height:2">${legend}<span class="sact ev" style="--c:#9aa5ad">Ev.</span> <span class="muted" style="font-size:13px">preliminär</span></p>`
-        : `<p class="hint">Inga aktivitetstyper än. ${data.canEditAll ? 'Lägg in dem under ST-inställningar.' : 'Studierektor lägger in dem.'}</p>`}
+        : `<p class="hint">Inga aktivitetstyper än. ${data.canEditAll ? 'Lägg in dem under Inställningar i vänsterspalten.' : 'Studierektor lägger in dem.'}</p>`}
       <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att lägga till eller ändra.' : 'Tryck på en ruta i din egen rad för att lägga till eller ändra.'}</p>
     </div>`;
 
@@ -150,7 +150,7 @@ function activityForm(a, monday) {
   const reqs = _sch.data.requirements.filter(r => r.active || (a && r.id === a.requirementId));
   const cats = [...new Set(reqs.map(r => r.category))];
   const weeks = a ? Math.round((Date.parse(a.weekTo) - Date.parse(a.weekFrom)) / 6048e5) + 1 : 1;
-  if (!types.length) return '<p class="hint">Inga aktivitetstyper finns. Studierektor eller admin lägger in dem under ST-inställningar.</p>';
+  if (!types.length) return '<p class="hint">Inga aktivitetstyper finns. Studierektor eller admin lägger in dem under ST-utbildning → Inställningar.</p>';
   return `
     <h3>${a ? 'Ändra aktivitet' : 'Ny aktivitet'}</h3>
     <label for="af-type" style="margin-top:0">Typ</label>
