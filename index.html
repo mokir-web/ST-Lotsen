@@ -82,7 +82,7 @@
     @media (max-width: 760px) {
       header { flex-wrap: wrap; padding-bottom: 0; row-gap: 8px; }
       #worlds { order: 3; flex: 0 0 calc(100% + 32px); margin: 0 -16px; height: 42px; border-top: 1px solid rgba(255,255,255,0.12); }
-      #worlds a { flex: 1; justify-content: center; padding: 0 8px; }
+      #worlds a { flex: 1 1 auto; justify-content: center; padding: 0 6px; font-size: 14px; }
       #menu-btn { max-width: 120px; }
       .shell { display: block; }
       #subnav [data-world] { display: flex; }
@@ -104,7 +104,7 @@
       padding: 14px 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(20,30,38,0.06);
     }
 
-    input[type=text], input[type=password], input[type=tel], select {
+    input[type=text], input[type=password], input[type=tel], input[type=number], input[type=date], input[type=month], input[type=search], select {
       width: 100%; max-width: 360px; padding: 11px 10px; font-size: 17px;
       border: 1.5px solid var(--line); border-radius: 5px; background: #eef1f3; color: var(--ink);
     }
@@ -320,6 +320,22 @@
     .sch .scell { min-width: 74px; max-width: 110px; height: 34px; }
     .sch .scell.edit { cursor: pointer; }
     .sch .scell.edit:hover { background: var(--accent-soft); }
+    .sch .svc-row td.low { background: #f6dcd7; color: var(--danger); }
+    .sch .scell.sel { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+    .sch.dragging, .sch.dragging * { user-select: none; -webkit-user-select: none; }
+    .staff-row div.low { background: #f6dcd7; color: var(--danger); }
+    /* Veckoschema på mobil: lista vecka för vecka */
+    .wk-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .wk { border: 1.5px solid var(--line); border-radius: 8px; background: #fff; }
+    .wk.now { border-color: var(--today); border-width: 2.5px; }
+    .wk h3 { margin: 0; padding: 7px 10px; font-size: 14px; background: #f6f8f9; border-bottom: 1px solid var(--line); border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; gap: 8px; }
+    .wk h3 .svcn { font-weight: normal; color: var(--ink-soft); }
+    .wk h3 .svcn.low { color: var(--danger); font-weight: bold; }
+    .wk .wk-row { display: flex; gap: 8px; align-items: center; padding: 7px 10px; border-top: 1px solid #eef1f3; min-height: 40px; width: 100%; background: none; border-left: none; border-right: none; border-bottom: none; text-align: left; font: inherit; color: inherit; }
+    .wk .wk-row:first-of-type { border-top: none; }
+    .wk .wk-row .who { min-width: 90px; font-weight: bold; font-size: 14px; }
+    .wk .wk-row.edit { cursor: pointer; }
+    .wk .wk-row.out { color: var(--ink-soft); font-style: italic; font-size: 14px; }
     .sch .scell.outside { background: repeating-linear-gradient(45deg, #f2f4f5, #f2f4f5 4px, #e8ecee 4px, #e8ecee 8px); }
     .sact { display: block; margin: 1px 0; padding: 1px 4px; border-radius: 4px; font-size: 11px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       background: color-mix(in srgb, var(--c) 30%, white); border-left: 3px solid var(--c); color: var(--ink); }
@@ -472,7 +488,8 @@
       <nav id="worlds" class="hidden" aria-label="Moduler">
         <a href="#/" id="world-today">Idag</a>
         <a href="#/kalender" id="world-op" class="hidden">Opjour</a>
-        <a href="#/schema" id="world-st" class="hidden">ST-utbildning</a>
+        <a href="#/schema" id="world-plan" class="hidden">Planering</a>
+        <a href="#/oversikt" id="world-st" class="hidden">ST-utbildning</a>
       </nav>
       <span class="spacer"></span>
       <button id="logout-btn" class="hidden" onclick="logout()">Logga ut</button>
@@ -503,9 +520,13 @@
           <a href="#/stats" data-route="#/stats" id="nav-stats" class="hidden">Statistik</a>
           <a href="#/opjour-settings" data-route="#/opjour-settings" id="nav-opset" class="hidden">Inställningar</a>
         </div>
+        <div data-world="plan" class="hidden">
+          <div class="sn-title">Planering</div>
+          <a href="#/schema" data-route="#/schema" id="nav-schema" class="hidden">Veckoschema</a>
+          <a href="#/schema/installningar" data-route="#/schema/installningar" id="nav-planset" class="hidden">Inställningar</a>
+        </div>
         <div data-world="st" class="hidden">
           <div class="sn-title">ST-utbildning</div>
-          <a href="#/schema" data-route="#/schema" id="nav-schema" class="hidden">Veckoschema</a>
           <a href="#/oversikt" data-route="#/oversikt" id="nav-oversikt" class="hidden">Måluppfyllelse</a>
           <a href="#/plan" data-route="#/plan" id="nav-plan" class="hidden">Min utbildningsplan</a>
           <a href="#/st" data-route="#/st" id="nav-st" class="hidden">Inställningar</a>
@@ -525,7 +546,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.18.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.20.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -713,6 +734,7 @@
       else if (h === '#/stats') renderStats(root);
       else if (h === '#/schema') renderSchema(root);
       else if (h === '#/st' || h.startsWith('#/st/')) renderStSettings(root, h.split('/')[2]);
+      else if (h === '#/schema/installningar') renderStSettings(root, 'typer', 'plan');
       else if (h === '#/oversikt') renderOversikt(root);
       else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
       else renderToday(root);
@@ -728,11 +750,12 @@
     function closeMenu() { el('menu').classList.add('hidden'); el('menu-btn').setAttribute('aria-expanded', 'false'); }
     document.addEventListener('click', e => { if (!el('menu-wrap').contains(e.target)) closeMenu(); });
 
-    // Navigeringen (hybrid): varje sida hör till en "värld" — Opjour, ST-utbildning eller konto/klinik.
+    // Navigeringen (hybrid): varje sida hör till en "värld" — Idag, Opjour, Planering, ST-utbildning eller konto/klinik.
     // Världens flik i headern markeras och dess undersidor visas i vänsterspalten.
     function worldOf(h) {
       if (h === '#/settings' || h === '#/admin') return 'acc';
-      if (['#/schema', '#/oversikt', '#/st'].includes(h) || h.startsWith('#/st/') || h.startsWith('#/plan')) return 'st';
+      if (h === '#/schema' || h.startsWith('#/schema/')) return 'plan';
+      if (['#/oversikt', '#/st'].includes(h) || h.startsWith('#/st/') || h.startsWith('#/plan')) return 'st';
       if (['#/kalender', '#/stats', '#/opjour-settings'].includes(h)) return 'op';
       return 'today';
     }
@@ -741,6 +764,7 @@
       el('world-today').classList.toggle('active', world === 'today');
       el('world-op').classList.toggle('active', world === 'op');
       el('subnav').classList.toggle('hidden', state.scope !== 'user' || world === 'today');   // Idag har inga undersidor
+      el('world-plan').classList.toggle('active', world === 'plan');
       el('world-st').classList.toggle('active', world === 'st');
       el('tool-admin').classList.toggle('active', h === '#/admin');
       el('subnav').querySelectorAll('[data-world]').forEach(g => g.classList.toggle('hidden', g.dataset.world !== world));
@@ -761,10 +785,12 @@
       show('nav-stats', me.canSeeStats && mods.includes('opjour'));
       show('nav-opset', me.isAdmin && mods.includes('opjour'));
       show('nav-schema', schema && (me.isSt || me.isDirector || me.isAdmin));
+      show('nav-planset', schema && (me.isDirector || me.isAdmin));
+      show('world-plan', schema && (me.isSt || me.isDirector || me.isAdmin));
       show('nav-oversikt', mal && (me.isSt || me.isDirector || me.isAdmin || me.isSupervisor));
       show('nav-plan', mal && me.isSt);
       show('nav-st', (schema || mal) && (me.isDirector || me.isAdmin));
-      const firstSt = ['nav-schema', 'nav-oversikt', 'nav-plan', 'nav-st'].map(el).find(a => !a.classList.contains('hidden'));
+      const firstSt = ['nav-oversikt', 'nav-plan', 'nav-st'].map(el).find(a => !a.classList.contains('hidden'));
       show('world-st', !!firstSt);
       if (firstSt) el('world-st').href = firstSt.getAttribute('href');
       ['nav-admin', 'menu-admin', 'tool-admin'].forEach(id => show(id, me.isAdmin));

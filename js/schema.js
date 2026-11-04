@@ -1,4 +1,4 @@
-// ── Veckoschema (#/schema) ───────────────────────────────────────────────
+// ── Planering → Veckoschema (#/schema) ───────────────────────────────────────────────
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser(), todayStockholm(), mondayOfISO(),
 // addDaysISO(), isoWeek(), fmtDM(). Global entry: renderSchema(root).
 //
@@ -6,6 +6,8 @@
 // Rader = ST-läkare, kolumner = veckor. Raden "I tjänst" räknas av servern (plattform_plan.md §3).
 // Tryck på en ruta öppnar veckan för personen: lägg till, ändra eller ta bort aktiviteter.
 // ST-läkaren ändrar sin egen rad; studierektor och admin alla rader (servern kontrollerar).
+// Dra över flera veckor i en rad (dator) för att skapa en period. Bemanningsvarning: "I tjänst" blir röd under klinikens minsta antal.
+// Vyer: Tabell (förval på dator), Jag (min rad som lista vecka för vecka) och Alla (lista per vecka) — förval på mobil.
 
 let _sch = null;
 
@@ -17,8 +19,10 @@ async function renderSchema(root) {
     const from = addDaysISO(mondayOfISO(todayStockholm()), -14);
     const [me, data] = await Promise.all([api('/me'), api(`/schema?from=${from}&weeks=${SCH_WEEKS}`)]);
     setMenuForUser(me);
-    _sch = { me, data, from, sheet: null };
+    const mobile = window.matchMedia('(max-width: 640px)').matches;
+    _sch = { me, data, from, sheet: null, view: mobile ? (data.people.some(p => p.id === data.me) ? 'me' : 'all') : 'table' };
     drawSchema(root);
+    if (_sch.view !== 'table') document.querySelector('.wk.now')?.scrollIntoView({ block: 'start' });   // listan börjar två veckor bakåt
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }
@@ -50,6 +54,60 @@ function actChip(a) {
   return `<span class="sact${a.status === 'ev' ? ' ev' : ''}" style="--c:${esc(color)}" title="${esc((a.status === 'ev' ? 'Ev. ' : '') + actLabel(a))}">${a.status === 'ev' ? 'Ev. ' : ''}${esc(actLabel(a))}</span>`;
 }
 
+const schLow = m => _sch.data.minInService != null && _sch.data.inService[m] < _sch.data.minInService;
+
+// Listvy (mobil): en ruta per vecka. "Jag" = min rad; "Alla" = de som har något inlagt den veckan.
+function schList(weeks, byCell) {
+  const { data } = _sch;
+  const mine = _sch.view === 'me';
+  const people = mine ? data.people.filter(p => p.id === data.me) : data.people;
+  return `<div class="wk-list">${weeks.map(m => {
+    const rows = people.map(p => {
+      const acts = byCell.get(p.id + '|' + m) || [];
+      const inSt = data.inServiceByPerson[p.id][m] !== null;
+      if (!mine && !acts.length) return '';
+      const edit = schCanEdit(p.id) && inSt;
+      return `<button type="button" class="wk-row${edit ? ' edit' : ''}${inSt ? '' : ' out'}"${edit ? ` data-p="${esc(p.id)}" data-w="${m}"` : ' disabled'}>
+        ${mine ? '' : `<span class="who">${esc(p.displayName)}</span>`}<span>${!inSt ? 'utanför ST-tiden' : acts.length ? acts.map(actChip).join(' ') : '<span class="muted">– i tjänst –</span>'}</span></button>`;
+    }).join('');
+    return `<div class="wk${m === data.thisMonday ? ' now' : ''}"><h3><span>v${isoWeek(m)} · ${fmtDM(m)}</span>
+      <span class="svcn${schLow(m) ? ' low' : ''}">${data.inService[m]} i tjänst${schLow(m) ? ` (minst ${data.minInService})` : ''}</span></h3>
+      ${rows || '<div class="wk-row out">Inga aktiviteter inlagda</div>'}</div>`;
+  }).join('')}</div>`;
+}
+
+// Dra över veckor i en rad: markera från första till sista rutan och öppna "Ny aktivitet" med period ifylld.
+function schDragSetup(root) {
+  const table = root.querySelector('table.sch');
+  if (!table) return;
+  let start = null, cur = null;
+  const cellsOf = (p, a, b) => [...table.querySelectorAll(`.scell.edit[data-p="${CSS.escape(p)}"]`)].filter(td => td.dataset.w >= (a < b ? a : b) && td.dataset.w <= (a < b ? b : a));
+  const paint = () => { table.querySelectorAll('.scell.sel').forEach(td => td.classList.remove('sel')); if (start && cur) cellsOf(start.p, start.w, cur).forEach(td => td.classList.add('sel')); };
+  table.addEventListener('pointerdown', e => {
+    const td = e.target.closest('.scell.edit');
+    if (!td || e.button !== 0 || e.pointerType === 'touch') return;
+    start = { p: td.dataset.p, w: td.dataset.w }; cur = td.dataset.w;
+  });
+  table.addEventListener('pointerover', e => {
+    if (!start) return;
+    const td = e.target.closest('.scell.edit');
+    if (!td || td.dataset.p !== start.p || td.dataset.w === cur) return;
+    cur = td.dataset.w; table.classList.add('dragging'); paint();
+  });
+  const finish = () => {
+    if (!start) return;
+    const s = start, end = cur; start = cur = null; table.classList.remove('dragging');
+    if (end === s.w) return;   // vanligt klick — click-hanteraren öppnar veckan
+    const a = s.w < end ? s.w : end, b = s.w < end ? end : s.w;
+    const weeks = Math.round((Date.parse(b) - Date.parse(a)) / 6048e5) + 1;
+    _sch.dragged = true; setTimeout(() => { _sch.dragged = false; }, 0);
+    _sch.sheet = { userId: s.p, monday: a, editing: 'new', weeks }; drawSchemaSheet();
+    table.querySelectorAll('.scell.sel').forEach(td => td.classList.remove('sel'));
+  };
+  table.addEventListener('pointerup', finish);
+  table.addEventListener('pointerleave', () => { if (start && cur !== start.w) finish(); else { start = cur = null; table.classList.remove('dragging'); paint(); } });
+}
+
 function drawSchema(root) {
   const { data } = _sch;
   const weeks = data.window.weeks;
@@ -62,7 +120,7 @@ function drawSchema(root) {
   }
 
   const head = weeks.map(m => `<th class="${m === data.thisMonday ? 'now' : ''}">v${isoWeek(m)}<br><span>${fmtDM(m)}</span></th>`).join('');
-  const service = weeks.map(m => `<td class="svc${m === data.thisMonday ? ' now' : ''}">${data.inService[m]}</td>`).join('');
+  const service = weeks.map(m => `<td class="svc${m === data.thisMonday ? ' now' : ''}${schLow(m) ? ' low' : ''}"${schLow(m) ? ` title="Under ${data.minInService} i tjänst"` : ''}>${data.inService[m]}</td>`).join('');
   const rows = data.people.map(p => {
     const editable = schCanEdit(p.id);
     const cells = weeks.map(m => {
@@ -91,6 +149,10 @@ function drawSchema(root) {
         </span>
       </div>
       ${data.people.length ? `
+      <div class="seg" id="sch-view" style="margin-top:10px">${[['table', 'Tabell'], ...(data.people.some(p => p.id === data.me) ? [['me', 'Jag']] : []), ['all', 'Alla']].map(([k, l]) =>
+        `<button type="button" data-v="${k}" class="${_sch.view === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      ${data.minInService != null ? `<span class="muted" style="font-size:13px;margin-left:8px">Minst ${data.minInService} i tjänst</span>` : ''}
+      ${_sch.view !== 'table' ? schList(weeks, byCell) : `
       <div class="sch-scroll">
         <table class="sch">
           <thead><tr><th class="pname">ST-läkare</th>${head}</tr></thead>
@@ -99,14 +161,19 @@ function drawSchema(root) {
             ${rows}
           </tbody>
         </table>
-      </div>` : '<p class="muted">Inga ST-läkare i perioden. Markera ST-läkare under Administration → användare.</p>'}
+      </div>`}` : '<p class="muted">Inga ST-läkare i perioden. Markera ST-läkare under Administration → användare.</p>'}
       ${types.length ? `<p style="margin:12px 0 0;line-height:2">${legend}<span class="sact ev" style="--c:#9aa5ad">Ev.</span> <span class="muted" style="font-size:13px">preliminär</span></p>`
         : `<p class="hint">Inga aktivitetstyper än. ${data.canEditAll ? 'Lägg in dem under Inställningar i vänsterspalten.' : 'Studierektor lägger in dem.'}</p>`}
-      <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att lägga till eller ändra.' : 'Tryck på en ruta i din egen rad för att lägga till eller ändra.'}</p>
+      <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att lägga till eller ändra.' : 'Tryck på en ruta i din egen rad för att lägga till eller ändra.'}
+        ${_sch.view === 'table' ? 'Dra över flera veckor i en rad för att lägga in en period.' : ''}</p>
     </div>`;
 
+  el('sch-view')?.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { _sch.view = b.dataset.v; drawSchema(el('view')); } });
+  root.querySelectorAll('.wk-row.edit').forEach(r => r.addEventListener('click', () => { _sch.sheet = { userId: r.dataset.p, monday: r.dataset.w, editing: null }; drawSchemaSheet(); }));
+  schDragSetup(root);
+
   root.querySelectorAll('.scell.edit').forEach(td => {
-    const open = () => { _sch.sheet = { userId: td.dataset.p, monday: td.dataset.w, editing: null }; drawSchemaSheet(); };
+    const open = () => { if (_sch.dragged) { _sch.dragged = false; return; } _sch.sheet = { userId: td.dataset.p, monday: td.dataset.w, editing: null }; drawSchemaSheet(); };
     td.addEventListener('click', open);
     td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
   });
@@ -134,9 +201,9 @@ function drawSchemaSheet() {
   root.innerHTML = `
     <div class="overlay" data-ss="close">
       <div class="sheet" role="dialog" aria-label="Vecka">
-        <h2>${esc(person ? person.displayName : '')} · v${isoWeek(s.monday)} <button class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" data-ss="close" aria-label="Stäng">✕</button></h2>
+        <h2>${esc(person ? person.displayName : '')} · v${isoWeek(s.monday)}${s.weeks > 1 ? '–' + isoWeek(addDaysISO(s.monday, 7 * (s.weeks - 1))) : ''} <button class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" data-ss="close" aria-label="Stäng">✕</button></h2>
         ${acts.length ? `<h3>Den här veckan</h3>${list}` : ''}
-        ${showForm ? activityForm(editing, s.monday) : '<button class="btn btn-block" data-ss="new">Lägg till aktivitet</button>'}
+        ${showForm ? activityForm(editing, s.monday, s.weeks) : '<button class="btn btn-block" data-ss="new">Lägg till aktivitet</button>'}
         <div id="ss-err" class="status err"></div>
       </div>
     </div>`;
@@ -145,12 +212,12 @@ function drawSchemaSheet() {
   if (typeSel) { typeSel.addEventListener('change', syncReqField); el('af-req').addEventListener('change', onReqPicked); syncReqField(); }
 }
 
-function activityForm(a, monday) {
+function activityForm(a, monday, prefillWeeks) {
   const types = _sch.data.types.filter(t => t.active || (a && t.id === a.typeId));
   const reqs = _sch.data.requirements.filter(r => r.active || (a && r.id === a.requirementId));
   const cats = [...new Set(reqs.map(r => r.category))];
-  const weeks = a ? Math.round((Date.parse(a.weekTo) - Date.parse(a.weekFrom)) / 6048e5) + 1 : 1;
-  if (!types.length) return '<p class="hint">Inga aktivitetstyper finns. Studierektor eller admin lägger in dem under ST-utbildning → Inställningar.</p>';
+  const weeks = a ? Math.round((Date.parse(a.weekTo) - Date.parse(a.weekFrom)) / 6048e5) + 1 : prefillWeeks || 1;
+  if (!types.length) return '<p class="hint">Inga aktivitetstyper finns. Studierektor eller admin lägger in dem under Planering → Inställningar.</p>';
   return `
     <h3>${a ? 'Ändra aktivitet' : 'Ny aktivitet'}</h3>
     <label for="af-type" style="margin-top:0">Typ</label>

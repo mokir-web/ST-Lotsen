@@ -501,8 +501,8 @@ function onUserChange(e) {
 // ── Moduler (klinikens admin) ────────────────────────────────────────────
 const MODULE_INFO = [
   ['opjour', 'Opjour', 'Operationsjourlinjen: kalender, bokning, reserv och visningsskärm.'],
-  ['schema', 'Veckoschema', 'ST-gruppens schema vecka för vecka med raden "I tjänst". Typer och krav ställs in under ST-utbildning → Inställningar.'],
-  ['mal', 'Måluppfyllelse', 'Översikt per ST-läkare och krav: klart, bokat, förslag, plan eller saknas — ur veckoschemat och det som anges för hand.']
+  ['schema', 'Planering', 'Veckoschemat: ST-gruppens schema vecka för vecka med raden "I tjänst" och bemanningsvarning. Aktivitetstyper ställs in under Planering → Inställningar.'],
+  ['mal', 'ST-utbildning', 'Måluppfyllelse, individuella utbildningsplaner, krav per ST-år och delmål. Status hämtas ur veckoschemat och det som anges för hand.']
 ];
 
 function moduleCard() {

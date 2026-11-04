@@ -87,8 +87,10 @@ function myWeekCard({ me, sch }) {
 function staffingCard({ me, sch }) {
   if (!sch || !(me.isDirector || me.isAdmin)) return '';
   const weeks = sch.window.weeks.slice(0, 6);
-  return todayCard('I tjänst', `<div class="staff-row">${weeks.map(w => `<div class="${w === sch.thisMonday ? 'cur' : ''}"><span>v${isoWeek(w)}</span><strong>${sch.inService[w] ?? '–'}</strong></div>`).join('')}</div>
-    <p class="hint" style="margin:6px 0 0">Antal ST-läkare i tjänst per vecka enligt veckoschemat.</p>`, ['#/schema', 'Veckoschemat']);
+  const low = w => sch.minInService != null && sch.inService[w] < sch.minInService;
+  const lows = weeks.filter(low);
+  return todayCard('I tjänst', `<div class="staff-row">${weeks.map(w => `<div class="${[w === sch.thisMonday ? 'cur' : '', low(w) ? 'low' : ''].join(' ')}"><span>v${isoWeek(w)}</span><strong>${sch.inService[w] ?? '–'}</strong></div>`).join('')}</div>
+    <p class="hint" style="margin:6px 0 0">${lows.length ? `<strong style="color:var(--danger)">Under ${sch.minInService} i tjänst vecka ${lows.map(w => isoWeek(w)).join(', ')}.</strong> ` : ''}Antal ST-läkare i tjänst per vecka enligt veckoschemat${sch.minInService != null ? ` (minst ${sch.minInService})` : ''}.</p>`, ['#/schema', 'Veckoschemat']);
 }
 
 // Mitt förlopp: obligatoriska krav klara och delmål signerade (ST-läkare).

@@ -1,10 +1,11 @@
-// ── ST-utbildning → Inställningar (#/st/<flik>) ──────────────────────────
+// ── ST-utbildning → Inställningar (#/st/<flik>) och Planering → Inställningar (#/schema/installningar) ──
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser(). Global entry: renderStSettings(root).
 //
 // Klinikens egna inställningar för veckoschemat (plattform_plan.md §3, §5): aktivitetstyper (kod, namn, färg, påverkan på
 // "I tjänst", ger måluppfyllelse) och krav (kategori, namn, randning/ort, längd, undantag för i tjänst, ST-år, obligatoriskt).
 // För studierektor och admin. Inget raderas — inaktivera i stället, så att befintliga schemaposter behåller sin betydelse.
-// Flikar: Krav, Aktivitetstyper, Delmål (målbeskrivning + vilka delmål kraven täcker) och ST-läkare (ST-uppgifter och handledare).
+// ST-flikar: Krav, Delmål (målbeskrivning + vilka delmål kraven täcker) och ST-läkare (ST-uppgifter och handledare).
+// Planeringens inställningar (bemanning och aktivitetstyper) använder samma kod med page = 'plan'.
 
 let _sts = null;
 
@@ -13,17 +14,18 @@ const effectOptions = (sel, inherit) =>
   (inherit ? `<option value=""${!sel ? ' selected' : ''}>Ärv från typen</option>` : '')
   + Object.entries(EFFECT_LABEL).map(([v, l]) => `<option value="${v}"${sel === v ? ' selected' : ''}>${l}</option>`).join('');
 
-const STS_TABS = [['krav', 'Krav'], ['typer', 'Aktivitetstyper'], ['delmal', 'Delmål'], ['personer', 'ST-läkare och handledare']];
+const STS_TABS = [['krav', 'Krav'], ['delmal', 'Delmål'], ['personer', 'ST-läkare och handledare']];
 
-async function renderStSettings(root, tab) {
-  if (!STS_TABS.some(t => t[0] === tab)) tab = 'krav';
+async function renderStSettings(root, tab, page = 'st') {
+  if (page === 'st' && tab === 'typer') { location.hash = '#/schema/installningar'; return; }   // gamla länkar
+  if (page === 'st' && !STS_TABS.some(t => t[0] === tab)) tab = 'krav';
   root.innerHTML = '<p class="muted">Laddar…</p>';
   try {
     const me = await api('/me');
     setMenuForUser(me);
     if (!(me.isDirector || me.isAdmin)) { location.hash = '#/'; return; }
     const [cfg, fw, ppl] = await Promise.all([api('/admin/st/config'), api('/goals/frameworks?goals=1'), tab === 'personer' ? api('/admin/st/people') : null]);
-    _sts = { me, cfg, frameworks: fw.frameworks, tab, people: ppl?.people || null };
+    _sts = { me, cfg, frameworks: fw.frameworks, tab, page, people: ppl?.people || null };
     drawStSettings(root);
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
@@ -54,18 +56,30 @@ const stsDefaultGoals = () => (_sts.frameworks.find(f => f.id === _sts.cfg.defau
 
 function drawStSettings(root) {
   const { tab } = _sts;
-  root.innerHTML = `
+  root.innerHTML = _sts.page === 'plan' ? `
+    <h1 class="page">Inställningar för planering</h1>
+    ${stsTypesTab()}` : `
     <h1 class="page">Inställningar för ST-utbildning</h1>
     <nav class="subtabs" aria-label="Flikar">${STS_TABS.map(([k, l]) => `<a href="#/st/${k}"${k === tab ? ' class="active" aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
-    ${tab === 'typer' ? stsTypesTab() : tab === 'delmal' ? stsGoalsTab() : tab === 'personer' ? stsPeopleTab() : stsReqTab()}`;
+    ${tab === 'delmal' ? stsGoalsTab() : tab === 'personer' ? stsPeopleTab() : stsReqTab()}`;
   root.querySelectorAll('.st-table').forEach(t => t.addEventListener('click', onStTableClick));
   attachYearBoard(root, { onMove: moveReq, onEdit: id => openReqPanel(id), onAdd: y => openReqPanel(null, y) });
   root.querySelectorAll('.stp').forEach(t => t.addEventListener('click', onStPeopleClick));
 }
 
 function stsTypesTab() {
-  const { types } = _sts.cfg;
+  const { types, minInService } = _sts.cfg;
   return `
+    <div class="card">
+      <h2>Bemanning</h2>
+      <p class="hint" style="margin-top:0">Minsta antal ST-läkare i tjänst per vecka. Raden "I tjänst" i veckoschemat och på startsidan blir röd när
+        antalet är lägre. Lämna tomt för ingen varning.</p>
+      <div class="row" style="gap:8px;align-items:flex-end">
+        <div><label for="st-min" style="margin-top:0">Minst i tjänst</label><input type="number" id="st-min" min="0" max="99" value="${minInService ?? ''}" style="max-width:120px"></div>
+        <button class="btn" onclick="saveMinInService()">Spara</button>
+      </div>
+      <div class="status" id="st-min-status"></div>
+    </div>
     <div class="card">
       <h2>Aktivitetstyper</h2>
       <p class="hint" style="margin-top:0">Kodorden i veckoschemat. <strong>Påverkan</strong> styr raden "I tjänst": en vecka med någon aktivitet som är
@@ -297,6 +311,13 @@ async function onStPeopleClick(e) {
     const again = document.querySelector(`.stp-row[data-id="${CSS.escape(id)}"] [data-s]`);
     if (again) { again.textContent = `Sparat: ${who.displayName}.`; again.className = 'status ok'; }
   } catch (err) { const b = row.querySelector('[data-s]'); b.textContent = err.message; b.className = 'status err'; }
+}
+
+async function saveMinInService() {
+  try {
+    await api('/admin/st/clinic', { method: 'PUT', body: { minInService: el('st-min').value } });
+    await reloadStSettings({ box: 'st-min-status', text: 'Sparat.' });
+  } catch (err) { const b = el('st-min-status'); b.textContent = err.message; b.className = 'status err'; }
 }
 
 async function saveDefaultFramework() {
