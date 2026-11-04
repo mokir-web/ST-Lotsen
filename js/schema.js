@@ -146,6 +146,7 @@ function drawSchema(root) {
         <span class="row" style="gap:8px">
           <button class="btn-ghost" onclick="stepSchema('today')">Idag</button>
           <button class="btn-ghost" onclick="stepSchema(1)">${SCH_STEP} veckor ›</button>
+          ${data.canEditAll ? '<button class="btn-ghost" onclick="openJobImport()" title="Fyll i veckoschemat från jobbschemat (.xlsx)">Importera jobbschema…</button>' : ''}
         </span>
       </div>
       ${data.people.length ? `

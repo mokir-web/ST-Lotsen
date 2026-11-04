@@ -417,6 +417,11 @@
     .sp-body h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-soft); margin: 18px 0 4px; }
     .sp-foot { border-top: 1px solid var(--line); padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .sp-foot .status { flex-basis: 100%; margin: 0; }
+    .sidepanel.wide { width: min(720px, 100%); }
+    .job-tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .job-tbl td { padding: 6px 6px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .job-tbl select { width: 100%; max-width: none; }
+    .job-list { margin: 0; padding-left: 18px; font-size: 14px; } .job-list li { margin: 4px 0; }
     .sidepanel input[type=number], .sidepanel input[type=search] { width: 100%; max-width: 360px; padding: 11px 10px; font-size: 17px; border: 1.5px solid var(--line); border-radius: 5px; background: #eef1f3; color: var(--ink); }
     .yb-name { overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto; }
     .yb-col h3 .muted { font-weight: normal; }
@@ -633,7 +638,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.26.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.27.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1038,6 +1043,8 @@
   <script src="js/stats.js"></script>
   <script src="js/display.js"></script>
   <script src="js/schema.js"></script>
+  <script src="js/jobschema.js"></script>
+  <script src="js/jobimport.js"></script>
   <script src="js/yearboard.js"></script>
   <script src="js/stsettings.js"></script>
   <script src="js/oversikt.js"></script>

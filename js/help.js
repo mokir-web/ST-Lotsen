@@ -18,7 +18,8 @@ const HELP = [
   ['#/schema', 'Planering · Veckoschema', [
     'En rad per ST-läkare, en kolumn per vecka. Klicka i en cell för att lägga in eller ändra en aktivitet. Dra över flera veckor i en rad för att lägga in en period.',
     'Raden "I tjänst" räknar hur många som är i tjänst varje vecka. Röd = under klinikens gräns.',
-    'På mobil: välj <em>Jag</em> eller <em>Alla</em> för en lista per vecka.']],
+    'På mobil: välj <em>Jag</em> eller <em>Alla</em> för en lista per vecka.',
+    '<strong>Importera jobbschema</strong> (studierektor): välj exporten från schemasystemet (.xlsx, en kolumn per dag). ST-läkarna matchas på namn, övriga läkare hoppas över. Du väljer vilka koder som blir vilken aktivitetstyp (t.ex. Randning → Rand, Föräldraledig → FL) och hur många dagar i veckan som krävs. Fynden granskas ett i taget: <em>Acceptera</em> sparar posten direkt, <em>Avvisa</em> hoppar över den; vid krock väljer du <em>Lägg till också</em> eller <em>Ersätt</em>. Det som redan finns i veckoschemat visas bara.']],
   ['#/oversikt', 'ST-utbildning · Måluppfyllelse', [
     'Alla ST-läkare mot klinikens krav. ✓ klart, ◷ bokat i schemat, ? förslag, ✎ plan, · ej gjort än, ! saknas (personen har passerat kravets ST-år). Peka på en ruta för hela texten, klicka för att ange status för hand.',
     'Filtrera på kategori, sortera på "% klart" och växla mellan kompakt och detaljerad vy.']],
