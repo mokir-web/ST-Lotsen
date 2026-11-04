@@ -349,6 +349,13 @@
     .prog thead th.cat { background: #e2e7ea; text-transform: uppercase; letter-spacing: 0.3px; }
     .prog .pc { min-width: 58px; max-width: 90px; font-size: 11px; text-align: center; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .prog .pc.edit { cursor: pointer; }
+    .prog.compact .pc { min-width: 30px; max-width: 46px; font-size: 12px; }
+    .prog.compact thead tr:nth-child(2) th { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; max-height: 130px; padding: 6px 2px; text-align: left; }
+    .prog .pct { min-width: 64px; font-size: 11px; text-align: right; white-space: nowrap; vertical-align: middle; background: #fafbfc; }
+    .prog .pct .pbar.sm { display: block; height: 5px; margin-bottom: 2px; }
+    .prog thead .pct { text-align: center; }
+    .prog .ov-sort { font: inherit; font-weight: bold; color: inherit; text-decoration: none; padding: 0; }
+    #ov-cat { flex-wrap: wrap; }
     .prog .pc.edit:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
     .st-klart { background: #d7ecdf; color: #1f5a3a; }
     .st-tidigare { background: #e6eee9; color: #3d5a4a; }
@@ -546,7 +553,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.20.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.21.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
