@@ -437,6 +437,33 @@
     .goalpick label:has(input:checked) { background: var(--accent-soft); }
     .goalpick.reqpick { max-height: 60vh; }
     .dops-sec { border-top: 1px solid var(--line); padding: 8px 0; }
+    .bed-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+    .bed-type { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; background: #fff; border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 14px; cursor: pointer; }
+    .bed-type.on { border-color: var(--accent); background: var(--accent-soft); }
+    .bed-type .muted { font-size: 12px; }
+    .bed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .bed-grid .card { margin: 0; }
+    .bed-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; }
+    .bed-head strong { flex: 1 1 auto; }
+    .bed-avg { font-weight: bold; color: var(--accent); }
+    .bed-svg { width: 100%; height: auto; display: block; }
+    .bed-line { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .bed-dot { fill: var(--accent); }
+    .bed-avgline { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .bed-axis { display: flex; justify-content: space-between; font-size: 11px; }
+    .bed-steps { font-size: 11px; margin-top: 6px; line-height: 1.5; }
+    .bed-bar { display: grid; grid-template-columns: minmax(70px, auto) 1fr 28px; gap: 8px; align-items: center; font-size: 13px; margin: 4px 0; }
+    .bed-bar > div { background: #eef1f3; border-radius: 4px; height: 12px; overflow: hidden; }
+    .bed-bar i { display: block; height: 100%; background: var(--accent); }
+    .bed-bar > span:last-child { text-align: right; }
+    .bed-q { font-weight: bold; font-size: 15px; margin: 12px 0 6px; }
+    .bed-free { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; font-size: 14px; }
+    .bed-free .muted { font-size: 12px; margin-bottom: 2px; }
+    .bed-one { border-top: 1px solid var(--line); padding: 8px 0; }
+    .bed-one > summary { cursor: pointer; }
+    .bed-ans { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 14px; }
+    .bed-ans th { text-align: left; font-weight: normal; color: var(--ink-soft); padding: 4px 10px 4px 0; vertical-align: top; width: 40%; }
+    .bed-ans td { padding: 4px 0; vertical-align: top; white-space: pre-wrap; }
     .dops-sec > summary { cursor: pointer; padding: 4px 0; }
     .dops-row { align-items: flex-start; gap: 10px; flex-wrap: wrap; }
     .dops-row > div:first-child { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
@@ -630,6 +657,7 @@
           <div class="sn-title">ST-utbildning</div>
           <a href="#/oversikt" data-route="#/oversikt" id="nav-oversikt" class="hidden">Måluppfyllelse</a>
           <a href="#/plan" data-route="#/plan" id="nav-plan" class="hidden">Min utbildningsplan</a>
+          <a href="#/bedomningar" data-route="#/bedomningar" id="nav-bed" class="hidden">Bedömningar</a>
           <a href="#/st" data-route="#/st" id="nav-st" class="hidden">Inställningar</a>
         </div>
         <div data-world="acc" class="hidden">
@@ -647,7 +675,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.32.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.33.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -862,6 +890,7 @@
       else if (h === '#/st' || h.startsWith('#/st/')) renderStSettings(root, h.split('/')[2]);
       else if (h === '#/schema/installningar') renderStSettings(root, 'typer', 'plan');
       else if (h === '#/oversikt') renderOversikt(root);
+      else if (h === '#/bedomningar') renderBedomningar(root);
       else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
       else renderToday(root);
       window.scrollTo(0, 0);
@@ -881,7 +910,7 @@
     function worldOf(h) {
       if (h === '#/settings' || h === '#/admin') return 'acc';
       if (h === '#/schema' || h.startsWith('#/schema/')) return 'plan';
-      if (['#/oversikt', '#/st'].includes(h) || h.startsWith('#/st/') || h.startsWith('#/plan')) return 'st';
+      if (['#/oversikt', '#/st', '#/bedomningar'].includes(h) || h.startsWith('#/st/') || h.startsWith('#/plan')) return 'st';
       if (['#/kalender', '#/stats', '#/opjour-settings'].includes(h)) return 'op';
       return 'today';
     }
@@ -916,7 +945,8 @@
       show('nav-oversikt', mal && (me.isSt || me.isDirector || me.isAdmin || me.isSupervisor));
       show('nav-plan', mal && me.isSt);
       show('nav-st', (schema || mal) && (me.isDirector || me.isAdmin));
-      const firstSt = ['nav-oversikt', 'nav-plan', 'nav-st'].map(el).find(a => !a.classList.contains('hidden'));
+      show('nav-bed', mods.includes('dops') && me.dopsUser);   // MoraDOPS-bedömningar: modulen påslagen och eget konto kopplat
+      const firstSt = ['nav-oversikt', 'nav-plan', 'nav-bed', 'nav-st'].map(el).find(a => !a.classList.contains('hidden'));
       show('world-st', !!firstSt);
       if (firstSt) el('world-st').href = firstSt.getAttribute('href');
       ['nav-admin', 'menu-admin', 'tool-admin'].forEach(id => show(id, me.isAdmin));
@@ -1058,6 +1088,7 @@
   <script src="js/stsettings.js"></script>
   <script src="js/oversikt.js"></script>
   <script src="js/plan.js"></script>
+  <script src="js/dops.js"></script>
   <script src="js/today.js"></script>
   <script src="js/help.js"></script>
 </body>
