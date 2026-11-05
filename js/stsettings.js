@@ -273,7 +273,7 @@ function stsPeopleTab() {
   return `
     <div class="card stp">
       <h2>ST-läkare (${active.length})</h2>
-      <p class="hint" style="margin-top:0">Handledaren ser sina ST-läkares måluppfyllelse och plan och kan signera delmål. ST-slut sätts när ST är klar — personen
+      <p class="hint" style="margin-top:0">Handledaren ser sina ST-läkares måluppfyllelse och plan (läsrätt, ingen signering). ST-slut sätts när ST är klar — personen
         syns då som avslutad i översikten.</p>
       ${active.map(card).join('') || '<p class="muted">Inga ST-läkare.</p>'}
     </div>

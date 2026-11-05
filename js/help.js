@@ -22,12 +22,12 @@ const HELP = [
     '<strong>Importera jobbschema</strong> (studierektor): välj exporten från schemasystemet (.xlsx, en kolumn per dag). ST-läkarna matchas på namn, övriga läkare hoppas över. Du väljer vilka koder som blir vilken aktivitetstyp (t.ex. Randning → Rand, Föräldraledig → FL) och hur många dagar i veckan som krävs. Fynden granskas ett i taget: <em>Acceptera</em> sparar posten direkt, <em>Avvisa</em> hoppar över den; vid krock väljer du <em>Lägg till också</em> eller <em>Ersätt</em>. Det som redan finns i veckoschemat visas bara.']],
   ['#/oversikt', 'ST-utbildning · Måluppfyllelse', [
     'Alla ST-läkare mot klinikens krav. ✓ klart, ◷ bokat i schemat, ? förslag, ✎ plan, · ej gjort än, ! saknas (personen har passerat kravets ST-år). Peka på en ruta för hela texten, klicka för att ange status för hand.',
-    'Filtrera på kategori, sortera på "% klart" och växla mellan kompakt och detaljerad vy.']],
+    'Klicka på en rubrik för att sortera: ST-läkare, ST-tid, % klart eller ett krav (de som gjort det först). Klicka igen för omvänd ordning. Filtrera på kategori och växla mellan kompakt och detaljerad vy.']],
   ['#/plan', 'Utbildningsplan', [
-    '<strong>Översikt:</strong> förloppet per ST-år och kraven med status. <strong>Delmål:</strong> målbeskrivningens delmål med kopplade krav; handledaren signerar. <strong>Historik:</strong> signeringar, genomgångar och ändrad status.',
+    '<strong>Översikt:</strong> förloppet per ST-år och kraven med status. <strong>Delmål:</strong> målbeskrivningens delmål med kopplade krav och hur många som är klara. <strong>Historik:</strong> ändringar i planen och status satt för hand. Ingen signering behövs — ST-läkaren håller själv koll, handledaren ser planen.',
     '<strong>Ändra planen:</strong> dra ett krav till ett annat år, eller klicka på det för att flytta eller ta bort det. Det gäller bara den här ST-läkarens plan — klinikens mall ändras inte. Ändringarna syns i Historik.',
     '<strong>Beräknat ST-slut</strong> är ST-start + 5 år + veckor med föräldra- eller tjänstledighet i veckoschemat.',
-    '<strong>Skriv ut</strong> ger en A4 med översikt, delmål och rader för underskrift.']],
+    '<strong>Skriv ut</strong> ger en A4 med översikt och delmål.']],
   ['#/st/delmal', 'ST-utbildning · Delmål', ['Klinikens målbeskrivning och hur väl kraven täcker delmålen. Koppla krav till delmål under fliken Krav.']],
   ['#/st/personer', 'ST-utbildning · ST-läkare och handledare', ['Vem som är ST-läkare, ST-start och -slut, målbeskrivning och handledare. Studierektorsrollen sätts under Administration.']],
   ['#/st', 'ST-utbildning · Krav', [

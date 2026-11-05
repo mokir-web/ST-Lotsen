@@ -352,7 +352,10 @@
     .prog .pc { min-width: 58px; max-width: 90px; font-size: 11px; text-align: center; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .prog .pc.edit { cursor: pointer; }
     .prog.compact .pc { min-width: 30px; max-width: 46px; font-size: 12px; }
-    .prog.compact thead tr:nth-child(2) th { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; max-height: 130px; padding: 6px 2px; text-align: left; }
+    /* Lodrät rubrik: vrids på ett inline-block i cellen — transform på själva th-cellen ignoreras av Safari (iOS), då hamnade texten upp och ned. */
+    .prog.compact thead tr:nth-child(2) th { padding: 6px 2px; vertical-align: bottom; text-align: center; }
+    .prog.compact thead tr:nth-child(2) th .vt { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; max-height: 130px; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+    .prog thead tr:nth-child(2) th.sorted { background: #e2e7ea; }
     .prog .pct { min-width: 64px; font-size: 11px; text-align: right; white-space: nowrap; vertical-align: middle; background: #fafbfc; }
     .prog .pct .pbar.sm { display: block; height: 5px; margin-bottom: 2px; }
     .prog thead .pct { text-align: center; }
@@ -499,9 +502,6 @@
       .pl-printhead { border-bottom: 2px solid #333; padding-bottom: 6px; margin-bottom: 10px; font-size: 13px; line-height: 1.5; }
       .pl-printhead + .card h1 { font-size: 20px; }
       .pl-pane[data-pane="delmal"] { break-before: page; }
-      .pl-sign { display: grid !important; grid-template-columns: 1fr 1fr; gap: 28px 24px; margin-top: 28px; break-inside: avoid; }
-      .pl-sign div { border-bottom: 1px solid #333; height: 34px; position: relative; }
-      .pl-sign span { position: absolute; bottom: -18px; left: 0; font-size: 12px; color: #555; }
       .pbar, .pbar span { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .yb { grid-template-columns: repeat(3, 1fr) !important; }
       .goals-table { font-size: 11px; }
@@ -638,7 +638,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.27.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.28.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];

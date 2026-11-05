@@ -93,19 +93,19 @@ function staffingCard({ me, sch }) {
     <p class="hint" style="margin:6px 0 0">${lows.length ? `<strong style="color:var(--danger)">Under ${sch.minInService} i tjänst vecka ${lows.map(w => isoWeek(w)).join(', ')}.</strong> ` : ''}Antal ST-läkare i tjänst per vecka enligt veckoschemat${sch.minInService != null ? ` (minst ${sch.minInService})` : ''}.</p>`, ['#/schema', 'Veckoschemat']);
 }
 
-// Mitt förlopp: obligatoriska krav klara och delmål signerade (ST-läkare).
+// Mitt förlopp: obligatoriska krav klara och delmål vars kopplade krav är klara (ST-läkare).
 function progressCard({ plan }) {
   if (!plan) return '';
   const reqs = plan.requirements.filter(r => r.mandatory !== false);
   const st = r => plan.cells[r.id]?.status;
   const done = reqs.filter(r => ['klart', 'tidigare'].includes(st(r))).length, booked = reqs.filter(r => st(r) === 'bokad').length;
-  const goals = plan.goals || [], signed = goals.filter(g => g.signoff).length;
+  const goals = (plan.goals || []).filter(g => g.total), covered = goals.filter(g => g.done === g.total).length;
   const pct = reqs.length ? Math.round(100 * done / reqs.length) : 0;
   const p = plan.person;
   return todayCard('Mitt förlopp', `
     <div class="pbar"><span style="width:${pct}%"></span></div>
     <p style="margin:6px 0 0"><strong>${done} av ${reqs.length}</strong> obligatoriska krav klara${booked ? ` · ${booked} bokade` : ''}</p>
-    ${goals.length ? `<p style="margin:4px 0 0">${signed} av ${goals.length} delmål signerade</p>` : ''}
-    ${p.stMonths != null ? `<p class="muted" style="margin:4px 0 0">ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths} av 60${p.expectedEnd ? ` · beräknat klar ${esc(fmtMonth(p.expectedEnd))}` : ''}${p.nextReview ? ` · nästa revidering ${esc(p.nextReview)}` : ''}</p>` : ''}`,
+    ${goals.length ? `<p style="margin:4px 0 0">${covered} av ${goals.length} delmål med alla kopplade krav klara</p>` : ''}
+    ${p.stMonths != null ? `<p class="muted" style="margin:4px 0 0">ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths} av 60${p.expectedEnd ? ` · beräknat klar ${esc(fmtMonth(p.expectedEnd))}` : ''}</p>` : ''}`,
     ['#/plan', 'Min utbildningsplan']);
 }

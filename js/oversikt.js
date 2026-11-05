@@ -5,7 +5,8 @@
 // Status räknas av servern (utils/progress.js): klart när schemaposten tidsmässigt passerats, annars bokad/förslag ur schemat,
 // eller det som angetts för hand (Tidigare, Klart, Plan). Tryck på en ruta för att se underlaget och ändra det manuella.
 // Studierektor och admin ser alla ST-läkare; en ST-läkare ser sin egen rad.
-// Kompakt läge (förval): ikon + vecka i rutan, full text i verktygstipset. Kolumnen "% klart" (obligatoriska krav) går att sortera på.
+// Kompakt läge (förval): ikon + vecka i rutan, full text i verktygstipset. Alla rubriker sorterar: namn, ST-tid, % klart
+// (obligatoriska krav) och varje krav (klara först, sedan bokade, förslag …). Klick på samma rubrik vänder ordningen.
 // Filter per kategori; på mobil visas en kategori åt gången.
 
 let _ov = null;
@@ -30,7 +31,7 @@ async function renderOversikt(root) {
     setMenuForUser(me);
     let compact = true; try { compact = localStorage.getItem('ov_compact') !== '0'; } catch {}
     const mobile = window.matchMedia('(max-width: 640px)').matches;
-    _ov = { me, data, showEnded: false, sheet: null, compact, sort: 'name', cat: mobile ? 'first' : 'alla' };
+    _ov = { me, data, showEnded: false, sheet: null, compact, sort: 'name', desc: false, cat: mobile ? 'first' : 'alla' };
     drawOversikt(root);
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
@@ -62,16 +63,29 @@ function ovCompact(s) {
 const ovTip = s => !s || !s.status ? '' : OV_LABEL[s.status] + (ovCellText(s) && ovCellText(s) !== OV_LABEL[s.status] ? ': ' + ovCellText(s) : '');
 const ovDone = s => ['klart', 'tidigare'].includes(s && s.status);
 
+// Sortering: nyckel per person (lägre = först). ST-tid och % klart: störst först. Krav: klara (tidigast först), bokade, förslag, plan,
+// saknas, ej gjort, borttaget ur planen.
+const OV_RANK = { klart: 0, tidigare: 0, bokad: 1, forslag: 2, plan: 3, saknas: 4, ejgjort: 5, ej: 6 };
+function ovSortKey(sort, pct) {
+  if (sort === 'pct') return p => [-pct(p)];
+  if (sort === 'st') return p => [p.stMonths == null ? Infinity : -p.stMonths];
+  return p => { const s = _ov.data.cells[p.id]?.[sort] || {}; return [OV_RANK[s.status] ?? 7, s.week || '']; };
+}
+const ovCmp = (a, b) => { for (let i = 0; i < a.length; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; } return 0; };
 const ovEnded = p => p.stEnd && p.stEnd <= _ov.data.today;
-const ovCanEdit = userId => _ov.data.canEditAll || userId === _ov.data.me || (_ov.data.adepts || []).includes(userId);
+// Handledare ser sina adepter men ändrar inte (beslut 2026-11-05).
+const ovCanEdit = userId => _ov.data.canEditAll || userId === _ov.data.me;
 
 function drawOversikt(root) {
   const { data } = _ov;
   const mand = data.requirements.filter(r => r.mandatory);
   // Krav som tagits bort ur personens plan (status 'ej') räknas inte.
   const pct = p => { const m = mand.filter(r => data.cells[p.id][r.id]?.status !== 'ej'); return m.length ? Math.round(100 * m.filter(r => ovDone(data.cells[p.id][r.id])).length / m.length) : 0; };
+  const byName = (a, b) => a.displayName.localeCompare(b.displayName, 'sv');
+  const key = ovSortKey(_ov.sort, pct);
   const people = data.people.filter(p => _ov.showEnded || !ovEnded(p))
-    .sort((a, b) => _ov.sort === 'pct' ? pct(b) - pct(a) || a.displayName.localeCompare(b.displayName, 'sv') : 0);
+    .sort((a, b) => _ov.sort === 'name' ? (_ov.desc ? -1 : 1) * byName(a, b) : (_ov.desc ? -1 : 1) * ovCmp(key(a), key(b)) || byName(a, b));
+  const arrow = k => _ov.sort === k ? (_ov.desc ? ' ▴' : ' ▾') : '';
   const allReqs = data.requirements;
   // Kategorier i kravens sorteringsordning (Moras: Körkort, Kurs, Randning, Projekt — som arket), inte alfabetiskt.
   const catSort = c => Math.min(...allReqs.filter(r => r.category === c).map(r => r.sort));
@@ -83,7 +97,7 @@ function drawOversikt(root) {
   const endedCount = data.people.filter(ovEnded).length;
 
   const head1 = byCat.map(g => `<th colspan="${g.rs.length}" class="cat">${esc(g.c)}</th>`).join('');
-  const head2 = ordered.map(r => `<th title="${esc(r.name + (r.location ? ' (' + r.location + ')' : '') + (r.mandatory ? '' : ' — valfritt'))}">${esc(r.name)}${r.mandatory ? '' : '<sup>*</sup>'}</th>`).join('');
+  const head2 = ordered.map(r => `<th${_ov.sort === r.id ? ' class="sorted"' : ''}><button type="button" class="link-btn ov-sort" data-sort="${esc(r.id)}" title="${esc(r.name + (r.location ? ' (' + r.location + ')' : '') + (r.mandatory ? '' : ' — valfritt'))} — klicka för att sortera"><span class="vt">${esc(r.name)}${r.mandatory ? '' : '<sup>*</sup>'}${arrow(r.id)}</span></button></th>`).join('');
   const rows = people.map(p => {
     const yr = p.stMonths == null ? '' : `ST-år ${Math.floor(p.stMonths / 12) + 1} · mån ${p.stMonths}`;
     const cells = ordered.map(r => {
@@ -115,8 +129,9 @@ function drawOversikt(root) {
       ${people.length && ordered.length ? `
       <div class="sch-scroll">
         <table class="sch prog${_ov.compact ? ' compact' : ''}">
-          <thead><tr><th class="pname" rowspan="2"><button type="button" class="link-btn ov-sort" data-sort="name">ST-läkare${_ov.sort === 'name' ? ' ▾' : ''}</button></th>
-            <th rowspan="2" class="pct"><button type="button" class="link-btn ov-sort" data-sort="pct" title="Andel obligatoriska krav klara — klicka för att sortera">% klart${_ov.sort === 'pct' ? ' ▾' : ''}</button></th>${head1}</tr><tr>${head2}</tr></thead>
+          <thead><tr><th class="pname" rowspan="2"><button type="button" class="link-btn ov-sort" data-sort="name">ST-läkare${arrow('name')}</button>
+            <button type="button" class="link-btn ov-sort" data-sort="st" title="Sortera på ST-tid (längst först)" style="font-weight:normal">ST-tid${arrow('st')}</button></th>
+            <th rowspan="2" class="pct"><button type="button" class="link-btn ov-sort" data-sort="pct" title="Andel obligatoriska krav klara — klicka för att sortera">% klart${arrow('pct')}</button></th>${head1}</tr><tr>${head2}</tr></thead>
           <tbody>${rows}<tr class="svc-row"><th class="pname">Klara</th><td></td>${done}</tr></tbody>
         </table>
       </div>` : (ordered.length ? '<p class="muted">Inga ST-läkare att visa.</p>'
@@ -135,7 +150,10 @@ function drawOversikt(root) {
     _ov.compact = b.dataset.m === '1'; try { localStorage.setItem('ov_compact', b.dataset.m); } catch {}
     drawOversikt(el('view'));
   });
-  root.querySelectorAll('.ov-sort').forEach(b => b.addEventListener('click', () => { _ov.sort = b.dataset.sort; drawOversikt(el('view')); }));
+  root.querySelectorAll('.ov-sort').forEach(b => b.addEventListener('click', () => {
+    _ov.desc = _ov.sort === b.dataset.sort ? !_ov.desc : false;
+    _ov.sort = b.dataset.sort; drawOversikt(el('view'));
+  }));
   root.querySelectorAll('.pc.edit').forEach(td => {
     const open = () => { _ov.sheet = { userId: td.dataset.p, reqId: td.dataset.r }; drawOversiktSheet(); };
     td.addEventListener('click', open);
