@@ -469,6 +469,13 @@
     .dov-ax { font-size: 10px; fill: var(--ink-soft); }
     .dov-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
     .dov-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+    .dst-bar { grid-template-columns: minmax(110px, 30%) 1fr 34px; }
+    .dst-stack { display: flex; height: 12px; border-radius: 4px; overflow: hidden; }
+    .dst-stack i { display: block; height: 100%; }
+    .dst-table th, .dst-table td { width: auto; padding-right: 12px; }
+    .dst-table tr:first-child th { font-size: 12px; }
+    .dcp-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+    .dsel { margin: 0 4px 0 0; vertical-align: -2px; }
     .dmi-types { display: flex; flex-wrap: wrap; gap: 4px; }
     .dmi-types .chip { font-size: 13px; cursor: pointer; }
     @media (max-width: 640px) { .dov-row { grid-template-columns: 1fr 34px; } .dov-row .dov-bar { grid-column: 1 / -1; order: 3; } .dov-row .link-btn { order: 4; justify-self: start; } }
@@ -682,6 +689,9 @@
           <a href="#/dops/mina" data-route="#/dops/mina">Mina bedömningar</a>
           <a href="#/dops/progress" data-route="#/dops/progress">Progress</a>
           <a href="#/dops/kliniken" data-route="#/dops/kliniken" id="nav-dops-kliniken" class="hidden">Kliniken</a>
+          <a href="#/dops/statistik" data-route="#/dops/statistik" id="nav-dops-statistik" class="hidden">Statistik</a>
+          <a href="#/dops/tavling" data-route="#/dops/tavling">Tävling</a>
+          <a href="#/dops/dokument" data-route="#/dops/dokument" id="nav-dops-dokument" class="hidden">Dokument</a>
         </div>
         <div data-world="acc" class="hidden">
           <div class="sn-title">Konto och klinik</div>
@@ -698,7 +708,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.34.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.35.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -918,6 +928,9 @@
       else if (h === '#/dops/mina') renderDopsMine(root);
       else if (h === '#/dops/progress') renderBedomningar(root);
       else if (h === '#/dops/kliniken') renderDopsClinic(root);
+      else if (h === '#/dops/statistik') renderDopsStats(root);
+      else if (h === '#/dops/tavling') renderDopsCompetition(root);
+      else if (h === '#/dops/dokument') renderDopsDocuments(root);
       else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
       else renderToday(root);
       window.scrollTo(0, 0);
@@ -1119,6 +1132,7 @@
   <script src="js/plan.js"></script>
   <script src="js/dops.js"></script>
   <script src="js/dopsapp.js"></script>
+  <script src="js/dopsstats.js"></script>
   <script src="js/today.js"></script>
   <script src="js/help.js"></script>
 </body>

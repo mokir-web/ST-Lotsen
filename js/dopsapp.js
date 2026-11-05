@@ -15,8 +15,14 @@ async function dopsStart(root, title) {
   const [me, dme] = await Promise.all([api('/me'), dopsApi('/me')]);
   setMenuForUser(me);
   _dme = dme;
-  el('nav-dops-kliniken')?.classList.toggle('hidden', !dopsPriv(dme));
+  dopsNav(dme);
   return me;
+}
+// Undersidor som beror på behörigheten i DOPS (Studierektor/Administratör).
+function dopsNav(dme) {
+  el('nav-dops-kliniken')?.classList.toggle('hidden', !dopsPriv(dme));
+  el('nav-dops-statistik')?.classList.toggle('hidden', !dopsPriv(dme));
+  el('nav-dops-dokument')?.classList.toggle('hidden', !(dme.privileges || []).some(p => p.privilege === 'Administratör'));
 }
 const dopsFail = (root, title, err) => { root.innerHTML = `<h1 class="page">${title}</h1><p class="err">${esc(err.message)}</p>`; };
 // Låst (423) och andra fel visas som besked; inget ändras.
@@ -187,9 +193,18 @@ function dopsAssessmentCard(a, counterpart, extra = '') {
     if (!s) bySec.push(s = { section: x.section || '', rows: [] });
     s.rows.push(x);
   }
-  return `<details class="bed-one"><summary><strong>${esc(a.timestamp.slice(0, 10))}</strong> ${esc(a.formType)} <span class="muted">· ${esc(counterpart)}${a.category ? ' · ' + esc(a.category) : ''}</span>${a.isAiDemo ? ' <span class="chip" style="font-size:11px;padding:0 7px">AI-demo</span>' : ''}</summary>
+  return `<details class="bed-one"><summary><input type="checkbox" class="dsel" value="${esc(a.id)}" onclick="event.stopPropagation()" aria-label="Markera för export"> <strong>${esc(a.timestamp.slice(0, 10))}</strong> ${esc(a.formType)} <span class="muted">· ${esc(counterpart)}${a.category ? ' · ' + esc(a.category) : ''}</span>${a.isAiDemo ? ' <span class="chip" style="font-size:11px;padding:0 7px">AI-demo</span>' : ''}</summary>
     ${bySec.map(s => `${s.section ? `<div class="bed-q">${esc(s.section)}</div>` : ''}<table class="bed-ans">${s.rows.map(x => `<tr><th>${esc(x.question)}</th><td>${esc(x.answer)}</td></tr>`).join('')}</table>`).join('')}
     ${extra}</details>`;
+}
+
+// Markera alla + Word-export, under filtret i Mina bedömningar och Kliniken.
+const dopsExportRow = n => n ? `<div class="row" style="gap:10px;margin-bottom:10px;flex-wrap:wrap">
+    <label style="margin:0;font-weight:normal"><input type="checkbox" id="dsel-all"> Markera alla</label>
+    <button class="btn-ghost" id="dsel-export">Exportera till Word</button></div>` : '';
+function wireDopsExport(root, info) {
+  el('dsel-all')?.addEventListener('change', e => root.querySelectorAll('.dsel').forEach(c => { c.checked = e.target.checked; }));
+  if (el('dsel-export')) el('dsel-export').onclick = () => dopsExportDocx([...root.querySelectorAll('.dsel:checked')].map(c => c.value), info());
 }
 
 function drawDopsMine(root) {
@@ -202,6 +217,7 @@ function drawDopsMine(root) {
       <button class="btn-ghost" id="dmi-ftoggle">${d.showFilter ? 'Dölj filter' : 'Filtrera'}</button>
       <span class="muted">${d.list.length} st</span>
     </div>
+    ${dopsExportRow(d.list.length)}
     <div class="card${d.showFilter ? '' : ' hidden'}" id="dmi-filter">
       <div class="field-row"><div><label for="dmi-from" style="margin-top:0">Från</label><input type="date" id="dmi-from" value="${esc(d.from)}"></div>
         <div><label for="dmi-to" style="margin-top:0">Till</label><input type="date" id="dmi-to" value="${esc(d.to)}"></div></div>
@@ -215,6 +231,7 @@ function drawDopsMine(root) {
 
   el('dmi-tab')?.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) { d.tab = b.dataset.t; d.types.clear(); d.allTypes = null; loadDopsMine(root); } });
   el('dmi-ftoggle').onclick = () => { d.showFilter = !d.showFilter; drawDopsMine(root); };
+  wireDopsExport(root, () => ({ name: `${_dme.firstName} ${_dme.lastName}`.trim() + (d.tab === 'sent' ? ' (skickade)' : ' (mottagna)'), clinic: _dme.clinic, period: dopsPeriod(d.from, d.to) }));
   el('dmi-apply').onclick = () => {
     d.from = el('dmi-from').value; d.to = el('dmi-to').value;
     d.types = new Set([...root.querySelectorAll('.dmi-types input:checked')].map(c => c.value));
@@ -261,6 +278,7 @@ function drawDopsClinic(root) {
     ${d.global && clinicOpts.length ? `<div class="card"><label for="dco-klinik" style="margin-top:0">Klinik</label>
       <select id="dco-klinik" style="max-width:320px">${clinicOpts.map(([n, id]) => `<option value="${esc(id)}"${id === d.klinik ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>` : ''}
     <div class="row" style="gap:8px;margin-bottom:12px"><button class="btn-ghost" id="dco-ftoggle">${d.showFilter ? 'Dölj filter' : 'Filtrera'}</button><span class="muted">${d.list.length} st</span></div>
+    ${dopsExportRow(d.list.length)}
     <div class="card${d.showFilter ? '' : ' hidden'}">
       <div class="field-row"><div><label for="dco-from" style="margin-top:0">Från</label><input type="date" id="dco-from" value="${esc(d.from)}"></div>
         <div><label for="dco-to" style="margin-top:0">Till</label><input type="date" id="dco-to" value="${esc(d.to)}"></div></div>
@@ -274,6 +292,7 @@ function drawDopsClinic(root) {
 
   el('dco-klinik')?.addEventListener('change', e => { d.klinik = e.target.value; d.types.clear(); d.allTypes = null; d.categories = null; loadDopsClinic(root); });
   el('dco-ftoggle').onclick = () => { d.showFilter = !d.showFilter; drawDopsClinic(root); };
+  wireDopsExport(root, () => ({ name: d.recipient || 'Klinikens bedömningar', clinic: Object.entries(d.clinicIds).find(([, id]) => id === d.klinik)?.[0] || _dme.clinic, period: dopsPeriod(d.from, d.to) }));
   el('dco-apply').onclick = () => {
     d.from = el('dco-from').value; d.to = el('dco-to').value; d.category = el('dco-cat').value; d.recipient = el('dco-rec').value.trim();
     d.types = new Set([...root.querySelectorAll('.dmi-types input:checked')].map(c => c.value));

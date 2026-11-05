@@ -14,6 +14,7 @@ async function renderBedomningar(root) {
   try {
     const [me, people] = await Promise.all([api('/me'), api('/dops/assessments/people')]);
     setMenuForUser(me);
+    dopsApi('/me').then(dopsNav).catch(() => {});
     _bed = { me, people, recipient: _bed?.recipient || people.self.id, data: null, type: null };
     if (!people.canSeeOthers) _bed.recipient = people.self.id;
     await loadBedomningar(root);

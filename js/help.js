@@ -30,8 +30,11 @@ const HELP = [
     '<strong>Skriv ut</strong> ger en A4 med översikt och delmål.']],
   ['#/dops', 'DOPS · Översikt', [
     'Dina mottagna och registrerade bedömningar per formulärtyp, med klinikens mål (per 6 månader, skalat med vald period) och en graf över tid. <em>Ej aktuellt</em> döljer ett formulär för dig — låst tills ST-Lotsen får skriva i DOPS-appens databas.']],
-  ['#/dops/mina', 'DOPS · Mina bedömningar', ['Mottagna och skickade bedömningar med alla svar. Filtrera på datum och formulärtyp. Att ta bort en bedömning är låst tills vidare.']],
+  ['#/dops/mina', 'DOPS · Mina bedömningar', ['Mottagna och skickade bedömningar med alla svar. Filtrera på datum och formulärtyp. Markera bedömningar och <strong>Exportera till Word</strong> för att ladda ner dem. Att ta bort en bedömning är låst tills vidare.']],
   ['#/dops/kliniken', 'DOPS · Kliniken', ['Klinikens alla bedömningar, för Studierektor och Administratör i DOPS. Filtrera på datum, mottagarkategori, mottagare och formulärtyp.']],
+  ['#/dops/statistik', 'DOPS · Statistik', ['Klinikens statistik för Studierektor och Administratör i DOPS: bedömningar över tid, fördelning per formulär, tidsåtgång och sparad tid, fritextåterkoppling, måluppfyllelse per person, vem som saknar bedömning, spridning av bedömare, mest aktiva och förfrågningar. Filtrera på datum och formulärtyp.']],
+  ['#/dops/tavling', 'DOPS · Tävling', ['Kvartalstävlingen: flest registrerade och flest mottagna bedömningar under en omgång. Att starta eller avsluta en omgång är låst tills ST-Lotsen får skriva i DOPS-appens databas.']],
+  ['#/dops/dokument', 'DOPS · Dokument', ['Mallar och avtal för kliniker som vill ansluta till DOPS (Administratör).']],
   ['#/dops/progress', 'DOPS · Progress', [
     'Bedömningarna (DOPS, Mini-CEX m.fl.), direkt ur DOPS-appens databas. Bara läsning — nya bedömningar görs i DOPS-appen (moradops.se) tills registreringen slås på här.',
     'Välj formulärtyp. Skalfrågor visas som kurva över tid med medelvärde (streckad linje), flervalsfrågor som fördelning, därefter fritextsvaren och varje bedömning.',
