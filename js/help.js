@@ -34,7 +34,7 @@ const HELP = [
     'Klinikens mall: det som ska uppnås, per ST-år. ST-läkarna ser samma vy i sin utbildningsplan.',
     '<strong>Dra</strong> ett krav till ett annat år, <strong>klicka</strong> för att ändra det (delmål, randning, längd, i tjänst).']],
   ['#/settings', 'Mitt konto', ['Ditt namn, användarnamn, telefon och PIN.']],
-  ['#/admin', 'Administration', ['Användare (sök, filtrera, klicka för roller och uppgifter), moduler för kliniken och felrapporter.']]
+  ['#/admin', 'Administration', ['Användare (sök, filtrera, klicka för roller och uppgifter), moduler för kliniken och felrapporter.', 'Med modulen MoraDOPS påslagen: MoraDOPS-konton — godkänn förslagen, koppla övriga för hand och hämta namn eller e-post från MoraDOPS. Kliniken kopplas till MoraDOPS av global admin.']]
 ];
 
 function openHelp() {
