@@ -507,7 +507,7 @@ async function confirmImport() {
 }
 
 function downloadPinList() {
-  const rows = [['Namn', 'Användarnamn', 'Roll', 'Tillfällig PIN'], ...(_admin.created || []).map(c => [c.displayName, c.username, ROLE_LABEL[c.role], c.pin])];
+  const rows = [['Namn', 'Användarnamn', 'E-post', 'Roll', 'Tillfällig PIN'], ...(_admin.created || []).map(c => [c.displayName, c.username, c.email || '', ROLE_LABEL[c.role], c.pin])];
   downloadFile('opjour-pin-lista.csv', OpjourImport.toCsv(rows));
 }
 
@@ -714,7 +714,8 @@ function dopsUsersCard() {
   const onlyL = d.onlyLotsen.map(u => row(who(u), '', d.onlyDops.length
     ? `<select id="dp-${esc(u.id)}" style="max-width:220px"><option value="">Välj MoraDOPS-konto…</option>${opts}</select>${btn('Koppla', `dopsLinkPick('${u.id}')`)}`
     : '<span class="muted">Inga okopplade MoraDOPS-konton</span>')).join('');
-  const onlyD = d.onlyDops.map(x => row(them(x), '', '')).join('');
+  const onlyD = d.onlyDops.map(x => row(`<label style="display:flex;gap:8px;align-items:flex-start;margin:0;font-weight:normal"><input type="checkbox" data-dops-new="${esc(x.id)}" style="margin-top:4px">${'<span>' + them(x) + '</span>'}</label>`, '',
+    btn('Skapa konto', `dopsCreateAccounts(['${x.id}'])`))).join('');
   const emailSugg = d.suggestions.filter(x => x.by === 'email');
   const sec = (title, n, body, open, extra = '') => `<details class="dops-sec"${open ? ' open' : ''}><summary><strong>${title} (${n})</strong></summary>${extra}${body || '<p class="muted">Inga.</p>'}</details>`;
 
@@ -726,7 +727,8 @@ function dopsUsersCard() {
       ${sec('Bara i ST-Lotsen', d.onlyLotsen.length, onlyL, d.suggestions.length === 0 && d.onlyLotsen.length > 0,
         '<p class="hint">Saknar träff i MoraDOPS, oftast för att e-post saknas eller skiljer sig. Välj rätt konto för hand, eller lämna okopplat (t.ex. konton som inte bedömer).</p>')}
       ${sec('Bara i MoraDOPS', d.onlyDops.length, onlyD, false,
-        '<p class="hint">Har inget ST-Lotsen-konto. Konton skapas från den här listan i nästa steg (fas 3).</p>')}
+        '<p class="hint">Har inget ST-Lotsen-konto. <strong>Skapa konto</strong> hämtar namn och e-post från MoraDOPS, kopplar kontot och ger en tillfällig PIN som visas en gång. Kontot blir vanlig användare; roller sätts sedan under Användare. Personen kan logga in med användarnamnet eller e-postadressen.</p>'
+        + (d.onlyDops.length > 1 ? `<div class="row" style="margin:6px 0;gap:8px"><button class="btn-ghost" onclick="document.querySelectorAll('[data-dops-new]').forEach(c=>c.checked=true)">Markera alla</button>${btn('Skapa konton för markerade', 'dopsCreateChecked()', false)}</div>` : ''))}
       ${sec('Kopplade', d.linked.length, linked, false,
         d.linked.some(x => x.diffs.length) ? '<p class="hint">Skillnader visas men rättas inte automatiskt. Namn och e-post kan hämtas från MoraDOPS; roller och inaktivering ändras i respektive system.</p>' : '')}
     </div>`;
@@ -750,6 +752,27 @@ function dopsLinkPick(userId) {
 }
 function dopsLinkAllEmail() {
   return dopsLink(_admin.dopsUsers.suggestions.filter(x => x.by === 'email').map(x => [x.user.id, x.dops.id]));
+}
+function dopsCreateChecked() {
+  const ids = [...document.querySelectorAll('[data-dops-new]')].filter(c => c.checked).map(c => c.dataset.dopsNew);
+  if (!ids.length) return toast('Markera minst ett konto.', 'err');
+  return dopsCreateAccounts(ids);
+}
+async function dopsCreateAccounts(ids) {
+  const names = _admin.dopsUsers.onlyDops.filter(x => ids.includes(x.id)).map(x => x.name);
+  if (!confirm(`Skapa ST-Lotsen-konto för ${names.length === 1 ? names[0] : names.length + ' personer'}?`)) return;
+  try {
+    const r = await api('/dops/users/accounts', { method: 'POST', body: { dopsUserIds: ids } });
+    _admin.created = r.created;
+    _admin.notice = { tone: 'ok', csv: true, html:
+      `<strong>${r.created.length} ${r.created.length === 1 ? 'konto skapat' : 'konton skapade'} från MoraDOPS.</strong> Dela ut användarnamn och tillfällig PIN — de visas bara nu. Inloggning går också med e-postadressen.`
+      + `<div style="overflow-x:auto;margin-top:8px"><table class="imp-table"><tr><th>Namn</th><th>Användarnamn</th><th>E-post</th><th>PIN</th></tr>`
+      + r.created.map(c => `<tr><td>${esc(c.displayName)}</td><td>${esc(c.username)}</td><td>${esc(c.email)}</td><td><strong>${esc(c.pin)}</strong></td></tr>`).join('')
+      + `</table></div>` };
+    await loadDopsUsers();
+    await reloadAdmin();
+    window.scrollTo(0, 0);
+  } catch (err) { toast(err.message, 'err'); }
 }
 async function dopsUnlink(userId) {
   if (!confirm('Koppla loss kontot från MoraDOPS? Inget raderas i något av systemen.')) return;
