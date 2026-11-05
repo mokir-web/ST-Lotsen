@@ -157,10 +157,11 @@ function planOverview() {
 function planGoals() {
   const { data } = _plan;
   const goals = data.goals || [];
+  const canLink = !!(_plan.me.isDirector || _plan.me.isAdmin);
   const goalRows = goals.map(g => {
     const open = _plan.openGoal === g.id;
     return `<tr>
-      <th class="gcode">${esc(g.code)}</th>
+      <th class="gcode">${canLink ? `<button type="button" class="link-btn no-print" data-g="link" data-id="${esc(g.id)}" title="Välj krav som räknas till delmålet">${esc(g.code)}</button><span class="print-only">${esc(g.code)}</span>` : esc(g.code)}</th>
       <td class="gtext"><button type="button" class="link-btn gtoggle" data-g="toggle" data-id="${esc(g.id)}" style="text-align:left;text-decoration:none;color:inherit"><span class="no-print">${esc(open || g.text.length < 110 ? g.text : g.text.slice(0, 105) + '…')}</span><span class="print-only">${esc(g.text)}</span></button></td>
       <td>${g.requirements.length ? g.requirements.map(r => `<span class="greq">${esc(r.name)} ${planChip(r.status)}</span>`).join(' ') : '<span class="muted">Inga krav kopplade</span>'}</td>
       <td style="text-align:center;white-space:nowrap">${g.total ? `${g.done}/${g.total}` : ''}</td>
@@ -170,7 +171,7 @@ function planGoals() {
     <div class="card">
       <h2>Delmål${data.framework ? ' · ' + esc(data.framework.label) : ''}</h2>
       ${goals.length ? `${planBar(goalsCovered(goals), goalsWithReqs(goals).length, 'Alla kopplade krav klara')}
-      <p class="hint">Underlaget per delmål: kopplade krav och hur många som är klara. Delmål utan kopplade krav räknas inte. Tryck på texten för att visa hela.</p>
+      <p class="hint">Underlaget per delmål: kopplade krav och hur många som är klara. Delmål utan kopplade krav räknas inte. Tryck på texten för att visa hela.${canLink ? ' Tryck på delmålets kod för att välja vilka av klinikens krav som räknas till det.' : ''}</p>
       <div class="sch-scroll"><table class="imp-table goals-table">
         <thead><tr><th>Delmål</th><th>Rubrik / kompetenskrav</th><th>Kopplade krav</th><th>Klara</th></tr></thead>
         <tbody>${goalRows}</tbody>
@@ -208,5 +209,18 @@ function planHistory() {
 
 function onPlanGoal(e) {
   const id = e.currentTarget.dataset.id;
+  if (e.currentTarget.dataset.g === 'link') return openPlanGoalLinks(id);
   _plan.openGoal = _plan.openGoal === id ? null : id; drawPlan(el('view'));
+}
+
+// Studierektor/admin: välj klinikens krav för ett delmål direkt från planen (panelen i stsettings.js). Gäller kliniken,
+// inte bara den här ST-läkaren.
+async function openPlanGoalLinks(id) {
+  const goal = (_plan.data.goals || []).find(g => g.id === id);
+  if (!goal) return;
+  try {
+    const cfg = await api('/admin/st/config');
+    openGoalPanel(goal, (_plan.data.framework?.label || '') + ' · ändringen gäller alla klinikens ST-läkare med den här målbeskrivningen',
+      cfg.requirements, async text => { await reloadPlan(); toast(text); });
+  } catch (err) { toast(err.message, 'err'); }
 }

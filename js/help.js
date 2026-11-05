@@ -28,7 +28,7 @@ const HELP = [
     '<strong>Ändra planen:</strong> dra ett krav till ett annat år, eller klicka på det för att flytta eller ta bort det. Det gäller bara den här ST-läkarens plan — klinikens mall ändras inte. Ändringarna syns i Historik.',
     '<strong>Beräknat ST-slut</strong> är ST-start + 5 år + veckor med föräldra- eller tjänstledighet i veckoschemat.',
     '<strong>Skriv ut</strong> ger en A4 med översikt och delmål.']],
-  ['#/st/delmal', 'ST-utbildning · Delmål', ['Klinikens målbeskrivning och hur väl kraven täcker delmålen. Koppla krav till delmål under fliken Krav.']],
+  ['#/st/delmal', 'ST-utbildning · Delmål', ['Klinikens målbeskrivning och hur väl kraven täcker delmålen. Välj målbeskrivning i listan ovanför tabellen (t.ex. HSLF-FS 2021:8). <strong>Klicka på ett delmål</strong> för att välja vilka krav som räknas till det; det går också från ett krav under fliken Krav.']],
   ['#/st/personer', 'ST-utbildning · ST-läkare och handledare', ['Vem som är ST-läkare, ST-start och -slut, målbeskrivning och handledare. Studierektorsrollen sätts under Administration.']],
   ['#/st', 'ST-utbildning · Krav', [
     'Klinikens mall: det som ska uppnås, per ST-år. ST-läkarna ser samma vy i sin utbildningsplan.',

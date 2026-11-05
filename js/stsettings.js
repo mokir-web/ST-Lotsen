@@ -214,9 +214,55 @@ async function saveReqPanel(id) {
   } catch (err) { el('rp-status').textContent = err.message; }
 }
 
+// Panel från höger: ett delmål och vilka av klinikens aktiva krav som räknas till det (samma koppling som i kravpanelen,
+// sedd från delmålets håll). Används både under Inställningar → Delmål och från utbildningsplanens Delmål-flik.
+// reqs = klinikens krav med goalIds; onSaved(text) körs efter sparat.
+function openGoalPanel(goal, fwLabel, reqs, onSaved) {
+  const active = reqs.filter(r => r.active);
+  const cats = [...new Set(active.map(r => r.category))];
+  el('sheet-root')?.remove();
+  const root = document.createElement('div');
+  root.id = 'sheet-root'; root.className = 'sp-overlay';
+  root.innerHTML = `<aside class="sidepanel" role="dialog" aria-label="Delmål ${esc(goal.code)}" tabindex="-1">
+    <div class="sp-head"><h2 style="margin:0">Delmål ${esc(goal.code)}</h2><button class="btn-ghost" onclick="closeReqPanel()" aria-label="Stäng">✕</button></div>
+    <div class="sp-body">
+      <p style="margin-top:0">${esc(goal.text)}</p>
+      ${fwLabel ? `<p class="hint" style="margin-top:0">${esc(fwLabel)}</p>` : ''}
+      <h3>Krav som räknas till delmålet</h3>
+      ${active.length ? `<input type="search" placeholder="Sök krav…" oninput="filterReqGoals(this.value)" style="max-width:none">
+        <div class="goalpick reqpick">${cats.map(c => active.filter(r => r.category === c).map(r => `<label data-txt="${esc((r.category + ' ' + r.name).toLowerCase())}"><input type="checkbox" data-req="${esc(r.id)}"${(r.goalIds || []).includes(goal.id) ? ' checked' : ''}><b>${esc(r.category)}</b><span>${esc(r.name)}${r.stYear ? ` <span class="muted">år ${r.stYear}</span>` : ''}${r.mandatory ? '' : ' <span class="muted">*</span>'}</span></label>`).join('')).join('')}</div>
+        <p class="hint">* = valfritt. Saknas en aktivitet läggs den till som krav under fliken <a href="#/st/krav" onclick="closeReqPanel()">Krav</a>.</p>`
+      : '<p class="hint">Kliniken har inga aktiva krav. Lägg till dem under fliken <a href="#/st/krav" onclick="closeReqPanel()">Krav</a>.</p>'}
+    </div>
+    <div class="sp-foot"><button class="btn" id="gp-save">Spara</button>
+      <button class="btn-ghost" onclick="closeReqPanel()">Avbryt</button><div class="status err" id="gp-status"></div></div>
+  </aside>`;
+  root.addEventListener('click', e => { if (e.target === root) closeReqPanel(); });
+  root.querySelector('#gp-save').addEventListener('click', async () => {
+    const requirementIds = [...root.querySelectorAll('[data-req]')].filter(c => c.checked).map(c => c.dataset.req);
+    try {
+      await api('/admin/st/goals/' + encodeURIComponent(goal.id) + '/requirements', { method: 'PUT', body: { requirementIds } });
+      closeReqPanel();
+      await onSaved?.(`Sparat: delmål ${goal.code} har ${requirementIds.length} krav.`);
+    } catch (err) { el('gp-status').textContent = err.message; }
+  });
+  document.body.appendChild(root);
+  root.querySelector('.sidepanel').focus();
+}
+
+// Målbeskrivningen som visas i fliken Delmål: vald i listan ovanför tabellen, annars klinikens förval.
+const stsViewFramework = () => _sts.frameworks.find(f => f.id === (_sts.viewFw || _sts.cfg.defaultFrameworkId));
+function setStsViewFw(id) { _sts.viewFw = id; drawStSettings(el('view')); }
+function openStsGoal(id) {
+  const fw = stsViewFramework(), goal = fw?.goals.find(g => g.id === id);
+  if (goal) openGoalPanel(goal, fw.label, _sts.cfg.requirements, text => reloadStSettings({ box: 'st-goals-status', text }));
+}
+
 // Delmål: målbeskrivningen och vilka delmål klinikens (aktiva) krav täcker — delmål utan krav syns direkt.
+// Tabellen kan visa en annan målbeskrivning än förvalet (t.ex. HSLF-FS 2021:8 för de ST-läkare som följer den); klicka på ett
+// delmål för att välja vilka krav som räknas till det.
 function stsGoalsTab() {
-  const goals = stsDefaultGoals(), reqs = _sts.cfg.requirements.filter(r => r.active);
+  const vfw = stsViewFramework(), goals = vfw?.goals || [], reqs = _sts.cfg.requirements.filter(r => r.active);
   const byGoal = new Map(goals.map(g => [g.id, reqs.filter(r => (r.goalIds || []).includes(g.id))]));
   const covered = goals.filter(g => byGoal.get(g.id).length).length;
   const own = new Set(goals.map(g => g.id));
@@ -225,7 +271,7 @@ function stsGoalsTab() {
     <div class="card">
       <h2>Målbeskrivning</h2>
       <p class="hint" style="margin-top:0">Förval för klinikens ST-läkare (Socialstyrelsens målbeskrivningar). Den som följer ett annat regelverk får ett eget
-        under fliken ST-läkare och handledare. Kravens delmål väljs i den här målbeskrivningen (klicka på ett krav i fliken Krav).</p>
+        under fliken ST-läkare och handledare.</p>
       <div class="row" style="gap:8px;align-items:flex-end">
         <div><label for="st-fw" style="margin-top:0">Förvald målbeskrivning</label>
           <select id="st-fw"><option value="">– ingen –</option>${_sts.frameworks.map(f => `<option value="${esc(f.id)}"${f.id === _sts.cfg.defaultFrameworkId ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</select></div>
@@ -233,18 +279,25 @@ function stsGoalsTab() {
       </div>
       <div class="status" id="st-fw-status"></div>
     </div>
-    ${goals.length ? `<div class="card">
-      <h2>Täckning</h2>
-      <p class="hint" style="margin-top:0"><strong>${covered} av ${goals.length}</strong> delmål har minst ett krav. Kopplingarna görs genom att klicka på ett krav i fliken
-        <a href="#/st/krav">Krav</a>. Ett delmål kan också uppfyllas på annat sätt — det här är bara klinikens mall.</p>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:flex-end;gap:8px">
+        <h2 style="margin:0">Täckning</h2>
+        <div><label for="st-vfw" style="margin-top:0">Visa målbeskrivning</label>
+          <select id="st-vfw" onchange="setStsViewFw(this.value)">${_sts.frameworks.map(f => `<option value="${esc(f.id)}"${f.id === vfw?.id ? ' selected' : ''}>${esc(f.label)}${f.id === _sts.cfg.defaultFrameworkId ? ' (förval)' : ''}</option>`).join('')}${vfw ? '' : '<option value="" selected>– välj –</option>'}</select></div>
+      </div>
+      ${goals.length ? `<p class="hint"><strong>${covered} av ${goals.length}</strong> delmål har minst ett krav. <strong>Klicka på ett delmål</strong> för att välja vilka
+        krav som räknas till det (det går också att välja delmål genom att klicka på ett krav i fliken <a href="#/st/krav">Krav</a>).
+        Ett delmål kan också uppfyllas på annat sätt — det här är bara klinikens mall.</p>
+      <div class="status" id="st-goals-status"></div>
       <div class="sch-scroll"><table class="imp-table goal-cov">
         <thead><tr><th>Delmål</th><th>Beskrivning</th><th>Krav</th></tr></thead>
-        <tbody>${goals.map(g => { const rs = byGoal.get(g.id); return `<tr${rs.length ? '' : ' class="nocov"'}>
-          <td><strong>${esc(g.code)}</strong></td><td>${esc(g.text)}</td>
+        <tbody>${goals.map(g => { const rs = byGoal.get(g.id); return `<tr class="clickrow${rs.length ? '' : ' nocov'}" onclick="openStsGoal('${esc(g.id)}')">
+          <td><button type="button" class="link-btn" onclick="event.stopPropagation();openStsGoal('${esc(g.id)}')" title="Välj krav för delmålet"><strong>${esc(g.code)}</strong></button></td><td>${esc(g.text)}</td>
           <td>${rs.length ? rs.map(r => `<span class="chip">${esc(r.category)} ${esc(r.name)}${r.stYear ? ` <span class="muted">år ${r.stYear}</span>` : ''}</span>`).join('') : '<span class="muted">Inget krav</span>'}</td></tr>`; }).join('')}</tbody>
       </table></div>
-      ${loose.length ? `<p class="hint"><strong>Krav utan delmål (${loose.length}):</strong> ${loose.map(r => esc(r.category + ' ' + r.name)).join(', ')}.</p>` : ''}
-    </div>` : '<div class="card"><p class="muted" style="margin:0">Välj en förvald målbeskrivning för att se vilka delmål kraven täcker.</p></div>'}`;
+      ${loose.length ? `<p class="hint"><strong>Krav utan delmål i ${esc(vfw.label)} (${loose.length}):</strong> ${loose.map(r => esc(r.category + ' ' + r.name)).join(', ')}.</p>` : ''}`
+      : '<p class="muted">Välj en målbeskrivning för att se vilka delmål kraven täcker.</p>'}
+    </div>`;
 }
 
 // ST-läkare och handledare: ST-start/-slut, egen målbeskrivning och handledare per ST-läkare. Studierektorsrollen sätts av admin.

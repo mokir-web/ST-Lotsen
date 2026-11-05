@@ -383,6 +383,9 @@
     .goal-cov td:first-child { white-space: nowrap; }
     .goal-cov .chip { font-size: 13px; padding: 1px 9px; }
     .goal-cov tr.nocov td { background: #fbf3ea; }
+    .goal-cov tr.clickrow { cursor: pointer; }
+    .goal-cov tr.clickrow:hover td { background: #eef4f8; }
+    .goals-table .gcode .link-btn { font-weight: 700; }
     .stp-row { border-top: 1px solid var(--line); padding: 12px 0; }
     .stp-row:first-of-type { border-top: none; }
     .stp-head { display: flex; gap: 8px; align-items: baseline; }
@@ -432,6 +435,8 @@
     .goalpick label { display: grid; grid-template-columns: 20px 34px 1fr; gap: 4px; align-items: start; font-weight: normal; font-size: 13.5px; margin: 0; padding: 6px 8px; border-top: 1px solid #eef1f3; cursor: pointer; }
     .goalpick label:first-child { border-top: none; }
     .goalpick label:has(input:checked) { background: var(--accent-soft); }
+    .goalpick.reqpick { max-height: 60vh; }
+    .goalpick.reqpick label { grid-template-columns: 20px 76px 1fr; }
     .goalpick input { margin-top: 2px; }
     .goals-table .gcode { white-space: nowrap; vertical-align: top; text-transform: none; font-size: 14px; color: var(--ink); }
     .goals-table .gtoggle { font-weight: normal; }
@@ -638,7 +643,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.28.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.30.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];

@@ -30,6 +30,7 @@ async function renderAdmin(root) {
     if (me.isGlobalAdmin) {
       _admin.clinics = (await api('/admin/clinics')).clinics;
       _admin.errors = await api('/error-reports').catch(() => null);
+      _admin.dops = await api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message }));
     }
     drawAdmin(root);
   } catch (err) {
@@ -164,6 +165,8 @@ function drawAdmin(root) {
     ${_admin.errors ? errorCard() : ''}
 
     ${_admin.clinics ? clinicCard() : ''}
+
+    ${_admin.dops ? dopsCard() : ''}
   `;
   el('u-filter').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { _admin.filter = b.dataset.f; drawAdmin(el('view')); } });
   el('u-rows').addEventListener('click', e => { const r = e.target.closest('[data-uid]'); if (r) openUserPanel({ kind: 'user', id: r.dataset.uid, tab: 'roller' }); });
@@ -639,6 +642,24 @@ async function setReportHandled(id, handled) {
 async function setClientErrorResolved(id, resolved) {
   try { await api('/error-reports/client-errors/' + encodeURIComponent(id), { method: 'PATCH', body: { resolved } }); _admin.errors = await api('/error-reports'); drawAdmin(el('view')); }
   catch (err) { const b = el('er-status'); b.textContent = err.message; b.className = 'status err'; }
+}
+
+// ── MoraDOPS-anslutningen (endast global admin, moradops_plan.md fas 1) ──
+// Visar att ST-Lotsen når MoraDOPS databas och att rollen bara kan läsa. Inget i MoraDOPS ändras härifrån.
+function dopsCard() {
+  const d = _admin.dops, s = d.safety || {};
+  const safe = s.readOnly && !s.pinHashReadable && !s.canWriteUsers;
+  const body = !d.configured
+    ? '<p class="muted" style="margin:0">Inte ansluten. Anslutningen läggs in med <code>scripts/dops-secret.sh</code> och tas i bruk vid nästa leverans.</p>'
+    : !d.ok ? `<p class="err" style="margin:0">MoraDOPS kan inte nås: ${esc(d.error || 'okänt fel')}</p>`
+    : `<p style="margin:0 0 6px">✓ Ansluten (${d.ms} ms). ${safe ? 'Rollen kan bara läsa och ser inga PIN-koder.'
+        : '<strong class="err">Varning: rollen har fler rättigheter än planen säger' + (s.readOnly ? '' : ' (inte skrivskyddad)') + (s.pinHashReadable ? ' (kan läsa pin_hash)' : '') + (s.canWriteUsers ? ' (kan skriva i users)' : '') + '.</strong>'}</p>
+      ${d.clinics.map(c => `<div class="pass-card"><span><strong>${esc(c.name)}</strong> <span class="muted">· ${c.active} aktiva${c.demo ? ' · demo' : ''}</span></span></div>`).join('')}`;
+  return `<div class="card">
+      <h2>MoraDOPS</h2>
+      <p class="hint" style="margin-top:0">Läsanslutning till MoraDOPS databas under parallellkörningen. MoraDOPS ändras inte.</p>
+      ${body}
+    </div>`;
 }
 
 // ── Kliniker (endast global admin) ────────────────────────────────────────
