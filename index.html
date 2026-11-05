@@ -456,6 +456,22 @@
     .bed-bar > div { background: #eef1f3; border-radius: 4px; height: 12px; overflow: hidden; }
     .bed-bar i { display: block; height: 100%; background: var(--accent); }
     .bed-bar > span:last-child { text-align: right; }
+    .dov-row { display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(90px, 1.4fr) 34px auto; gap: 10px; align-items: center; padding: 4px 0; font-size: 14px; }
+    .dov-sub { font-weight: bold; margin: 2px 0 4px; }
+    .dov-hr { border: none; border-top: 1px solid var(--line); margin: 8px 0; }
+    .dov-track { display: block; background: #e3e8eb; border-radius: 4px; height: 8px; overflow: hidden; }
+    .dov-track i { display: block; height: 100%; }
+    .dov-bar small { font-size: 11px; }
+    .dov-n { text-align: right; }
+    .dov-hidden { margin-top: 8px; } .dov-hidden summary { cursor: pointer; font-size: 13px; }
+    .dov-saved { display: inline-flex; flex-direction: column; background: var(--chrome); color: #fff; }
+    .dov-saved small { font-size: 11px; letter-spacing: 1px; opacity: .8; } .dov-saved strong { font-size: 26px; }
+    .dov-ax { font-size: 10px; fill: var(--ink-soft); }
+    .dov-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
+    .dov-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+    .dmi-types { display: flex; flex-wrap: wrap; gap: 4px; }
+    .dmi-types .chip { font-size: 13px; cursor: pointer; }
+    @media (max-width: 640px) { .dov-row { grid-template-columns: 1fr 34px; } .dov-row .dov-bar { grid-column: 1 / -1; order: 3; } .dov-row .link-btn { order: 4; justify-self: start; } }
     .bed-q { font-weight: bold; font-size: 15px; margin: 12px 0 6px; }
     .bed-free { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; font-size: 14px; }
     .bed-free .muted { font-size: 12px; margin-bottom: 2px; }
@@ -615,6 +631,7 @@
         <a href="#/kalender" id="world-op" class="hidden">Opjour</a>
         <a href="#/schema" id="world-plan" class="hidden">Planering</a>
         <a href="#/oversikt" id="world-st" class="hidden">ST-utbildning</a>
+        <a href="#/dops" id="world-dops" class="hidden">DOPS</a>
       </nav>
       <span class="spacer"></span>
       <button id="logout-btn" class="hidden" onclick="logout()">Logga ut</button>
@@ -657,8 +674,14 @@
           <div class="sn-title">ST-utbildning</div>
           <a href="#/oversikt" data-route="#/oversikt" id="nav-oversikt" class="hidden">Måluppfyllelse</a>
           <a href="#/plan" data-route="#/plan" id="nav-plan" class="hidden">Min utbildningsplan</a>
-          <a href="#/bedomningar" data-route="#/bedomningar" id="nav-bed" class="hidden">Bedömningar</a>
           <a href="#/st" data-route="#/st" id="nav-st" class="hidden">Inställningar</a>
+        </div>
+        <div data-world="dops" class="hidden">
+          <div class="sn-title">DOPS</div>
+          <a href="#/dops" data-route="#/dops">Översikt</a>
+          <a href="#/dops/mina" data-route="#/dops/mina">Mina bedömningar</a>
+          <a href="#/dops/progress" data-route="#/dops/progress">Progress</a>
+          <a href="#/dops/kliniken" data-route="#/dops/kliniken" id="nav-dops-kliniken" class="hidden">Kliniken</a>
         </div>
         <div data-world="acc" class="hidden">
           <div class="sn-title">Konto och klinik</div>
@@ -675,7 +698,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.33.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.34.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -709,7 +732,7 @@
     }
     function el(id) { return document.getElementById(id); }
 
-    // ── Felrapportering (som MoraDOPS) ─────────────────────────────────────
+    // ── Felrapportering (som DOPS) ─────────────────────────────────────
     // Sessionslogg (senaste 30 felen och misslyckade anrop) som bifogas en felanmälan. Okontrollerade fel rapporteras
     // automatiskt till servern (Admin → Felrapporter); console.error och avvisade promises bara om de ser ut som kodfel.
     // Nätverks- och sessionsfel räknas inte. Max 10 unika per sidladdning, samma fel bara en gång.
@@ -890,7 +913,11 @@
       else if (h === '#/st' || h.startsWith('#/st/')) renderStSettings(root, h.split('/')[2]);
       else if (h === '#/schema/installningar') renderStSettings(root, 'typer', 'plan');
       else if (h === '#/oversikt') renderOversikt(root);
-      else if (h === '#/bedomningar') renderBedomningar(root);
+      else if (h === '#/bedomningar') location.replace('#/dops/progress');   // gammal adress (0.33.0)
+      else if (h === '#/dops') renderDopsOverview(root);
+      else if (h === '#/dops/mina') renderDopsMine(root);
+      else if (h === '#/dops/progress') renderBedomningar(root);
+      else if (h === '#/dops/kliniken') renderDopsClinic(root);
       else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
       else renderToday(root);
       window.scrollTo(0, 0);
@@ -910,7 +937,8 @@
     function worldOf(h) {
       if (h === '#/settings' || h === '#/admin') return 'acc';
       if (h === '#/schema' || h.startsWith('#/schema/')) return 'plan';
-      if (['#/oversikt', '#/st', '#/bedomningar'].includes(h) || h.startsWith('#/st/') || h.startsWith('#/plan')) return 'st';
+      if (['#/oversikt', '#/st'].includes(h) || h.startsWith('#/st/') || h.startsWith('#/plan')) return 'st';
+      if (h === '#/dops' || h.startsWith('#/dops/')) return 'dops';
       if (['#/kalender', '#/stats', '#/opjour-settings'].includes(h)) return 'op';
       return 'today';
     }
@@ -921,6 +949,7 @@
       el('subnav').classList.toggle('hidden', state.scope !== 'user' || world === 'today');   // Idag har inga undersidor
       el('world-plan').classList.toggle('active', world === 'plan');
       el('world-st').classList.toggle('active', world === 'st');
+      el('world-dops').classList.toggle('active', world === 'dops');
       el('tool-admin').classList.toggle('active', h === '#/admin');
       el('subnav').querySelectorAll('[data-world]').forEach(g => g.classList.toggle('hidden', g.dataset.world !== world));
       document.querySelectorAll('#subnav a, #menu a').forEach(a => a.classList.toggle('active', a.dataset.route === key));
@@ -945,8 +974,8 @@
       show('nav-oversikt', mal && (me.isSt || me.isDirector || me.isAdmin || me.isSupervisor));
       show('nav-plan', mal && me.isSt);
       show('nav-st', (schema || mal) && (me.isDirector || me.isAdmin));
-      show('nav-bed', mods.includes('dops') && me.dopsUser);   // MoraDOPS-bedömningar: modulen påslagen och eget konto kopplat
-      const firstSt = ['nav-oversikt', 'nav-plan', 'nav-bed', 'nav-st'].map(el).find(a => !a.classList.contains('hidden'));
+      show('world-dops', mods.includes('dops') && me.dopsUser);   // DOPS: modulen påslagen och eget konto kopplat
+      const firstSt = ['nav-oversikt', 'nav-plan', 'nav-st'].map(el).find(a => !a.classList.contains('hidden'));
       show('world-st', !!firstSt);
       if (firstSt) el('world-st').href = firstSt.getAttribute('href');
       ['nav-admin', 'menu-admin', 'tool-admin'].forEach(id => show(id, me.isAdmin));
@@ -1089,6 +1118,7 @@
   <script src="js/oversikt.js"></script>
   <script src="js/plan.js"></script>
   <script src="js/dops.js"></script>
+  <script src="js/dopsapp.js"></script>
   <script src="js/today.js"></script>
   <script src="js/help.js"></script>
 </body>

@@ -1,8 +1,8 @@
-// ── Bedömningar från MoraDOPS (#/bedomningar) ────────────────────────────
+// ── DOPS → Progress (#/dops) ─────────────────────────────────────────────
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser(). Global entry: renderBedomningar(root).
 //
-// MoraDOPS fas 4 (moradops_plan.md): läser bedömningarna direkt ur MoraDOPS databas. Bara läsning — nya bedömningar görs i MoraDOPS.
-// Behörighet som i MoraDOPS: sina egna, eller alla på kliniken för den som är Studierektor/Administratör i MoraDOPS.
+// DOPS fas 4 (dops_plan.md): läser bedömningarna direkt ur DOPS databas. Bara läsning — nya bedömningar görs i DOPS.
+// Behörighet som i DOPS: sina egna, eller alla på kliniken för den som är Studierektor/Administratör i DOPS.
 // Per formulärtyp: skalfrågor som kurva över tid med medelvärde, flervalsfrågor som fördelning, fritext samlad, och varje bedömning.
 
 let _bed = null;
@@ -18,7 +18,7 @@ async function renderBedomningar(root) {
     if (!people.canSeeOthers) _bed.recipient = people.self.id;
     await loadBedomningar(root);
   } catch (err) {
-    root.innerHTML = `<h1 class="page">Bedömningar</h1><p class="err">${esc(err.message)}</p>`;
+    root.innerHTML = `<h1 class="page">Progress</h1><p class="err">${esc(err.message)}</p>`;
   }
 }
 
@@ -38,10 +38,10 @@ function drawBedomningar(root) {
   const types = data.formTypes;
   const t = types.find(x => x.id === _bed.type);
   root.innerHTML = `
-    <h1 class="page">Bedömningar</h1>
-    <p class="hint" style="margin:-4px 0 14px">Från MoraDOPS, bara läsning. Nya bedömningar görs i MoraDOPS som vanligt.</p>
+    <h1 class="page">Progress</h1>
+    <p class="hint" style="margin:-4px 0 14px">Läses direkt ur DOPS-appens databas (moradops.se). Nya bedömningar görs i DOPS-appen tills registreringen slås på här.</p>
     ${picker ? `<div class="card">${picker}</div>` : ''}
-    ${!types.length ? `<div class="card"><p class="muted" style="margin:0">${_bed.recipient === people.self.id ? 'Du har' : esc(data.recipient.name) + ' har'} inga bedömningar i MoraDOPS än.</p></div>` : `
+    ${!types.length ? `<div class="card"><p class="muted" style="margin:0">${_bed.recipient === people.self.id ? 'Du har' : esc(data.recipient.name) + ' har'} inga bedömningar i DOPS än.</p></div>` : `
     <div class="card">
       <h2 style="margin-top:0">${esc(data.recipient.name)}</h2>
       <div class="bed-types">${types.map(x => `<button type="button" class="bed-type${x.id === _bed.type ? ' on' : ''}" data-t="${esc(x.id)}">

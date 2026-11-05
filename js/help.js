@@ -28,17 +28,21 @@ const HELP = [
     '<strong>Ändra planen:</strong> dra ett krav till ett annat år, eller klicka på det för att flytta eller ta bort det. Det gäller bara den här ST-läkarens plan — klinikens mall ändras inte. Ändringarna syns i Historik.',
     '<strong>Beräknat ST-slut</strong> är ST-start + 5 år + veckor med föräldra- eller tjänstledighet i veckoschemat.',
     '<strong>Skriv ut</strong> ger en A4 med översikt och delmål.']],
-  ['#/bedomningar', 'ST-utbildning · Bedömningar', [
-    'Bedömningarna från MoraDOPS (DOPS, Mini-CEX m.fl.), direkt ur MoraDOPS. Bara läsning — nya bedömningar görs i MoraDOPS som vanligt.',
+  ['#/dops', 'DOPS · Översikt', [
+    'Dina mottagna och registrerade bedömningar per formulärtyp, med klinikens mål (per 6 månader, skalat med vald period) och en graf över tid. <em>Ej aktuellt</em> döljer ett formulär för dig — låst tills ST-Lotsen får skriva i DOPS-appens databas.']],
+  ['#/dops/mina', 'DOPS · Mina bedömningar', ['Mottagna och skickade bedömningar med alla svar. Filtrera på datum och formulärtyp. Att ta bort en bedömning är låst tills vidare.']],
+  ['#/dops/kliniken', 'DOPS · Kliniken', ['Klinikens alla bedömningar, för Studierektor och Administratör i DOPS. Filtrera på datum, mottagarkategori, mottagare och formulärtyp.']],
+  ['#/dops/progress', 'DOPS · Progress', [
+    'Bedömningarna (DOPS, Mini-CEX m.fl.), direkt ur DOPS-appens databas. Bara läsning — nya bedömningar görs i DOPS-appen (moradops.se) tills registreringen slås på här.',
     'Välj formulärtyp. Skalfrågor visas som kurva över tid med medelvärde (streckad linje), flervalsfrågor som fördelning, därefter fritextsvaren och varje bedömning.',
-    'Du ser dina egna bedömningar. Den som är Studierektor eller Administratör i MoraDOPS väljer person och ser alla på kliniken.']],
+    'Du ser dina egna bedömningar. Den som är Studierektor eller Administratör i DOPS väljer person och ser alla på kliniken.']],
   ['#/st/delmal', 'ST-utbildning · Delmål', ['Klinikens målbeskrivning och hur väl kraven täcker delmålen. Välj målbeskrivning i listan ovanför tabellen (t.ex. HSLF-FS 2021:8). <strong>Klicka på ett delmål</strong> för att välja vilka krav som räknas till det; det går också från ett krav under fliken Krav.']],
   ['#/st/personer', 'ST-utbildning · ST-läkare och handledare', ['Vem som är ST-läkare, ST-start och -slut, målbeskrivning och handledare. Studierektorsrollen sätts under Administration.']],
   ['#/st', 'ST-utbildning · Krav', [
     'Klinikens mall: det som ska uppnås, per ST-år. ST-läkarna ser samma vy i sin utbildningsplan.',
     '<strong>Dra</strong> ett krav till ett annat år, <strong>klicka</strong> för att ändra det (delmål, randning, längd, i tjänst).']],
   ['#/settings', 'Mitt konto', ['Ditt namn, användarnamn, telefon och PIN.']],
-  ['#/admin', 'Administration', ['Användare (sök, filtrera, klicka för roller och uppgifter), moduler för kliniken och felrapporter.', 'Med modulen MoraDOPS påslagen: MoraDOPS-konton — godkänn förslagen, koppla övriga för hand, hämta namn eller e-post från MoraDOPS och skapa ST-Lotsen-konton för dem som bara finns i MoraDOPS (tillfällig PIN visas en gång). Kliniken kopplas till MoraDOPS av global admin.']]
+  ['#/admin', 'Administration', ['Användare (sök, filtrera, klicka för roller och uppgifter), moduler för kliniken och felrapporter.', 'Med modulen DOPS påslagen: DOPS-konton — godkänn förslagen, koppla övriga för hand, hämta namn eller e-post från DOPS och skapa ST-Lotsen-konton för dem som bara finns i DOPS (tillfällig PIN visas en gång). Kliniken kopplas till DOPS av global admin.']]
 ];
 
 function openHelp() {

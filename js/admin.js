@@ -590,12 +590,12 @@ const MODULE_INFO = [
   ['opjour', 'Opjour', 'Operationsjourlinjen: kalender, bokning, reserv och visningsskärm.'],
   ['schema', 'Planering', 'Veckoschemat: ST-gruppens schema vecka för vecka med raden "I tjänst" och bemanningsvarning. Aktivitetstyper ställs in under Planering → Inställningar.'],
   ['mal', 'ST-utbildning', 'Måluppfyllelse, individuella utbildningsplaner, krav per ST-år och delmål. Status hämtas ur veckoschemat och det som anges för hand.'],
-  ['dops', 'MoraDOPS', 'Kopplingen till MoraDOPS under parallellkörningen. Just nu: koppla ihop klinikens konton i de två systemen (Administration → MoraDOPS-konton). Bedömningarna kommer i en senare version.']
+  ['dops', 'DOPS', 'Bedömningar (DOPS, Mini-CEX m.fl.): fliken DOPS med progress, och kopplingen av klinikens konton (Administration → DOPS-konton). Under parallellkörningen läses DOPS-appens databas; registrering slås på senare.']
 ];
 
 function moduleCard() {
   const on = _admin.me.modules || ['opjour'];
-  const shown = MODULE_INFO.filter(([id]) => id !== 'dops' || _admin.me.dopsLinked || on.includes('dops'));   // bara kliniker kopplade till MoraDOPS
+  const shown = MODULE_INFO.filter(([id]) => id !== 'dops' || _admin.me.dopsLinked || on.includes('dops'));   // bara kliniker kopplade till DOPS
   return `<div class="card">
       <h2>Moduler</h2>
       <p class="muted" style="margin:0 0 6px">Vilka delar av ST-Lotsen kliniken använder. Minst en måste vara påslagen.</p>
@@ -651,19 +651,19 @@ async function setClientErrorResolved(id, resolved) {
   catch (err) { const b = el('er-status'); b.textContent = err.message; b.className = 'status err'; }
 }
 
-// ── MoraDOPS-anslutningen (endast global admin, moradops_plan.md fas 1) ──
-// Visar att ST-Lotsen når MoraDOPS databas och att rollen bara kan läsa. Inget i MoraDOPS ändras härifrån.
+// ── DOPS-anslutningen (endast global admin, dops_plan.md fas 1) ──
+// Visar att ST-Lotsen når DOPS databas och att rollen bara kan läsa. Inget i DOPS ändras härifrån.
 function dopsCard() {
   const d = _admin.dops, s = d.safety || {};
   const safe = s.readOnly && !s.pinHashReadable && !s.canWriteUsers;
   const body = !d.configured
     ? '<p class="muted" style="margin:0">Inte ansluten. Anslutningen läggs in med <code>scripts/dops-secret.sh</code> och tas i bruk vid nästa leverans.</p>'
-    : !d.ok ? `<p class="err" style="margin:0">MoraDOPS kan inte nås: ${esc(d.error || 'okänt fel')}</p>`
+    : !d.ok ? `<p class="err" style="margin:0">DOPS kan inte nås: ${esc(d.error || 'okänt fel')}</p>`
     : `<p style="margin:0 0 6px">✓ Ansluten (${d.ms} ms). ${safe ? 'Rollen kan bara läsa och ser inga PIN-koder.'
         : '<strong class="err">Varning: rollen har fler rättigheter än planen säger' + (s.readOnly ? '' : ' (inte skrivskyddad)') + (s.pinHashReadable ? ' (kan läsa pin_hash)' : '') + (s.canWriteUsers ? ' (kan skriva i users)' : '') + '.</strong>'}</p>
       ${d.clinics.map(c => `<div class="pass-card"><span><strong>${esc(c.name)}</strong> <span class="muted">· ${c.active} aktiva${c.demo ? ' · demo' : ''}</span></span></div>`).join('')}
       <h3 style="margin:14px 0 4px">Klinikkoppling</h3>
-      <p class="hint" style="margin-top:0">Vilken MoraDOPS-klinik varje ST-Lotsen-klinik motsvarar. Därefter kan klinikens admin slå på modulen MoraDOPS och koppla ihop kontona.</p>
+      <p class="hint" style="margin-top:0">Vilken DOPS-klinik varje ST-Lotsen-klinik motsvarar. Därefter kan klinikens admin slå på modulen DOPS och koppla ihop kontona.</p>
       ${(d.lotsenClinics || []).map(lc => `<div class="pass-card"><strong>${esc(lc.name)}</strong>
         <select data-dops-clinic="${esc(lc.id)}" onchange="saveDopsClinic(this)" style="max-width:220px">
           <option value="">Ingen koppling</option>
@@ -671,8 +671,8 @@ function dopsCard() {
         </select></div>`).join('')}
       <div class="status" id="dops-status"></div>`;
   return `<div class="card">
-      <h2>MoraDOPS</h2>
-      <p class="hint" style="margin-top:0">Läsanslutning till MoraDOPS databas under parallellkörningen. MoraDOPS ändras inte.</p>
+      <h2>DOPS</h2>
+      <p class="hint" style="margin-top:0">Läsanslutning till DOPS databas under parallellkörningen. DOPS ändras inte.</p>
       ${body}
     </div>`;
 }
@@ -682,14 +682,14 @@ async function saveDopsClinic(sel) {
     await api('/dops/clinics/' + encodeURIComponent(sel.dataset.dopsClinic), { method: 'PUT', body: { dopsClinicId: sel.value || null } });
     _admin.dops = await api('/dops/status');
     await reloadAdmin();
-    toast(sel.value ? 'Kliniken är kopplad till MoraDOPS.' : 'Kopplingen är borttagen och modulen avslagen.');
+    toast(sel.value ? 'Kliniken är kopplad till DOPS.' : 'Kopplingen är borttagen och modulen avslagen.');
   } catch (err) { toast(err.message, 'err'); _admin.dops = await api('/dops/status').catch(() => _admin.dops); drawAdmin(el('view')); }
 }
 
-// ── MoraDOPS-konton (klinikens admin, modulen 'dops'; moradops_plan.md fas 2) ──
-// Fyra listor: kopplade, förslag, bara i ST-Lotsen, bara i MoraDOPS. MoraDOPS läses vid varje visning och ändras aldrig härifrån.
+// ── DOPS-konton (klinikens admin, modulen 'dops'; dops_plan.md fas 2) ──
+// Fyra listor: kopplade, förslag, bara i ST-Lotsen, bara i DOPS. DOPS läses vid varje visning och ändras aldrig härifrån.
 const DOPS_DIFF = { namn: 'Namn skiljer', epost: 'E-post skiljer', admin: 'Admin skiljer', studierektor: 'Studierektor skiljer',
-  aktiv: 'Aktiv/inaktiv skiljer', klinik: 'Annan klinik i MoraDOPS', saknas: 'Finns inte i MoraDOPS' };
+  aktiv: 'Aktiv/inaktiv skiljer', klinik: 'Annan klinik i DOPS', saknas: 'Finns inte i DOPS' };
 
 async function loadDopsUsers() {
   _admin.dopsUsers = await api('/dops/users').catch(err => ({ error: err.message }));
@@ -697,7 +697,7 @@ async function loadDopsUsers() {
 
 function dopsUsersCard() {
   const d = _admin.dopsUsers;
-  if (d.error) return `<div class="card"><h2>MoraDOPS-konton</h2><p class="err" style="margin:0">${esc(d.error)}</p></div>`;
+  if (d.error) return `<div class="card"><h2>DOPS-konton</h2><p class="err" style="margin:0">${esc(d.error)}</p></div>`;
   const who = u => `<strong>${esc(u.displayName)}</strong> <span class="muted">${esc(u.username)}${u.email ? ' · ' + esc(u.email) : ' · ingen e-post'}${u.active ? '' : ' · inaktiv'}</span>`;
   const them = x => `${esc(x.name)} <span class="muted">${esc(x.email || 'ingen e-post')}${x.jobRole ? ' · ' + esc(x.jobRole) : ''}${x.admin ? ' · Administratör' : ''}${x.director ? ' · Studierektor' : ''}${x.inactive ? ' · inaktiverad' : ''}${x.pending ? ' · ej aktiverad' : ''}</span>`;
   const tags = ds => ds.map(k => `<span class="chip" style="font-size:12px;padding:0 8px">${DOPS_DIFF[k] || esc(k)}</span>`).join('');
@@ -712,25 +712,25 @@ function dopsUsersCard() {
     btn('Koppla', `dopsLink([['${x.user.id}','${x.dops.id}']])`, false))).join('');
   const opts = d.onlyDops.map(x => `<option value="${esc(x.id)}">${esc(x.name)}${x.email ? ' — ' + esc(x.email) : ''}</option>`).join('');
   const onlyL = d.onlyLotsen.map(u => row(who(u), '', d.onlyDops.length
-    ? `<select id="dp-${esc(u.id)}" style="max-width:220px"><option value="">Välj MoraDOPS-konto…</option>${opts}</select>${btn('Koppla', `dopsLinkPick('${u.id}')`)}`
-    : '<span class="muted">Inga okopplade MoraDOPS-konton</span>')).join('');
+    ? `<select id="dp-${esc(u.id)}" style="max-width:220px"><option value="">Välj DOPS-konto…</option>${opts}</select>${btn('Koppla', `dopsLinkPick('${u.id}')`)}`
+    : '<span class="muted">Inga okopplade DOPS-konton</span>')).join('');
   const onlyD = d.onlyDops.map(x => row(`<label style="display:flex;gap:8px;align-items:flex-start;margin:0;font-weight:normal"><input type="checkbox" data-dops-new="${esc(x.id)}" style="margin-top:4px">${'<span>' + them(x) + '</span>'}</label>`, '',
     btn('Skapa konto', `dopsCreateAccounts(['${x.id}'])`))).join('');
   const emailSugg = d.suggestions.filter(x => x.by === 'email');
   const sec = (title, n, body, open, extra = '') => `<details class="dops-sec"${open ? ' open' : ''}><summary><strong>${title} (${n})</strong></summary>${extra}${body || '<p class="muted">Inga.</p>'}</details>`;
 
   return `<div class="card">
-      <h2>MoraDOPS-konton</h2>
-      <p class="hint" style="margin-top:0">Kopplar klinikens ST-Lotsen-konton till kontona i MoraDOPS (${esc(d.clinicName)}). MoraDOPS är källan för namn och e-post och ändras inte härifrån. Inloggningen i ST-Lotsen påverkas inte.</p>
+      <h2>DOPS-konton</h2>
+      <p class="hint" style="margin-top:0">Kopplar klinikens ST-Lotsen-konton till kontona i DOPS (${esc(d.clinicName)}). DOPS är källan för namn och e-post och ändras inte härifrån. Inloggningen i ST-Lotsen påverkas inte.</p>
       ${sec('Förslag att godkänna', d.suggestions.length, sugg, d.suggestions.length > 0,
         emailSugg.length > 1 ? `<div class="row" style="margin:6px 0">${btn(`Koppla alla ${emailSugg.length} med samma e-post`, 'dopsLinkAllEmail()', false)}</div>` : '')}
       ${sec('Bara i ST-Lotsen', d.onlyLotsen.length, onlyL, d.suggestions.length === 0 && d.onlyLotsen.length > 0,
-        '<p class="hint">Saknar träff i MoraDOPS, oftast för att e-post saknas eller skiljer sig. Välj rätt konto för hand, eller lämna okopplat (t.ex. konton som inte bedömer).</p>')}
-      ${sec('Bara i MoraDOPS', d.onlyDops.length, onlyD, false,
-        '<p class="hint">Har inget ST-Lotsen-konto. <strong>Skapa konto</strong> hämtar namn och e-post från MoraDOPS, kopplar kontot och ger en tillfällig PIN som visas en gång. Kontot blir vanlig användare; roller sätts sedan under Användare. Personen kan logga in med användarnamnet eller e-postadressen.</p>'
+        '<p class="hint">Saknar träff i DOPS, oftast för att e-post saknas eller skiljer sig. Välj rätt konto för hand, eller lämna okopplat (t.ex. konton som inte bedömer).</p>')}
+      ${sec('Bara i DOPS', d.onlyDops.length, onlyD, false,
+        '<p class="hint">Har inget ST-Lotsen-konto. <strong>Skapa konto</strong> hämtar namn och e-post från DOPS, kopplar kontot och ger en tillfällig PIN som visas en gång. Kontot blir vanlig användare; roller sätts sedan under Användare. Personen kan logga in med användarnamnet eller e-postadressen.</p>'
         + (d.onlyDops.length > 1 ? `<div class="row" style="margin:6px 0;gap:8px"><button class="btn-ghost" onclick="document.querySelectorAll('[data-dops-new]').forEach(c=>c.checked=true)">Markera alla</button>${btn('Skapa konton för markerade', 'dopsCreateChecked()', false)}</div>` : ''))}
       ${sec('Kopplade', d.linked.length, linked, false,
-        d.linked.some(x => x.diffs.length) ? '<p class="hint">Skillnader visas men rättas inte automatiskt. Namn och e-post kan hämtas från MoraDOPS; roller och inaktivering ändras i respektive system.</p>' : '')}
+        d.linked.some(x => x.diffs.length) ? '<p class="hint">Skillnader visas men rättas inte automatiskt. Namn och e-post kan hämtas från DOPS; roller och inaktivering ändras i respektive system.</p>' : '')}
     </div>`;
 }
 
@@ -747,7 +747,7 @@ async function dopsLink(pairs) {
 }
 function dopsLinkPick(userId) {
   const v = el('dp-' + userId)?.value;
-  if (!v) return toast('Välj ett MoraDOPS-konto först.', 'err');
+  if (!v) return toast('Välj ett DOPS-konto först.', 'err');
   return dopsLink([[userId, v]]);
 }
 function dopsLinkAllEmail() {
@@ -765,7 +765,7 @@ async function dopsCreateAccounts(ids) {
     const r = await api('/dops/users/accounts', { method: 'POST', body: { dopsUserIds: ids } });
     _admin.created = r.created;
     _admin.notice = { tone: 'ok', csv: true, html:
-      `<strong>${r.created.length} ${r.created.length === 1 ? 'konto skapat' : 'konton skapade'} från MoraDOPS.</strong> Dela ut användarnamn och tillfällig PIN — de visas bara nu. Inloggning går också med e-postadressen.`
+      `<strong>${r.created.length} ${r.created.length === 1 ? 'konto skapat' : 'konton skapade'} från DOPS.</strong> Dela ut användarnamn och tillfällig PIN — de visas bara nu. Inloggning går också med e-postadressen.`
       + `<div style="overflow-x:auto;margin-top:8px"><table class="imp-table"><tr><th>Namn</th><th>Användarnamn</th><th>E-post</th><th>PIN</th></tr>`
       + r.created.map(c => `<tr><td>${esc(c.displayName)}</td><td>${esc(c.username)}</td><td>${esc(c.email)}</td><td><strong>${esc(c.pin)}</strong></td></tr>`).join('')
       + `</table></div>` };
@@ -775,12 +775,12 @@ async function dopsCreateAccounts(ids) {
   } catch (err) { toast(err.message, 'err'); }
 }
 async function dopsUnlink(userId) {
-  if (!confirm('Koppla loss kontot från MoraDOPS? Inget raderas i något av systemen.')) return;
+  if (!confirm('Koppla loss kontot från DOPS? Inget raderas i något av systemen.')) return;
   try { await api('/dops/users/' + encodeURIComponent(userId) + '/link', { method: 'DELETE' }); await dopsAfter('Kopplingen är borttagen.'); }
   catch (err) { toast(err.message, 'err'); }
 }
 async function dopsPull(userId, what) {
-  try { await api('/dops/users/' + encodeURIComponent(userId) + '/pull', { method: 'POST', body: what }); await dopsAfter(what.name ? 'Namnet är hämtat från MoraDOPS.' : 'E-posten är hämtad från MoraDOPS.'); }
+  try { await api('/dops/users/' + encodeURIComponent(userId) + '/pull', { method: 'POST', body: what }); await dopsAfter(what.name ? 'Namnet är hämtat från DOPS.' : 'E-posten är hämtad från DOPS.'); }
   catch (err) { toast(err.message, 'err'); }
 }
 
