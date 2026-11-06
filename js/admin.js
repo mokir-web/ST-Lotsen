@@ -26,13 +26,11 @@ async function renderAdmin(root, mode = 'users') {
   try {
     const me = await api('/me');
     setMenuForUser(me);
-    if (!me.isAdmin || (mode === 'system' && !me.isGlobalAdmin)) { location.hash = '#/installningar/konto'; return; }
+    if (!me.isAdmin || (['system', 'errors'].includes(mode) && !me.isGlobalAdmin)) { location.hash = '#/installningar/konto'; return; }
     _admin = { me, mode, draw: drawAdmin, open: new Set(), filter: 'alla', q: '', panel: null, notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
-    if (mode === 'system') {
-      _admin.clinics = (await api('/admin/clinics')).clinics;
-      _admin.errors = await api('/error-reports').catch(() => null);
-      _admin.dops = await api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message }));
-    }
+    if (mode === 'system' || (mode === 'clinic' && me.isGlobalAdmin)) _admin.clinics = (await api('/admin/clinics')).clinics;
+    if (mode === 'system') _admin.dops = await api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message }));
+    if (mode === 'errors') _admin.errors = await api('/error-reports').catch(() => null);
     if (mode === 'users' && (me.modules || []).includes('dops')) await loadDopsUsers();
     drawAdmin(root);
   } catch (err) {
@@ -141,11 +139,15 @@ function drawAdmin(root) {
 
   const mode = _admin.mode || 'users';
   if (mode === 'clinic') {
-    root.innerHTML = `<h1 class="page">Klinik</h1>${noticeCard()}${moduleCard()}`;
+    root.innerHTML = `<h1 class="page">Klinik</h1>${noticeCard()}${me.isGlobalAdmin && _admin.clinics ? clinicPickCard() : ''}${moduleCard()}${me.isGlobalAdmin && _admin.clinics ? importCard() : ''}`;
     return;
   }
   if (mode === 'system') {
-    root.innerHTML = `<h1 class="page">System</h1>${noticeCard()}${_admin.clinics ? clinicCard() : ''}${_admin.dops ? dopsCard() : ''}${_admin.errors ? errorCard() : ''}`;
+    root.innerHTML = `<h1 class="page">System</h1>${noticeCard()}${_admin.clinics ? clinicCard() : ''}${_admin.dops ? dopsCard() : ''}`;
+    return;
+  }
+  if (mode === 'errors') {
+    root.innerHTML = `<h1 class="page">Felanmälan</h1>${_admin.errors ? errorCard() : '<p class="err">Kunde inte hämta felrapporterna.</p>'}`;
     return;
   }
   root.innerHTML = `
@@ -276,7 +278,8 @@ function drawUserPanel() {
     title = 'Lägg till användare';
     body = `<form id="au-form" onsubmit="return addUser(event)">
         <label for="au-name">Fullständigt namn</label><input type="text" id="au-name" maxlength="60" required oninput="onAuName(this.value)">
-        <label for="au-user">Användarnamn</label><input type="text" id="au-user" autocapitalize="none" spellcheck="false" required oninput="_admin.userTouched=true">
+        <label for="au-email">E-post</label><input type="email" id="au-email" maxlength="120" autocapitalize="none" spellcheck="false" oninput="onAuEmail(this.value)">
+        <label for="au-user">Användarnamn <small class="muted" style="font-weight:normal">— e-postadressen om inget annat anges</small></label><input type="text" id="au-user" autocapitalize="none" spellcheck="false" maxlength="60" oninput="_admin.userTouched=true">
         <label for="au-phone">Telefon (valfritt)</label><input type="tel" id="au-phone" maxlength="30" inputmode="tel" placeholder="070-123 45 67">
         <label for="au-role">Roll</label><select id="au-role"><option value="user">Användare</option><option value="admin">Admin</option></select>
         <label for="au-pin">Tillfällig PIN</label>
@@ -323,6 +326,8 @@ function drawUserPanel() {
         <label for="up-user">Användarnamn</label><input type="text" id="up-user" value="${esc(u.username || '')}" maxlength="60" autocapitalize="none" spellcheck="false">
         <label for="up-phone">Telefon</label><input type="tel" id="up-phone" value="${esc(u.phone || '')}" maxlength="30" inputmode="tel" placeholder="070-123 45 67">
         <label for="up-email">E-post</label><input type="email" id="up-email" value="${esc(u.email || '')}" maxlength="120" autocapitalize="none" spellcheck="false">
+        <label for="up-start">Startsida</label><select id="up-start">${startPageOptions(_admin.me, u.startPage)}</select>
+        <p class="hint" style="margin-top:4px">Sidan som öppnas när personen startar ST-Lotsen. Personen kan också välja själv under Mitt konto.</p>
         <div class="row" style="margin-top:12px"><button class="btn" onclick="saveUserDetails()" ${locked ? 'disabled' : ''}>Spara</button></div>`,
       roller: `
         <h3>Klinik <small class="muted" style="font-weight:normal">— gäller alla moduler</small></h3>
@@ -401,7 +406,7 @@ function onRoleChange(box) {
 }
 
 function saveUserDetails() {
-  panelAction(id => api('/profile', { method: 'PUT', body: { userId: id, displayName: el('up-name').value, username: el('up-user').value, phone: el('up-phone').value, email: el('up-email').value } }), 'Sparat.');
+  panelAction(id => api('/profile', { method: 'PUT', body: { userId: id, displayName: el('up-name').value, username: el('up-user').value, phone: el('up-phone').value, email: el('up-email').value, startPage: el('up-start').value } }), 'Sparat.');
 }
 
 function resetUserPin() {
@@ -429,8 +434,12 @@ function deleteUser() {
   })();
 }
 
+// Användarnamnet följer e-postadressen (standard sedan 0.39.0); utan e-post föreslås ett av namnet.
 function onAuName(v) {
-  if (!_admin.userTouched) el('au-user').value = suggestUsername(v);
+  if (!_admin.userTouched && !el('au-email').value.trim()) el('au-user').value = suggestUsername(v);
+}
+function onAuEmail(v) {
+  if (!_admin.userTouched) el('au-user').value = v.trim().toLowerCase() || suggestUsername(el('au-name').value);
 }
 
 async function addUser(e) {
@@ -439,11 +448,13 @@ async function addUser(e) {
   const body = {
     displayName: el('au-name').value.trim(),
     username: el('au-user').value.trim(),
+    email: el('au-email').value.trim(),
     phone: el('au-phone').value,
     tempPin: el('au-pin').value.trim(),
     role: el('au-role').value
   };
   try {
+    body.username = body.username || body.email.toLowerCase();
     await api('/admin/users', { method: 'POST', body });
     _admin.notice = { tone: 'ok', html:
       `Konto skapat${body.role === 'admin' ? ' (admin)' : ''}: <strong>${esc(body.displayName)}</strong><br>`
@@ -815,11 +826,16 @@ async function dopsPull(userId, what) {
 
 // ── Kliniker (endast global admin) ────────────────────────────────────────
 function clinicCard() {
-  const rows = _admin.clinics.map(c =>
-    `<div class="pass-card"><span><strong>${esc(c.name)}</strong> <span class="muted">· ${c.userCount} användare · ${c.adminCount} admin</span></span></div>`).join('');
+  const rows = _admin.clinics.map(c => `<div class="pass-card"><span><strong>${esc(c.name)}</strong> <span class="muted">· ${c.userCount} användare · ${c.adminCount} admin${c.id === _admin.me.clinicId ? ' · du arbetar här' : ''}</span></span>
+      <span class="row" style="gap:6px">
+        ${c.id === _admin.me.clinicId ? '' : `<button class="btn-ghost" onclick="workInClinic('${esc(c.id)}')">Arbeta här</button>`}
+        <button class="btn-ghost" onclick="renameClinic('${esc(c.id)}')">Byt namn…</button>
+        ${c.globalCount ? '' : `<button class="btn-ghost" style="color:var(--danger);border-color:#e3b3ab" onclick="deleteClinic('${esc(c.id)}')">Radera…</button>`}
+      </span></div>`).join('');
   return `<div class="card">
       <h2>Kliniker</h2>
-      <p class="hint" style="margin-top:0">Du är global admin och kan lägga upp nya kliniker. Varje klinik får en egen admin, som sedan lägger till klinikens övriga användare.</p>
+      <p class="hint" style="margin-top:0">Du är global admin och kan lägga upp, byta namn på och radera kliniker. Varje klinik får en egen admin, som sedan lägger till klinikens övriga användare.
+        Med <strong>Arbeta här</strong> ser du hela ST-Lotsen som admin på kliniken och kan ändra dess inställningar (även under Inställningar → Klinik). En klinik med ett globalt adminkonto kan inte raderas.</p>
       ${rows}
       <details style="margin-top:12px"${_admin.clinicOpen ? ' open' : ''} ontoggle="_admin.clinicOpen=this.open">
         <summary style="cursor:pointer;font-weight:bold">Ny klinik</summary>
@@ -829,10 +845,12 @@ function clinicCard() {
           <div class="field-row">
             <div><label for="nc-aname">Adminens fullständiga namn</label>
               <input type="text" id="nc-aname" maxlength="60" required oninput="onNcName(this.value)"></div>
-            <div><label for="nc-auser">Adminens användarnamn</label>
-              <input type="text" id="nc-auser" autocapitalize="none" spellcheck="false" required oninput="_admin.clinicUserTouched=true"></div>
+            <div><label for="nc-aemail">Adminens e-post</label>
+              <input type="email" id="nc-aemail" maxlength="120" autocapitalize="none" spellcheck="false" oninput="if(!_admin.clinicUserTouched)el('nc-auser').value=this.value.trim().toLowerCase()"></div>
           </div>
           <div class="field-row">
+            <div><label for="nc-auser">Adminens användarnamn</label>
+              <input type="text" id="nc-auser" autocapitalize="none" spellcheck="false" maxlength="60" oninput="_admin.clinicUserTouched=true" placeholder="e-postadressen"></div>
             <div><label for="nc-aphone">Adminens telefon (valfritt)</label>
               <input type="tel" id="nc-aphone" maxlength="30" inputmode="tel" placeholder="070-123 45 67"></div>
           </div>
@@ -845,7 +863,7 @@ function clinicCard() {
 }
 
 function onNcName(v) {
-  if (!_admin.clinicUserTouched) el('nc-auser').value = suggestUsername(v);
+  if (!_admin.clinicUserTouched && !el('nc-aemail').value.trim()) el('nc-auser').value = suggestUsername(v);
 }
 
 async function addClinic(e) {
@@ -854,7 +872,7 @@ async function addClinic(e) {
   try {
     const r = await api('/admin/clinics', { method: 'POST', body: {
       name: el('nc-name').value.trim(), adminName: el('nc-aname').value.trim(),
-      adminUsername: el('nc-auser').value.trim(), adminPhone: el('nc-aphone').value
+      adminUsername: el('nc-auser').value.trim(), adminEmail: el('nc-aemail').value.trim(), adminPhone: el('nc-aphone').value
     } });
     _admin.notice = { tone: 'ok', html:
       `Kliniken <strong>${esc(r.clinic.name)}</strong> är skapad.<br>`
@@ -866,4 +884,85 @@ async function addClinic(e) {
     window.scrollTo(0, 0);
   } catch (err) { st.textContent = err.message; }
   return false;
+}
+
+// ── Global admin: arbeta i en annan klinik, byt namn, radera, importera inställningar ──
+function clinicPickCard() {
+  const me = _admin.me;
+  return `<div class="card">
+      <h2>Klinik att arbeta i</h2>
+      <p class="hint" style="margin-top:0">Som global admin kan du ändra inställningar åt andra kliniker. Valet gäller hela ST-Lotsen tills du byter tillbaka.</p>
+      <select id="cp-pick" onchange="workInClinic(this.value)" style="max-width:360px">
+        ${_admin.clinics.map(c => `<option value="${esc(c.id)}"${c.id === me.clinicId ? ' selected' : ''}>${esc(c.name)}${c.id === me.homeClinicId ? ' (din klinik)' : ''}</option>`).join('')}
+      </select>
+    </div>`;
+}
+
+function workInClinic(id) {
+  const c = _admin.clinics.find(x => x.id === id);
+  if (!c) return;
+  setActingClinic(id === _admin.me.homeClinicId ? null : c);
+}
+
+async function renameClinic(id) {
+  const c = _admin.clinics.find(x => x.id === id);
+  const name = prompt(`Nytt namn för ${c.name}:`, c.name);
+  if (name == null || !name.trim() || name.trim() === c.name) return;
+  try {
+    await api('/admin/clinics/' + encodeURIComponent(id), { method: 'PATCH', body: { name: name.trim() } });
+    if (state.acting && state.acting.id === id) setActingClinic({ id, name: name.trim() });
+    if (id === _admin.me.homeClinicId) { state.clinicName = name.trim(); localStorage.setItem('opjour_clinic', state.clinicName); }
+    _admin.notice = { tone: 'ok', html: `Kliniken heter nu <strong>${esc(name.trim())}</strong>.` };
+    await renderAdmin(el('view'), _admin.mode);
+  } catch (err) { alert(err.message); }
+}
+
+async function deleteClinic(id) {
+  const c = _admin.clinics.find(x => x.id === id);
+  const typed = prompt(`RADERA kliniken ${c.name} PERMANENT?\n\nAllt som hör till kliniken försvinner och kan inte återställas: ${c.userCount} konton, alla bokningar, veckoschemat, krav, måluppfyllelse, utbildningsplaner och inställningar.\n\nSkriv klinikens namn exakt för att bekräfta:`);
+  if (typed == null) return;
+  if (typed !== c.name) { alert('Namnet stämde inte. Inget raderades.'); return; }
+  try {
+    const r = await api('/admin/clinics/' + encodeURIComponent(id), { method: 'DELETE', body: { confirmName: typed } });
+    if (state.acting && state.acting.id === id) { setActingClinic(null); }
+    _admin.notice = { tone: 'warn', html: `Kliniken <strong>${esc(r.deleted)}</strong> är raderad (${r.usersRemoved} konton).` };
+    await renderAdmin(el('view'), _admin.mode);
+  } catch (err) { alert(err.message); }
+}
+
+const IMPORT_PART_LABEL = [
+  ['opjour', 'Opjour: jourbytestid'], ['moduler', 'Moduler'], ['typer', 'Aktivitetstyper (Planering)'], ['krav', 'Krav med kopplade delmål (ST-utbildning)'],
+  ['bemanning', 'Minsta antal i tjänst'], ['malbeskrivning', 'Förvald målbeskrivning'], ['jobbimport', 'Översättning av jobbschemats koder']
+];
+function importCard() {
+  const others = _admin.clinics.filter(c => c.id !== _admin.me.clinicId);
+  if (!others.length) return '';
+  return `<div class="card">
+      <h2>Importera inställningar</h2>
+      <p class="hint" style="margin-top:0">Hämta inställningar från en annan klinik till <strong>${esc(_admin.me.clinicName)}</strong>. Inget tas bort här:
+        det som saknas läggs till och det som finns med samma namn eller kod skrivs över. Förhandsgranska först.</p>
+      <label for="ci-from">Från klinik</label>
+      <select id="ci-from" style="max-width:360px">${others.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>
+      <div style="margin-top:8px">${IMPORT_PART_LABEL.map(([k, l]) => `<label class="check"><input type="checkbox" data-ci="${k}"> ${l}</label>`).join('')}</div>
+      <div class="row" style="margin-top:10px;gap:8px"><button class="btn-ghost" onclick="runClinicImport(true)">Förhandsgranska</button>
+        <button class="btn" onclick="runClinicImport(false)">Importera</button></div>
+      <div id="ci-out" class="status"></div>
+    </div>`;
+}
+
+async function runClinicImport(dryRun) {
+  const out = el('ci-out');
+  const parts = [...document.querySelectorAll('[data-ci]')].filter(b => b.checked).map(b => b.dataset.ci);
+  const from = el('ci-from'), fromName = from.options[from.selectedIndex].text;
+  if (!parts.length) { out.textContent = 'Kryssa i vad som ska importeras.'; out.className = 'status err'; return; }
+  if (!dryRun && !confirm(`Importera ${parts.length} del${parts.length === 1 ? '' : 'ar'} från ${fromName} till ${_admin.me.clinicName}? Befintliga med samma namn skrivs över.`)) return;
+  try {
+    const { plan } = await api('/admin/clinic/import', { method: 'POST', body: { fromClinicId: from.value, parts, dryRun } });
+    const label = Object.fromEntries(IMPORT_PART_LABEL);
+    const line = (k, v) => `<li><strong>${esc(label[k])}</strong>: ${v.added != null ? (dryRun ? `${v.added} läggs till, ${v.updated} skrivs över` : `${v.added} tillagda, ${v.updated} överskrivna`)
+      : v.codes != null ? `${v.codes} koder` : v.label ? esc(v.label) : Array.isArray(v.value) ? esc(v.value.join(', ') || '–') : esc(v.value ?? '– (töms)')}</li>`;
+    out.className = 'status';
+    out.innerHTML = `<p style="margin:8px 0 4px">${dryRun ? 'Det här skulle hända:' : '✓ Importerat:'}</p><ul style="margin:0">${Object.entries(plan).map(([k, v]) => line(k, v)).join('')}</ul>`;
+    if (!dryRun) { _admin.me = await api('/me'); setMenuForUser(_admin.me); toast('Inställningarna är importerade.'); }
+  } catch (err) { out.textContent = err.message; out.className = 'status err'; }
 }

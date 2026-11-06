@@ -85,12 +85,12 @@ function drawDopsOverview(root) {
         <span class="dov-name">${esc(isDops(ft) ? ft.replace(/^DOPS:?\s*/, '') : ft)}</span>
         <span class="dov-bar">${g ? `<span class="dov-track"><i style="width:${Math.min(100, Math.round(n / g * 100))}%;background:${goalColor(n, g)}"></i></span><small class="muted">${n} / ${g} ${periodLabel}${n >= g ? ' ✓' : ''}</small>` : ''}</span>
         <strong class="dov-n" style="color:${g ? goalColor(n, g) : 'inherit'}">${n}</strong>
-        ${g ? `<button class="link-btn" data-hide="${esc(ft)}" data-dir="${dir}">Ej aktuellt</button>` : '<span></span>'}
+        ${g ? `<button class="dov-hide" data-hide="${esc(ft)}" data-dir="${dir}" title="Räkna inte formuläret i din måluppfyllelse">Ej aktuellt</button>` : '<span></span>'}
       </div>`;
     };
     const dopsRows = vis.filter(([ft]) => isDops(ft)).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
     const other = vis.filter(([ft]) => !isDops(ft) && ft !== 'Operationsspecifik DOPS').sort((a, b) => a[0].localeCompare(b[0], 'sv'));
-    return `<div class="card"><h2 style="margin-top:0">${title}</h2>
+    return `<div class="dsec">${title} — mål</div><div class="card">
       ${dopsRows.length ? `<div class="dov-sub">DOPS</div>${dopsRows.map(row).join('')}` : ''}
       ${dopsRows.length && other.length ? '<hr class="dov-hr">' : ''}
       ${other.map(row).join('')}
@@ -104,13 +104,14 @@ function drawDopsOverview(root) {
     <p class="hint" style="margin:-4px 0 14px">Formulär med mål satt av kliniken visas med en stapel. Målet gäller per 6 månader och skalas med vald period. Grönt = uppnått, gult = delvis, rött = inget än.</p>
     <div class="seg" id="dov-period" style="margin-bottom:12px;flex-wrap:wrap">${DOPS_PERIODS.map(([l, d]) => `<button type="button" data-d="${d}" class="${d === days ? 'on' : ''}">${l}</button>`).join('')}</div>
     ${saved > 0 && showSent ? `<div class="card dov-saved"><small>TOTALT SPARAT MED DOPS</small><strong>${saved >= 60 ? Math.floor(saved / 60) + ' tim ' : ''}${saved % 60} min</strong></div>` : ''}
-    ${showRec ? dovChart('Mottagna bedömningar', data.byDayRecFt, start, colorOf) : ''}
-    ${showSent ? dovChart('Registrerade bedömningar', data.byDaySentFt, start, colorOf) : ''}
+    ${showRec ? dchartCard('Mottagna bedömningar', data.byDayRecFt, start, colorOf) : ''}
+    ${showSent ? dchartCard('Registrerade bedömningar', data.byDaySentFt, start, colorOf) : ''}
     ${showRec ? group('Mottagna bedömningar', data.received, dovCounts(data.byDayRecFt, start), 'received', v => v.goal || 0) : ''}
     ${showSent ? group('Registrerade bedömningar', data.sent, dovCounts(data.byDaySentFt, start), 'sent', v => v.sentGoal || 0) : ''}
     ${!Object.keys(data.received).length && !Object.keys(data.sent).length ? '<div class="card"><p class="muted" style="margin:0">Inga bedömningar än.</p></div>' : ''}`;
 
-  el('dov-period').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (b) { _dov.days = +b.dataset.d; drawDopsOverview(root); } });
+  dchartMount(root);
+  el('dov-period').addEventListener('click', e => { const b = e.target.closest('[data-d]'); if (b) { _dov.days = +b.dataset.d; _dch.res = null; drawDopsOverview(root); } });
   root.querySelectorAll('[data-hide],[data-show]').forEach(b => b.onclick = async () => {
     const hide = !!b.dataset.hide;
     if (await dopsWrite(() => dopsApi('/overview/hidden-form-types', { method: 'PUT', body: { formType: b.dataset.hide || b.dataset.show, hidden: hide, direction: b.dataset.dir } }))) {
@@ -119,9 +120,10 @@ function drawDopsOverview(root) {
   });
 }
 
-// Staplad stapelgraf (SVG) per vecka (≤ 3 mån) eller månad, en färg per formulärtyp.
-const DOV_COLORS = ['#b5641a', '#4f8fc0', '#5aa58c', '#8e6bbf', '#d9a441', '#c0392b', '#3d4f5c', '#e8a0a8', '#7fb069', '#a3c4dc'];
-function dovChart(title, byDayFt, start, colorOf) {
+// Reserv när Chart.js inte laddats (js/dopscharts.js): staplad stapelgraf (SVG) per vecka (≤ 3 mån) eller månad.
+// Samma palett som DOPS-appens diagram.
+const DOV_COLORS = DCHART_COLORS;
+function dovSvgChart(title, byDayFt, start, colorOf) {
   const days = Object.entries(byDayFt || {}).filter(([d]) => d >= start);
   if (!days.length) return '';
   const span = (Date.now() - new Date(start + 'T00:00:00').getTime()) / 864e5;
@@ -257,7 +259,7 @@ async function renderDopsClinic(root) {
     if (!dopsPriv(_dme)) { root.innerHTML = '<h1 class="page">Kliniken</h1><p class="muted">Kräver Studierektor eller Administratör i DOPS.</p>'; return; }
     const clinics = _dme.privileges.filter(p => ['Studierektor', 'Administratör'].includes(p.privilege)).map(p => p.klinikId);
     const ref = await dopsApi('/reference-data?clinicId=' + encodeURIComponent(_dme.klinikId));
-    _dco = { klinik: _dco?.klinik || _dme.klinikId, global: clinics.includes('*'), clinicIds: ref.clinicIdMap || {},
+    _dco = { klinik: _dco?.klinik || _dme.klinikId, global: clinics.includes('*'), clinicIds: ref.klinikIdMap || {},
       from: '', to: '', category: '', recipient: '', types: new Set(), list: [], showFilter: false };
     await loadDopsClinic(root);
   } catch (err) { dopsFail(root, 'Kliniken', err); }

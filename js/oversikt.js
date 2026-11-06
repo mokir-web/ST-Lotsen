@@ -11,7 +11,7 @@
 
 let _ov = null;
 
-const OV_LABEL = { klart: 'Klart', tidigare: 'Tidigare', bokad: 'Bokad', forslag: 'Förslag', plan: 'Plan', saknas: 'Saknas', ejgjort: 'Ej gjort', ej: 'Ej i planen' };
+const OV_LABEL = { klart: 'Klart', tidigare: 'Tidigare', pagaende: 'Pågående', bokad: 'Bokad', forslag: 'Förslag', plan: 'Plan', saknas: 'Saknas', ejgjort: 'Ej gjort', ej: 'Ej i planen' };
 
 // Saknas är rött bara när personen passerat kravets ST-år (late från servern); annars grått "Ej gjort" — inte gjort än.
 function ovMarkDue(o) {
@@ -48,13 +48,14 @@ function ovCellText(s) {
   if (!s || !s.status) return '';
   if (s.status === 'klart') return s.week ? weekShort(s.week) : 'Klart';
   if (s.status === 'bokad') return weekShort(s.week);
+  if (s.status === 'pagaende') return 't.o.m. ' + weekShort(s.weekTo || s.week);
   if (s.status === 'forslag') return 'Ev. ' + weekShort(s.week);
   if (s.status === 'plan') return s.note || 'Plan';
   return OV_LABEL[s.status];
 }
 
-// Kompakt: ✓ klart/tidigare, ◷ + vecka bokad, ? + vecka förslag, ✎ plan, · ej gjort, ! saknas (försenat), – borttaget ur personens plan.
-const OV_ICON = { klart: '✓', tidigare: '✓', bokad: '◷', forslag: '?', plan: '✎', saknas: '!', ejgjort: '·', ej: '–' };
+// Kompakt: ✓ klart/tidigare, ▶ pågående, ◷ + vecka bokad, ? + vecka förslag, ✎ plan, · ej gjort, ! saknas (försenat), – borttaget ur personens plan.
+const OV_ICON = { klart: '✓', tidigare: '✓', pagaende: '▶', bokad: '◷', forslag: '?', plan: '✎', saknas: '!', ejgjort: '·', ej: '–' };
 function ovCompact(s) {
   if (!s || !s.status) return '';
   const wk = s.week ? ' ' + isoWeek(s.week) : '';
@@ -63,9 +64,9 @@ function ovCompact(s) {
 const ovTip = s => !s || !s.status ? '' : OV_LABEL[s.status] + (ovCellText(s) && ovCellText(s) !== OV_LABEL[s.status] ? ': ' + ovCellText(s) : '');
 const ovDone = s => ['klart', 'tidigare'].includes(s && s.status);
 
-// Sortering: nyckel per person (lägre = först). ST-tid och % klart: störst först. Krav: klara (tidigast först), bokade, förslag, plan,
+// Sortering: nyckel per person (lägre = först). ST-tid och % klart: störst först. Krav: klara (tidigast först), pågående/bokade, förslag, plan,
 // saknas, ej gjort, borttaget ur planen.
-const OV_RANK = { klart: 0, tidigare: 0, bokad: 1, forslag: 2, plan: 3, saknas: 4, ejgjort: 5, ej: 6 };
+const OV_RANK = { klart: 0, tidigare: 0, pagaende: 1, bokad: 1, forslag: 2, plan: 3, saknas: 4, ejgjort: 5, ej: 6 };
 function ovSortKey(sort, pct) {
   if (sort === 'pct') return p => [-pct(p)];
   if (sort === 'st') return p => [p.stMonths == null ? Infinity : -p.stMonths];
@@ -138,7 +139,7 @@ function drawOversikt(root) {
         : `<div class="empty"><p><strong>Inga krav än.</strong> Kraven är klinikens mall per ST-år — det ST-läkarna ska uppnå.</p>
           ${data.canEditAll ? '<a class="btn" href="#/installningar/st/krav" style="text-decoration:none">Lägg in krav</a>' : '<p class="hint">Studierektor lägger in dem.</p>'}</div>`)}
       <p style="margin:12px 0 0;line-height:2;font-size:13px">
-        <span class="pchip st-klart">✓ Klart</span> <span class="pchip st-tidigare">✓ Tidigare</span> <span class="pchip st-bokad">◷ Bokad (vecka)</span>
+        <span class="pchip st-klart">✓ Klart</span> <span class="pchip st-tidigare">✓ Tidigare</span> <span class="pchip st-pagaende">▶ Pågående</span> <span class="pchip st-bokad">◷ Bokad (vecka)</span>
         <span class="pchip st-forslag">? Förslag/Ev.</span> <span class="pchip st-plan">✎ Plan</span> <span class="pchip st-ejgjort">· Ej gjort</span> <span class="pchip st-saknas">! Saknas (försenat)</span>
         <span class="muted">* = valfritt · % klart = obligatoriska krav</span></p>
       <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan.' : 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan för dig själv.'}</p>

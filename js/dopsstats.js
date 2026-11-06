@@ -1,5 +1,5 @@
 // ── DOPS-modulen: Statistik, Tävling, Dokument och Word-export (#/dops/statistik, #/dops/tavling, #/dops/dokument) ──
-// Klassiskt script. Beror på index.html och js/dopsapp.js (dopsStart, dopsApi, dopsPriv, dopsFail, dopsWrite, dovChart, DOV_COLORS).
+// Klassiskt script. Beror på index.html och js/dopsapp.js (dopsStart, dopsApi, dopsPriv, dopsFail, dopsWrite, DOV_COLORS) och js/dopscharts.js (diagrammen).
 //
 // Motsvarar DOPS-appens Klinikens statistik + Förfrågningsöversikt (statistics.js, request-stats.js), Kvartalstävling
 // (competition.js) och Dokument (documents.js), med samma data via DOPS-appens backend under /dops/app. Statistik och
@@ -15,7 +15,7 @@ const dopsPrivClinics = me => (me.privileges || []).filter(p => ['Studierektor',
 async function dopsClinicChoice(state) {
   if (!dopsPrivClinics(_dme).includes('*')) return '';
   const ref = await dopsApi('/reference-data?clinicId=' + encodeURIComponent(_dme.klinikId));
-  const opts = Object.entries(ref.clinicIdMap || {}).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
+  const opts = Object.entries(ref.klinikIdMap || {}).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
   return `<div class="card"><label for="dst-klinik" style="margin-top:0">Klinik</label>
     <select id="dst-klinik" style="max-width:320px">${opts.map(([n, id]) => `<option value="${esc(id)}"${id === state.klinik ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`;
 }
@@ -57,10 +57,12 @@ function drawDopsStats(root) {
   const dist = allFt.filter(on).map(ft => [ft, s.byFormType[ft]]).sort((a, b) => b[1] - a[1]);
   const distMax = Math.max(1, ...dist.map(x => x[1]));
   const people = (title, by, forms) => {
+    const chart = dchartHBar(title, by, forms, colorOf, on);
+    if (chart) return chart;
     const top = Object.entries(by || {}).sort((a, b) => b[1] - a[1]).slice(0, 10);
     if (!top.length) return '';
     const max = Math.max(...top.map(x => x[1]));
-    return `<div class="card"><h2 style="margin-top:0">${title}</h2>${top.map(([name, n]) => `<div class="bed-bar dst-bar"><span>${esc(name)}</span>
+    return `<div class="dsec">${title}</div><div class="card">${top.map(([name, n]) => `<div class="bed-bar dst-bar"><span>${esc(name)}</span>
       <div class="dst-stack" style="width:${(n / max * 100).toFixed(0)}%">${Object.entries(forms?.[name] || {}).filter(([ft]) => on(ft)).map(([ft, c]) =>
         `<i style="flex:${c};background:${colorOf(ft)}" title="${esc(ft)}: ${c}"></i>`).join('')}</div><span>${n}</span></div>`).join('')}</div>`;
   };
@@ -83,43 +85,44 @@ function drawDopsStats(root) {
       <div class="row" style="margin-top:10px;gap:8px"><button class="btn" id="dst-apply">Visa statistik</button><button class="btn-ghost" id="dst-reset">Återställ</button></div>
     </div>
     <div class="card dov-saved"><small>TOTALT ANTAL BEDÖMNINGAR</small><strong>${dist.reduce((n, x) => n + x[1], 0)}</strong></div>
-    ${dovChart('Bedömningar över tid', byDay, start, colorOf)}
-    ${dist.length ? `<div class="card"><h2 style="margin-top:0">Fördelning per formulärtyp</h2>${dist.map(([ft, n]) =>
-      `<div class="bed-bar dst-bar"><span>${esc(ft)}</span><div><i style="width:${(n / distMax * 100).toFixed(0)}%;background:${colorOf(ft)}"></i></div><span>${n}</span></div>`).join('')}</div>` : ''}
-    ${time.length ? `<div class="card"><h2 style="margin-top:0">Tidsåtgång och sparad tid</h2>
+    ${dchartCard('Bedömningar över tid', byDay, start, colorOf)}
+    ${dchartPie('Fördelning per formulärtyp', dist, colorOf) || (dist.length ? `<div class="dsec">Fördelning per formulärtyp</div><div class="card">${dist.map(([ft, n]) =>
+      `<div class="bed-bar dst-bar"><span>${esc(ft)}</span><div><i style="width:${(n / distMax * 100).toFixed(0)}%;background:${colorOf(ft)}"></i></div><span>${n}</span></div>`).join('')}</div>` : '')}
+    ${time.length ? `<div class="dsec">Tidsåtgång och sparad tid</div><div class="card">
       <p style="margin-top:0">Sparad tid jämfört med pappersblankett: <strong>${dopsMin(time.reduce((n, [, v]) => n + v.savedMinutes, 0))}</strong>${(() => { const tc = time.reduce((n, [, v]) => n + v.timedCount, 0); return tc ? ` · snittid per bedömning <strong>${dopsDur(time.reduce((n, [, v]) => n + v.elapsedSeconds, 0) / tc)}</strong>` : ''; })()}</p>
       <table class="bed-ans dst-table"><tr><th>Formulär</th><th>Antal</th><th>Snittid</th><th>Sparad tid</th></tr>${time.map(([ft, v]) =>
         `<tr><td>${esc(ft)}</td><td>${v.count}</td><td>${v.timedCount ? dopsDur(v.elapsedSeconds / v.timedCount) : '–'}</td><td><strong>${dopsMin(v.savedMinutes)}</strong></td></tr>`).join('')}</table>
       <p class="hint">Sparad tid = antal × formulärets referenstid. Snittiden räknar bara mätningar mellan 10 s och 60 min.</p></div>` : ''}
-    ${fb.length ? `<div class="card"><h2 style="margin-top:0">Återkoppling i fritext</h2>
+    ${fb.length ? `<div class="dsec">Återkoppling i fritext</div><div class="card">
       <table class="bed-ans dst-table"><tr><th>Formulär</th><th>Med fritext</th><th>Snittlängd</th></tr>${fb.map(([ft, v]) => { const pct = v.assessments ? Math.round(v.withText / v.assessments * 100) : 0;
         return `<tr><td>${esc(ft)}</td><td><strong style="color:${pct >= 80 ? '#2f7d47' : pct >= 50 ? '#9a6b12' : '#9e2a18'}">${pct} %</strong> <span class="muted">(${v.withText} av ${v.assessments})</span></td><td>${v.withText ? v.avgChars + ' tecken' : '–'}</td></tr>`; }).join('')}</table></div>` : ''}
-    ${t ? `<div class="card"><h2 style="margin-top:0">Måluppfyllelse — senaste 6 månaderna</h2>
+    ${t ? `<div class="dsec">Måluppfyllelse — senaste 6 månaderna</div><div class="card">
       ${!t.targets.length ? '<p class="muted">Inga målvärden satta för kliniken.</p>' : `<p class="hint" style="margin-top:0">Mottagna bedömningar mot klinikens mål per yrkesroll, lägst först. Formulär personen markerat "Ej aktuellt" räknas inte.</p>
       ${t.targets.map(p => { const c = p.pct >= 100 ? '#4a9e62' : p.pct >= 50 ? '#c8a96e' : '#9e2a18';
         return `<div class="bed-free"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><strong>${who(p)}</strong><span>${p.met} av ${p.total} mål · <strong style="color:${c}">${p.pct} %</strong></span></div>
           <span class="dov-track" style="margin:6px 0"><i style="width:${Math.min(100, p.pct)}%;background:${c}"></i></span>
           <small>${p.forms.map(f => `<span style="white-space:nowrap;color:${f.count >= f.goal ? '#2f7d47' : 'inherit'}">${esc(f.formType)} ${f.count}/${f.goal}</span>`).join(' · ')}</small></div>`; }).join('')}`}
     </div>
-    <div class="card"><h2 style="margin-top:0">Utan mottagen bedömning</h2>
+    <div class="dsec">Utan mottagen bedömning</div><div class="card">
       <div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:6px">Ingen bedömning på minst
         <select id="dst-idle" style="width:auto">${[4, 8, 12, 26].map(w => `<option value="${w}"${w === d.idleWeeks ? ' selected' : ''}>${w} veckor</option>`).join('')}</select>
         <label style="margin:0;font-weight:normal"><input type="checkbox" id="dst-spec"${d.idleSpec ? ' checked' : ''}> Visa även specialister</label></div>
       ${idle.length ? `<table class="bed-ans">${idle.map(p => `<tr><th>${who(p)}</th><td>${p.lastAt ? `senast ${esc(p.lastAt)} (${p.daysSince} dagar sedan)` : 'aldrig'}</td></tr>`).join('')}</table>`
         : '<p style="color:#2f7d47;margin:0">Alla har fått minst en bedömning under perioden.</p>'}
     </div>
-    <div class="card"><h2 style="margin-top:0">Spridning av bedömare</h2>
+    <div class="dsec">Spridning av bedömare</div><div class="card">
       ${t.spread.length ? `<p class="hint" style="margin-top:0">Antal olika bedömare per mottagare, färst först.</p><table class="bed-ans dst-table"><tr><th>Mottagare</th><th>Bedömningar</th><th>Olika bedömare</th></tr>${t.spread.map(p =>
         `<tr><td>${who(p)}</td><td>${p.assessments}</td><td><strong style="color:${p.assessors <= 1 ? '#9e2a18' : 'inherit'}">${p.assessors}</strong></td></tr>`).join('')}</table>` : '<p class="muted">Inga bedömningar i valt intervall.</p>'}
     </div>` : ''}
     ${people('Mest aktiva registrerare', s.byRegistrar, s.byRegistrarForms)}
     ${people('Mest bedömda', s.byRecipient, s.byRecipientForms)}
-    ${r ? `<div class="card"><h2 style="margin-top:0">Förfrågningar</h2>
+    ${r ? `<div class="dsec">Förfrågningar</div><div class="card">
       <p style="margin-top:0">${r.summary.total} totalt · ${r.summary.done} utförda · ${r.summary.pending} väntar · ${r.summary.inaktuell} inaktuella</p>
       ${r.requests.length ? `<table class="bed-ans dst-table"><tr><th>Datum</th><th>Från</th><th>Till</th><th>Formulär</th><th>Status</th></tr>${r.requests.map(q =>
         `<tr><td>${esc(q.timestamp.slice(0, 10))}</td><td>${esc(q.fromName)}</td><td>${esc(q.toName)}</td><td>${esc(q.formType || '–')}</td><td>${esc(q.status === 'done' ? 'Utförd' : q.status === 'expired' ? 'Inaktuell' : 'Väntar')}</td></tr>`).join('')}</table>` : ''}
     </div>` : ''}`;
 
+  dchartMount(root);
   el('dst-klinik')?.addEventListener('change', e => { d.klinik = e.target.value; loadDopsStats(root); });
   el('dst-ftoggle').onclick = () => { d.showFilter = !d.showFilter; drawDopsStats(root); };
   el('dst-apply').onclick = () => {
@@ -151,7 +154,7 @@ async function loadDopsCompetition(root) {
   const medal = p => ['🥇', '🥈', '🥉'][p.place - 1] || `${p.place}.`;
   const board = (title, list) => `<div><h3 style="margin:8px 0 4px">${title}</h3>${list.length ? `<table class="bed-ans">${list.map(p =>
     `<tr><th>${medal(p)} ${esc(p.name)}</th><td>${p.count}</td></tr>`).join('')}</table>` : '<p class="muted">Inga än.</p>'}</div>`;
-  const round = (r, title) => `<div class="card"><h2 style="margin-top:0">${title}</h2>
+  const round = (r, title) => `<div class="dsec">${title}</div><div class="card">
     <p class="muted" style="margin-top:0">${esc(r.startDate)} – ${esc(r.endDate)}${r.daysLeft != null ? ` · ${r.daysLeft} dagar kvar` : ''}${r.endedEarly ? ' · avslutad i förtid' : ''}</p>
     <div class="dcp-boards">${board('Flest registrerade', r.registrars || r.podium?.registrars || [])}${board('Flest mottagna', r.recipients || r.podium?.recipients || [])}</div></div>`;
   root.innerHTML = `
@@ -160,7 +163,7 @@ async function loadDopsCompetition(root) {
     ${d.choice}
     ${c.current ? round(c.current, 'Pågående omgång') : '<div class="card"><p class="muted" style="margin:0">Ingen pågående omgång.</p></div>'}
     ${c.upcoming ? `<div class="card"><p style="margin:0">Nästa omgång: ${esc(c.upcoming.startDate)} – ${esc(c.upcoming.endDate)}</p></div>` : ''}
-    ${c.privileged ? `<div class="card"><h2 style="margin-top:0">Omgångar</h2>
+    ${c.privileged ? `<div class="dsec">Omgångar</div><div class="card">
       <div class="row" style="gap:8px;flex-wrap:wrap"><input type="date" id="dcp-start" style="max-width:180px"><button class="btn" id="dcp-new">Starta omgång</button>
       ${c.current ? `<button class="btn-ghost" id="dcp-del" data-id="${esc(c.current.id)}">Avsluta pågående</button>` : ''}</div></div>` : ''}
     ${(c.history || []).map(h => round(h, 'Avslutad omgång')).join('')}`;

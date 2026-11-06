@@ -32,6 +32,13 @@ async function renderSettings(root) {
       </div>
 
       <div class="card">
+        <h2>Startsida</h2>
+        <p class="hint" style="margin-top:0">Sidan som öppnas när du startar ST-Lotsen. Loggan uppe till vänster leder alltid till Idag.</p>
+        <select id="st-start" onchange="saveStartPage(this.value)" style="max-width:320px">${startPageOptions(me, me.startPage)}</select>
+        <div id="st-start-status" class="status"></div>
+      </div>
+
+      <div class="card">
         <h2>Byt PIN</h2>
         <label for="st-pin-cur" style="margin-top:0">Nuvarande PIN</label>
         <input type="password" id="st-pin-cur" inputmode="numeric" maxlength="6" autocomplete="current-password">
@@ -87,4 +94,12 @@ async function logoutAll() {
     await api('/auth/logout-all', { method: 'POST' });
     logout();
   } catch (err) { toast(err.message, 'err'); }
+}
+
+async function saveStartPage(v) {
+  try {
+    await api('/profile', { method: 'PUT', body: { startPage: v } });
+    try { localStorage.setItem('opjour_start', v); } catch {}
+    stStatus('st-start-status', 'Startsidan är sparad.', true);
+  } catch (err) { stStatus('st-start-status', err.message, false); }
 }

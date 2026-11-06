@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <!-- CSP (granskning S4): skript och stil bara härifrån (inline krävs för onclick=), anrop bara till API:t (och lokal backend vid utveckling). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://opjour-backend-110110585004.europe-north1.run.app http://localhost:8080 http://127.0.0.1:8080; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://opjour-backend-110110585004.europe-north1.run.app http://localhost:8080 http://127.0.0.1:8080; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>ST-Lotsen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1c2b36">
@@ -285,7 +285,33 @@
     .ulist .status:empty { display: none; }
     .ulist .body { display: none; padding: 0 2px 14px 20px; }
     .ulist .ublock.open .body { display: block; }
+    /* Otilldelade perioder (js/schema.js) */
+    .open-row th.pname, .open-row td { background: #faf7ee; }
+    .ocell { cursor: pointer; } .ocell:hover { background: #f3ecd6 !important; }
+    .ocell .sact { opacity: .9; outline: 1.5px dashed rgba(0,0,0,.35); outline-offset: -2px; }
+    .sheet .cand { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; }
+    .cand-main { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+    .cand-conf { grid-column: 1 / 2; font-size: 13px; color: var(--danger); } .cand-conf.ok { color: #1f5a3a; }
+    .cand .btn, .cand .btn-ghost { grid-row: 1 / 3; grid-column: 2; align-self: center; padding: 7px 14px; font-size: 14px; width: auto; margin: 0; }
+    .cand-conf .sact { display: inline-block; max-width: none; margin: 2px 2px 0 0; }
+    .cand .pchip { font-size: 12px; padding: 1px 7px; }
+    .cand.done { opacity: .7; }
+    .cand-rest summary { cursor: pointer; margin-top: 10px; color: var(--ink-soft); }
+
+    /* Global admin i annan klinik */
+    #acting-bar { background: #fbf1d9; color: #6b5317; border-bottom: 1px solid #e8d49a; padding: 8px 16px; font-size: 14px; text-align: center; }
+    #acting-bar .link-btn { margin-left: 6px; font-weight: 600; }
+
     /* Startsidan Idag (js/today.js) */
+    .dg-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; margin-bottom: 4px; }
+    .dg-head strong { font-size: 22px; }
+    .dg-track { background: #e3e8eb; border-radius: 6px; height: 14px; overflow: hidden; }
+    .dg-track i { display: block; height: 100%; border-radius: 6px; transition: width .4s; }
+    .dg-list li { display: flex; gap: 10px; align-items: flex-start; }
+    .dg-dir { flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; }
+    .dg-dir.in { background: #d7ecdf; color: #1f5a3a; } .dg-dir.ut { background: #dce8f4; color: #23466b; }
+    .yr-late { margin: 0 0 8px; font-size: 14px; color: var(--danger); } .yr-late strong { font-weight: 600; }
+    .yr-list li { margin: 4px 0; } .yr-list .pchip { font-size: 12px; padding: 1px 6px; }
     .today-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
     .today-grid .card { margin: 0; }
     .today-card a { color: var(--interest); font-weight: bold; }
@@ -393,6 +419,7 @@
     .st-klart { background: #d7ecdf; color: #1f5a3a; }
     .st-tidigare { background: #e6eee9; color: #3d5a4a; }
     .st-bokad { background: #dce8f4; color: #23466b; }
+    .st-pagaende { background: #c4dcef; color: #183a5c; font-weight: 600; }
     .st-forslag { background: #fff; color: #23466b; font-style: italic; box-shadow: inset 0 0 0 1px #9bb8d6; }
     .st-plan { background: #fbf1d9; color: #6b5317; }
     .st-saknas { background: #f8e7e4; color: var(--danger); }
@@ -482,7 +509,9 @@
     .bed-bar i { display: block; height: 100%; background: var(--accent); }
     .bed-bar > span:last-child { text-align: right; }
     .dov-row { display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(90px, 1.4fr) 34px auto; gap: 10px; align-items: center; padding: 4px 0; font-size: 14px; }
-    .dov-sub { font-weight: bold; margin: 2px 0 4px; }
+    .dov-sub { font-weight: bold; font-size: 17px; margin: 2px 0 4px; }
+    .dov-hide { background: #e3e8eb; border: 1px solid #c7d1d7; color: var(--ink); border-radius: 5px; padding: 4px 9px; font-size: 12px; cursor: pointer; }
+    .dov-hide:hover { background: #d5dce0; }
     .dov-hr { border: none; border-top: 1px solid var(--line); margin: 8px 0; }
     .dov-track { display: block; background: #e3e8eb; border-radius: 4px; height: 8px; overflow: hidden; }
     .dov-track i { display: block; height: 100%; }
@@ -495,9 +524,25 @@
     .dov-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
     .dov-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
     .dst-bar { grid-template-columns: minmax(110px, 30%) 1fr 34px; }
+    /* DOPS: sektionsrubriker och diagram som i DOPS-appen (js/dopscharts.js) */
+    .dsec { background: #c7d1d7; padding: 10px 14px; border-radius: 5px; margin: 26px 0 8px; font-weight: bold; color: #1c2b36; font-size: 17px; border-left: 4px solid #2e4a5f; }
+    .dsec:first-of-type { margin-top: 14px; }
+    .dchart-card { padding-top: 10px; }
+    .dchart-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 13px; margin-bottom: 4px; }
+    .dchart-tools label { margin: 0; font-weight: normal; color: var(--ink-soft); } .dchart-tools select { width: auto; padding: 4px 8px; font-size: 13px; }
+    .dchart-wrap { position: relative; height: 300px; } .dchart-wrap.pie { height: 280px; } .dchart-wrap.line { height: 190px; }
+    .dchart-hint { margin: 6px 0 0; font-size: 12px; }
+    .dchart-legend-btn { width: 100%; margin-top: 8px; }
+    @media (max-width: 640px) { .dchart-wrap { height: 240px; } }
     .dst-stack { display: flex; height: 12px; border-radius: 4px; overflow: hidden; }
     .dst-stack i { display: block; height: 100%; }
     .dst-table th, .dst-table td { width: auto; padding-right: 12px; }
+    .use-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .use-kpi { background: var(--chrome); color: #fff; border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; }
+    .use-kpi small { font-size: 11px; letter-spacing: 1px; opacity: .8; } .use-kpi strong { font-size: 28px; line-height: 1.2; }
+    .use-bar { fill: var(--accent); } .use-bar:hover { opacity: .75; }
+    .use-grid { stroke: var(--line); stroke-dasharray: 3 3; } .use-base { stroke: var(--ink-soft); }
+    .use-table td, .use-table th { text-align: left; white-space: nowrap; }
     .dst-table tr:first-child th { font-size: 12px; }
     .dcp-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
     .dsel { margin: 0 4px 0 0; vertical-align: -2px; }
@@ -604,7 +649,7 @@
       body { background: white; }
       .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
       .sch-scroll { overflow: visible; }
-      .pchip, .st-klart, .st-tidigare, .st-bokad, .st-plan, .st-saknas, .st-ejgjort { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .pchip, .st-klart, .st-tidigare, .st-pagaende, .st-bokad, .st-plan, .st-saknas, .st-ejgjort { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
     .imp-table tr.exists td { color: var(--ink-soft); }
     input[type=file] { font-size: 14px; max-width: 100%; }
@@ -671,7 +716,6 @@
         <span class="brand-text"><span class="brand-name">ST-Lotsen</span><span class="clinic" id="app-clinic"></span></span>
       </a>
       <nav id="worlds" class="hidden" aria-label="Moduler">
-        <a href="#/" id="world-today">Idag</a>
         <a href="#/kalender" id="world-op" class="hidden">Opjour</a>
         <a href="#/schema" id="world-plan" class="hidden">Planering</a>
         <a href="#/oversikt" id="world-st" class="hidden">ST-utbildning</a>
@@ -739,6 +783,8 @@
           <a href="#/installningar/st" data-route="#/installningar/st" id="nav-set-st" class="hidden">ST-utbildning</a>
           <a href="#/installningar/dops" data-route="#/installningar/dops" id="nav-set-dops" class="hidden">DOPS</a>
           <a href="#/installningar/system" data-route="#/installningar/system" id="nav-set-system" class="hidden">System</a>
+          <a href="#/installningar/anvandning" data-route="#/installningar/anvandning" id="nav-set-usage" class="hidden">Användning</a>
+          <a href="#/installningar/felanmalan" data-route="#/installningar/felanmalan" id="nav-set-errors" class="hidden">Felanmälan</a>
         </div>
       </nav>
       <main id="view"></main>
@@ -750,13 +796,14 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.38.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.39.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
     const SV_MONTHS = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 
     const state = {
+      acting: (() => { try { return JSON.parse(localStorage.getItem('opjour_acting') || 'null'); } catch { return null; } })(),   // global admin: { id, name }
       token: localStorage.getItem('opjour_token') || null,
       scope: localStorage.getItem('opjour_scope') || null,
       clinicName: localStorage.getItem('opjour_clinic') || ''
@@ -862,6 +909,7 @@
     async function api(path, opts = {}) {
       const headers = { 'Content-Type': 'application/json' };
       if (state.token) headers.Authorization = 'Bearer ' + state.token;
+      if (state.acting) headers['X-Clinic-Id'] = state.acting.id;
       const res = await fetch(API_BASE + path, {
         method: opts.method || 'GET',
         headers,
@@ -873,6 +921,7 @@
       if (res.status === 401 && !isLogin) { logout(); throw new Error('Sessionen har gått ut.'); }
       const text = await res.text();
       const data = text ? JSON.parse(text) : null;
+      if (res.status === 409 && data?.clinicGone) { setActingClinic(null); }
       if (res.status === 403 && data?.mustChangePin) { showChangePin(data.pinLength); throw new Error(data.error); }
       if (!res.ok) {
         logSession({ type: 'api', method: opts.method || 'GET', path: path.split('?')[0], status: res.status, error: data?.error || null });
@@ -889,6 +938,7 @@
     }
 
     function logout() {
+      localStorage.removeItem('opjour_acting');
       localStorage.removeItem('opjour_token');
       localStorage.removeItem('opjour_scope');
       localStorage.removeItem('opjour_clinic');
@@ -906,6 +956,7 @@
       try {
         const r = await api('/auth/login', { method: 'POST', body: { username: el('li-username').value, pin: el('li-pin').value } });
         saveSession(r.token, r.scope, r.clinicName);
+        try { localStorage.setItem('opjour_start', r.startPage || ''); localStorage.removeItem('opjour_acting'); state.acting = null; } catch {}
         el('li-pin').value = '';
         if (r.mustChangePin) { showChangePin(r.pinLength); return false; }
         enterApp();
@@ -935,13 +986,42 @@
 
     document.addEventListener('DOMContentLoaded', () => { el('ver-login').textContent = 'ST-Lotsen ' + APP_VERSION; });
 
+    // Global admin: arbeta i en annan klinik (Inställningar → Klinik). Alla anrop skickar X-Clinic-Id; null = egen klinik.
+    function setActingClinic(c) {
+      state.acting = c && c.id ? { id: c.id, name: c.name } : null;
+      try { state.acting ? localStorage.setItem('opjour_acting', JSON.stringify(state.acting)) : localStorage.removeItem('opjour_acting'); } catch {}
+      el('app-clinic').textContent = state.acting ? state.acting.name : state.clinicName;
+      route();
+    }
+    function drawActingBar(me) {
+      let bar = el('acting-bar');
+      if (!me.acting) { bar?.remove(); return; }
+      if (!bar) { bar = document.createElement('div'); bar.id = 'acting-bar'; el('app').insertBefore(bar, el('app').children[1]); }
+      bar.innerHTML = `Du arbetar i <strong>${esc(me.clinicName)}</strong> som global admin. <button class="link-btn" onclick="setActingClinic(null)">Tillbaka till din klinik</button>`;
+      el('app-clinic').textContent = me.clinicName;
+    }
+
+    // Användningsstatistik: sessionsstart och sidvisningar (sidans adress utan id:n). Fel här får aldrig störa appen.
+    const usageSession = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)) ;
+    let usageLast = null;
+    function trackUsage(eventType, panel) {
+      if (state.scope !== 'user') return;
+      if (eventType === 'panel_view') { if (panel === usageLast) return; usageLast = panel; }
+      try { api('/usage', { method: 'POST', body: { sessionId: usageSession, eventType, panel } }).catch(() => {}); } catch {}
+    }
+    const usagePanel = h => (h || '#/').replace(/\/[0-9a-f-]{36}.*$/i, '/:id') || '#/';
+
     function enterApp() {
       showOnly('app');
       el('app-clinic').textContent = state.clinicName;
       ['worlds', 'tools', 'subnav'].forEach(id => el(id).classList.toggle('hidden', state.scope !== 'user'));
       el('logout-btn').classList.toggle('hidden', state.scope === 'user');
-      if (state.scope === 'display') { el('view').classList.add('wide'); renderDisplay(el('view')); }
-      else route();
+      if (state.scope === 'display') { el('view').classList.add('wide'); renderDisplay(el('view')); return; }
+      trackUsage('session_start');
+      // Startsidan (Inställningar → Mitt konto) gäller när appen öppnas utan adress; loggan leder alltid till Idag.
+      let start = ''; try { start = localStorage.getItem('opjour_start') || ''; } catch {}
+      if ((!location.hash || location.hash === '#') && start) { location.replace(start); return; }
+      route();
     }
 
     // Personlig vy: #/ (kalender), #/settings, #/admin. Visningsskärmen har ingen navigation.
@@ -954,6 +1034,7 @@
       if (typeof _ov !== 'undefined' && _ov) _ov.sheet = null;
       const h = location.hash;
       markNav(h);
+      trackUsage('panel_view', usagePanel(h));
       const root = el('view');
       // Gamla adresser till inställningarna (före 0.38.0) → modulen Inställningar.
       const old = { '#/settings': '#/installningar/konto', '#/admin': '#/installningar/anvandare', '#/opjour-settings': '#/installningar/opjour',
@@ -961,12 +1042,14 @@
       if (old[h]) { location.replace(old[h]); return; }
       if (h === '#/st' || h.startsWith('#/st/')) { location.replace('#/installningar/st' + h.slice(4)); return; }
       if (h.startsWith('#/dops/installningar')) { location.replace('#/installningar/dops' + h.slice('#/dops/installningar'.length)); return; }
-      const narrow = ['#/installningar/konto', '#/installningar/anvandare', '#/installningar/klinik', '#/installningar/opjour', '#/installningar/system', '#/stats'];
+      const narrow = ['#/installningar/konto', '#/installningar/anvandare', '#/installningar/klinik', '#/installningar/opjour', '#/installningar/system', '#/installningar/felanmalan', '#/stats'];
       root.classList.toggle('wide', !narrow.includes(h) && worldOf(h) !== 'today');   // bred vy för kalendern, schemat och ST-inställningarna
       if (h === '#/installningar/konto') renderSettings(root);
       else if (h === '#/installningar/anvandare') renderAdmin(root, 'users');
       else if (h === '#/installningar/klinik') renderAdmin(root, 'clinic');
       else if (h === '#/installningar/system') renderAdmin(root, 'system');
+      else if (h === '#/installningar/anvandning') renderUsage(root);
+      else if (h === '#/installningar/felanmalan') renderAdmin(root, 'errors');
       else if (h === '#/installningar/opjour') renderOpSettings(root);
       else if (h === '#/installningar/planering') renderStSettings(root, 'typer', 'plan');
       else if (h === '#/installningar/st' || h.startsWith('#/installningar/st/')) renderStSettings(root, h.split('/')[3]);
@@ -1012,7 +1095,6 @@
     function markNav(h) {
       const world = worldOf(h), key = !h || h === '#' ? '#/' : h.startsWith('#/plan') ? '#/plan'
         : h.startsWith('#/installningar/st') ? '#/installningar/st' : h.startsWith('#/installningar/dops') ? '#/installningar/dops' : h;
-      el('world-today').classList.toggle('active', world === 'today');
       el('world-op').classList.toggle('active', world === 'op');
       el('subnav').classList.toggle('hidden', state.scope !== 'user' || world === 'today');   // Idag har inga undersidor
       el('world-plan').classList.toggle('active', world === 'plan');
@@ -1035,6 +1117,18 @@
     function scrollSubnav() {   // mobil: undersidorna är en vågrät rad — rulla fram den aktiva
       const act = el('subnav').querySelector('[data-world]:not(.hidden) a.active:not(.hidden)');
       if (act) el('subnav').scrollLeft = Math.max(0, act.offsetLeft - 40);
+    }
+
+    // Startsidor (som i DOPS-appen): de sidor personen har tillgång till. me = /me (för admin: personen i panelen har samma klinik).
+    const START_PAGES = [['', 'Idag', () => true], ['#/kalender', 'Opjour – kalender', m => m.includes('opjour')],
+      ['#/schema', 'Planering – veckoschema', m => m.includes('schema')], ['#/oversikt', 'ST-utbildning – måluppfyllelse', m => m.includes('mal')],
+      ['#/plan', 'ST-utbildning – min utbildningsplan', m => m.includes('mal')], ['#/dops', 'DOPS – översikt', m => m.includes('dops')],
+      ['#/dops/registrera', 'DOPS – registrera bedömning', m => m.includes('dops')], ['#/dops/inkorg', 'DOPS – inkorg', m => m.includes('dops')],
+      ['#/dops/mina', 'DOPS – mina bedömningar', m => m.includes('dops')], ['#/dops/progress', 'DOPS – progress', m => m.includes('dops')]];
+    function startPageOptions(me, current) {
+      const mods = me.modules || ['opjour'];
+      return START_PAGES.filter(([v, , ok]) => ok(mods) || v === (current || ''))
+        .map(([v, l]) => `<option value="${v}"${v === (current || '') ? ' selected' : ''}>${l}</option>`).join('');
     }
 
     // Navigeringsval efter roll och klinikens moduler — anropas av varje vy när /me är hämtad.
@@ -1061,6 +1155,10 @@
       show('nav-set-st', (schema || mal) && lead);
       show('nav-set-dops', mods.includes('dops') && lead);
       show('nav-set-system', !!me.isGlobalAdmin);
+      show('nav-set-usage', !!me.isGlobalAdmin);
+      show('nav-set-errors', !!me.isGlobalAdmin);
+      if (me.startPage !== undefined) { try { localStorage.setItem('opjour_start', me.startPage || ''); } catch {} }
+      drawActingBar(me);
       el('menu-btn').textContent = (me.displayName || 'Konto') + ' ▾';
       fitSubnav();
       scrollSubnav();
@@ -1186,6 +1284,7 @@
     });
   </script>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>   <!-- diagrammen i DOPS (samma som DOPS-appen) -->
   <script src="js/app.js"></script>
   <script src="js/import.js"></script>
   <script src="js/settings.js"></script>
@@ -1201,11 +1300,13 @@
   <script src="js/oversikt.js"></script>
   <script src="js/plan.js"></script>
   <script src="js/dops.js"></script>
+  <script src="js/dopscharts.js"></script>
   <script src="js/dopsapp.js"></script>
   <script src="js/dopsstats.js"></script>
   <script src="js/dopsforms.js"></script>
   <script src="js/dopssettings.js"></script>
   <script src="js/today.js"></script>
+  <script src="js/usage.js"></script>
   <script src="js/help.js"></script>
 </body>
 </html>

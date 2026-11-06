@@ -52,6 +52,7 @@ function drawBedomningar(root) {
     </div>
     <div class="card" id="bed-ai"><h2 style="margin-top:0">AI-sammanställning</h2><p class="muted" style="margin:0">Hämtar…</p></div>
     ${_bed.type === 'all' ? types.map(x => `<h2 class="bed-section">${esc(x.name)} <span class="muted" style="font-weight:normal;font-size:14px">${x.count} st</span></h2>${bedTypeDetail(x)}`).join('') : t ? bedTypeDetail(t) : ''}`}`;
+  dchartMount(root);
   if (types.length) loadBedAi();
   root.querySelector('.bed-types')?.addEventListener('click', e => {
     const b = e.target.closest('[data-t]'); if (!b) return;
@@ -100,12 +101,12 @@ function bedScale(q, list) {
   const steps = q.description.split('|').map(s => s.trim()).filter(s => /^\d+:\s*\S/.test(s));
   return `<div class="card bed-card">
       <div class="bed-head"><strong>${esc(q.question)}</strong><span class="muted">n=${pts.length}</span><span class="bed-avg">⌀ ${avg.toFixed(1).replace('.', ',')}</span></div>
-      <svg viewBox="0 0 ${W} ${H}" class="bed-svg" role="img" aria-label="${esc(q.question)}: ${pts.map(p => p.v).join(', ')}">
+      ${dchartLine(pts, lo, hi, avg, q.question) || `<svg viewBox="0 0 ${W} ${H}" class="bed-svg" role="img" aria-label="${esc(q.question)}: ${pts.map(p => p.v).join(', ')}">
         <line x1="${P}" x2="${W - P}" y1="${y(avg).toFixed(1)}" y2="${y(avg).toFixed(1)}" class="bed-avgline"/>
         <polyline points="${line}" class="bed-line"/>
         ${pts.map(p => `<circle cx="${x(p.at).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" class="bed-dot"><title>${bedDate(p.at)}: ${p.v}</title></circle>`).join('')}
       </svg>
-      <div class="bed-axis muted"><span>${bedDate(t0)}</span><span>${lo}–${hi}</span><span>${bedDate(t1)}</span></div>
+      <div class="bed-axis muted"><span>${bedDate(t0)}</span><span>${lo}–${hi}</span><span>${bedDate(t1)}</span></div>`}
       ${steps.length ? `<div class="muted bed-steps">${steps.map(esc).join(' · ')}</div>` : ''}
     </div>`;
 }

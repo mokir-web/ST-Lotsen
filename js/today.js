@@ -13,14 +13,17 @@ async function renderToday(root) {
     setMenuForUser(me);
     const mods = me.modules || ['opjour'], today = todayStockholm(), monday = mondayOfISO(today);
     const soft = p => p ? p.catch(() => null) : Promise.resolve(null);
-    const [cal, sch, plan, todo, dops] = await Promise.all([
+    const dopsOn = mods.includes('dops') && me.dopsUser;
+    const [cal, sch, plan, todo, dops, dopsRec, dopsSent] = await Promise.all([
       soft(mods.includes('opjour') ? api(`/calendar?start=${monday}&weeks=1`) : null),
       soft(mods.includes('schema') && (me.isSt || me.isDirector || me.isAdmin) ? api(`/schema?from=${monday}&weeks=12`) : null),
       soft(mods.includes('mal') && me.isSt ? api('/plan/me') : null),
       soft(api('/today/todo')),
-      soft(mods.includes('dops') && me.dopsUser ? api('/dops/app/overview') : null)
+      soft(dopsOn ? api('/dops/app/overview') : null),
+      soft(dopsOn ? api('/dops/app/assessments/mine?role=received') : null),
+      soft(dopsOn ? api('/dops/app/assessments/mine?role=sent') : null)
     ]);
-    drawToday(root, { me, mods, today, cal, sch, plan, todo, dops });
+    drawToday(root, { me, mods, today, cal, sch, plan, todo, dops, dopsRec, dopsSent });
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }
@@ -34,7 +37,7 @@ function greeting() {
 function drawToday(root, d) {
   const { me, today } = d;
   const first = (me.displayName || '').split(' ')[0];
-  const cards = [todoCard(d), opjourCard(d), myWeekCard(d), staffingCard(d), progressCard(d), todayDopsCard(d)].filter(Boolean);
+  const cards = [todoCard(d), opjourCard(d), myWeekCard(d), staffingCard(d), progressCard(d), stYearCard(d), todayDopsCard(d)].filter(Boolean);
   root.innerHTML = `
     <h1 class="page" style="margin-bottom:2px">${greeting()}${first ? ', ' + esc(first) : ''}</h1>
     <p class="muted" style="margin:0 0 14px">${esc(fmtDateLong(today))} · vecka ${isoWeek(today)}</p>
@@ -99,34 +102,64 @@ function progressCard({ plan }) {
   if (!plan) return '';
   const reqs = plan.requirements.filter(r => r.mandatory !== false);
   const st = r => plan.cells[r.id]?.status;
-  const done = reqs.filter(r => ['klart', 'tidigare'].includes(st(r))).length, booked = reqs.filter(r => st(r) === 'bokad').length;
+  const done = reqs.filter(r => ['klart', 'tidigare'].includes(st(r))).length, booked = reqs.filter(r => ['bokad', 'pagaende'].includes(st(r))).length;
   const goals = (plan.goals || []).filter(g => g.total), covered = goals.filter(g => g.done === g.total).length;
   const pct = reqs.length ? Math.round(100 * done / reqs.length) : 0;
   const p = plan.person;
   return todayCard('Mitt förlopp', `
     <div class="pbar"><span style="width:${pct}%"></span></div>
-    <p style="margin:6px 0 0"><strong>${done} av ${reqs.length}</strong> obligatoriska krav klara${booked ? ` · ${booked} bokade` : ''}</p>
+    <p style="margin:6px 0 0"><strong>${done} av ${reqs.length}</strong> obligatoriska krav klara${booked ? ` · ${booked} pågående/bokade` : ''}</p>
     ${goals.length ? `<p style="margin:4px 0 0">${covered} av ${goals.length} delmål med alla kopplade krav klara</p>` : ''}
     ${p.stMonths != null ? `<p class="muted" style="margin:4px 0 0">ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths} av 60${p.expectedEnd ? ` · beräknat klar ${esc(fmtMonth(p.expectedEnd))}` : ''}</p>` : ''}`,
     ['#/plan', 'Min utbildningsplan']);
 }
 
-// DOPS: mottagna bedömningar senaste 6 månaderna mot klinikens mål (som DOPS → Översikt). Lägst måluppfyllelse först; utan mål
-// visas antalet. Bara när modulen DOPS är på och kontot är kopplat.
-function todayDopsCard({ dops }) {
+// Kvar under innevarande ST-år enligt den individuella utbildningsplanen (ST-läkare). Krav från tidigare ST-år som inte är klara
+// visas först som försenade. Slutet på ST-året räknas bakåt från beräknat ST-slut (som tar hänsyn till förlängande ledighet).
+function stYearCard({ plan }) {
+  if (!plan || plan.person.stMonths == null || plan.person.stEnd) return '';
+  const p = plan.person, year = Math.floor(p.stMonths / 12) + 1;
+  if (year > 5) return '';
+  const st = r => plan.cells[r.id] || {};
+  const open = r => !['klart', 'tidigare', 'ej'].includes(st(r).status);
+  const now = plan.requirements.filter(r => r.stYear === year && open(r));
+  const late = plan.requirements.filter(r => r.stYear && r.stYear < year && r.mandatory !== false && open(r));
+  const all = plan.requirements.filter(r => r.stYear === year);
+  const yearEnd = p.expectedEnd ? addMonthsISO(p.expectedEnd, -12 * (5 - year)) : null;
+  const shown = r => st(r).status === 'saknas' ? 'ejgjort' : st(r).status;   // innevarande år: inte gjort än, inte försenat
+  const row = r => `<li><span class="pchip st-${shown(r) || 'ejgjort'}">${esc(OV_LABEL[shown(r)] || 'Ej gjort')}</span> ${esc(r.name)}<span class="muted" style="font-size:13px">${r.mandatory === false ? ' · valfritt' : ''}${
+    ['bokad', 'pagaende', 'forslag'].includes(st(r).status) ? ' · ' + esc(ovCellText(st(r))) : ''}</span></li>`;
+  return todayCard(`Kvar under ST-år ${year}`, `
+    <p class="muted" style="margin:0 0 6px">${all.length - now.length} av ${all.length} krav klara${yearEnd ? ` · ST-året slutar ca ${esc(fmtMonth(yearEnd))}` : ''}</p>
+    ${late.length ? `<p class="yr-late"><strong>${late.length} krav från tidigare ST-år är inte klara:</strong> ${esc(late.slice(0, 6).map(r => r.name).join(', '))}${late.length > 6 ? ` och ${late.length - 6} till` : ''}.</p>` : ''}
+    ${now.length ? `<ul class="today-list yr-list">${now.map(row).join('')}</ul>` : `<p style="margin:0">${all.length ? '✓ Allt för ST-år ' + year + ' är klart.' : 'Inga krav inlagda för ST-år ' + year + '.'}</p>`}`,
+    ['#/plan', 'Min utbildningsplan']);
+}
+const addMonthsISO = (iso, n) => { const [y, m] = iso.split('-').map(Number), t = new Date(Date.UTC(y, m - 1 + n, 1)); return t.toISOString().slice(0, 10); };
+
+// DOPS: total måluppfyllelse som en stapel (mottagna och registrerade senaste 6 månaderna mot klinikens mål, som DOPS → Översikt)
+// och de fem senaste bedömningarna (mottagna och registrerade). Bara när modulen DOPS är på och kontot är kopplat.
+function todayDopsCard({ dops, dopsRec, dopsSent }) {
   if (!dops) return '';
-  const hidden = new Set(dops.hiddenFormTypes?.received || []);
-  const rec6 = dops.received_6m || {};
-  const goals = Object.entries(dops.received || {}).filter(([ft, v]) => v.goal && !hidden.has(ft))
-    .map(([ft, v]) => ({ ft: ft.replace(/^DOPS:?\s*/, ''), n: rec6[ft] || 0, g: v.goal })).sort((a, b) => a.n / a.g - b.n / b.g);
-  const total = Object.values(rec6).reduce((s, n) => s + n, 0);
-  const met = goals.filter(x => x.n >= x.g).length;
-  const color = x => x.n >= x.g ? '#4a9e62' : x.n > 0 ? '#d9a441' : '#c0392b';
-  const body = goals.length
-    ? `<p style="margin:0 0 6px"><strong>${met} av ${goals.length}</strong> mål uppnådda · ${total} mottagna senaste 6 mån</p>
-      ${goals.slice(0, 5).map(x => `<div class="dov-row" style="grid-template-columns:1fr 1fr 44px"><span class="dov-name">${esc(x.ft)}</span>
-        <span class="dov-track"><i style="width:${Math.min(100, Math.round(x.n / x.g * 100))}%;background:${color(x)}"></i></span><strong class="dov-n">${x.n}/${x.g}</strong></div>`).join('')}
-      ${goals.length > 5 ? `<p class="muted" style="margin:4px 0 0;font-size:13px">och ${goals.length - 5} till</p>` : ''}`
-    : `<p style="margin:0"><strong>${total}</strong> mottagna bedömningar senaste 6 månaderna.</p>`;
-  return todayCard('DOPS', body, ['#/dops', 'Till DOPS']);
+  const hidRec = new Set(dops.hiddenFormTypes?.received || []), hidSent = new Set(dops.hiddenFormTypes?.sent || []);
+  const short = ft => ft.replace(/^DOPS:?\s*/, '');
+  const goals = [
+    ...Object.entries(dops.received || {}).filter(([ft, v]) => v.goal && !hidRec.has(ft)).map(([ft, v]) => ({ ft, n: (dops.received_6m || {})[ft] || 0, g: v.goal })),
+    ...Object.entries(dops.sent || {}).filter(([ft, v]) => v.sentGoal && !hidSent.has(ft)).map(([ft, v]) => ({ ft, n: (dops.sent_6m || {})[ft] || 0, g: v.sentGoal }))
+  ];
+  const sum = goals.reduce((s, x) => s + x.g, 0), got = goals.reduce((s, x) => s + Math.min(x.n, x.g), 0);
+  const pct = sum ? Math.round(100 * got / sum) : 0, met = goals.filter(x => x.n >= x.g).length;
+  const tone = pct >= 100 ? '#4a9e62' : pct >= 50 ? '#d9a441' : '#c0392b';
+  const latest = [...(dopsRec || []).map(a => ({ ...a, dir: 'in' })), ...(dopsSent || []).map(a => ({ ...a, dir: 'ut' }))]
+    .filter(a => !a.isAiDemo).sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 5);
+  const who = a => a.dir === 'in' ? 'från ' + a.registrar : 'till ' + a.recipient.replace(/ -- .*$/, '');
+  const goalBar = goals.length ? `
+    <div class="dg-head"><span>Måluppfyllelse senaste 6 mån</span><strong style="color:${tone}">${pct} %</strong></div>
+    <div class="dg-track" role="img" aria-label="${pct} procent av målen"><i style="width:${Math.min(100, pct)}%;background:${tone}"></i></div>
+    <p class="muted" style="margin:4px 0 0;font-size:13px">${met} av ${goals.length} mål uppnådda · ${got} av ${sum} bedömningar</p>`
+    : '<p class="muted" style="margin:0">Kliniken har inga mål för dina formulär.</p>';
+  const list = latest.length ? `<ul class="today-list dg-list">${latest.map(a => `<li><span class="dg-dir ${a.dir}" title="${a.dir === 'in' ? 'Mottagen' : 'Registrerad av dig'}">${a.dir === 'in' ? '↓' : '↑'}</span>
+      <span><strong>${esc(short(a.formType))}</strong><br><span class="muted" style="font-size:13px">${esc(who(a))} · ${esc(fmtDM(a.timestamp.slice(0, 10)))}</span></span></li>`).join('')}</ul>`
+    : '<p class="muted" style="margin:0">Inga bedömningar än.</p>';
+  return todayCard('DOPS', goalBar + '<h3 class="today-sub">Senaste bedömningar</h3>' + list, ['#/dops', 'Till DOPS']);
 }

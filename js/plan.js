@@ -133,12 +133,12 @@ function planOverview() {
     const rs = mand.filter(r => (r.stYear || 0) === y);
     return planBar(rs.filter(r => isDone(data.cells[r.id])).length, rs.length, y ? `År ${y}${y === cur ? ' <span class="tagchip">nu</span>' : ''}` : 'Inget år');
   }).join('');
-  const booked = mand.filter(r => data.cells[r.id]?.status === 'bokad').length;
+  const booked = mand.filter(r => ['bokad', 'pagaende'].includes(data.cells[r.id]?.status)).length;
   return `
     <div class="card">
       <h2>Förlopp</h2>
       ${mand.length ? `${planBar(mand.filter(r => isDone(data.cells[r.id])).length, mand.length, '<strong>Alla krav</strong>')}
-        ${rows}${booked ? `<p class="hint" style="margin:4px 0 0">${booked} krav bokade i veckoschemat.</p>` : ''}` : '<p class="muted">Kliniken har inga obligatoriska krav inlagda.</p>'}
+        ${rows}${booked ? `<p class="hint" style="margin:4px 0 0">${booked} krav pågående eller bokade i veckoschemat.</p>` : ''}` : '<p class="muted">Kliniken har inga obligatoriska krav inlagda.</p>'}
       ${goalsWithReqs(goals).length ? `<div style="margin-top:10px">${planBar(goalsCovered(goals), goalsWithReqs(goals).length, '<strong>Delmål</strong>')}</div>` : ''}
       <p class="hint" style="margin:6px 0 0">Klara = klart eller tidigare. Valfria krav räknas inte. Delmål = delmål där alla kopplade krav är klara.</p>
     </div>

@@ -5,8 +5,9 @@
 
 const HELP = [
   ['#/', 'Idag', [
-    'Det viktigaste från alla moduler på ett ställe: det du behöver ta hand om, dagens opjour och dina pass, din vecka i schemat, bemanningen och ditt förlopp.',
-    'Korten syns bara om de gäller dig. Klicka på länken under ett kort för att gå vidare.']],
+    'Det viktigaste från alla moduler på ett ställe: det du behöver ta hand om, dagens opjour och dina pass, din vecka i schemat, bemanningen, ditt förlopp, vad som är kvar under ditt ST-år och dina senaste bedömningar i DOPS.',
+    'Korten syns bara om de gäller dig. Klicka på länken under ett kort för att gå vidare. Loggan uppe till vänster leder alltid hit.',
+    'Vill du börja på en annan sida när du öppnar ST-Lotsen: välj startsida under Inställningar → Mitt konto.']],
   ['#/kalender', 'Opjour · Kalender', [
     'Vem som har opjour vilken dag. Klicka på en dag för att se detaljer och boka eller släppa ditt pass.',
     'Passet byter person vid den tid kliniken har ställt in (Inställningar → Opjour).']],
@@ -19,9 +20,10 @@ const HELP = [
     'En rad per ST-läkare, en kolumn per vecka. Klicka i en cell för att lägga in eller ändra en aktivitet. Dra över flera veckor i en rad för att lägga in en period.',
     'Raden "I tjänst" räknar hur många som är i tjänst varje vecka. Röd = under klinikens gräns.',
     'På mobil: välj <em>Jag</em> eller <em>Alla</em> för en lista per vecka.',
+    '<strong>Ej tilldelat</strong> (studierektor och admin): lägg in randningar och kurser som ännu inte har någon person. Klicka på perioden och <em>Välj person</em> — de som inte gjort momentet visas först, med det de redan har inlagt de veckorna. <em>Tilldela</em> gör perioden till en vanlig post i personens rad.',
     '<strong>Importera jobbschema</strong> (studierektor): välj exporten från schemasystemet (.xlsx, en kolumn per dag). ST-läkarna matchas på namn, övriga läkare hoppas över. Du väljer vilka koder som blir vilken aktivitetstyp (t.ex. Randning → Rand, Föräldraledig → FL) och hur många dagar i veckan som krävs. Fynden granskas ett i taget: <em>Acceptera</em> sparar posten direkt, <em>Avvisa</em> hoppar över den; vid krock väljer du <em>Lägg till också</em> eller <em>Ersätt</em>. Det som redan finns i veckoschemat visas bara.']],
   ['#/oversikt', 'ST-utbildning · Måluppfyllelse', [
-    'Alla ST-läkare mot klinikens krav. ✓ klart, ◷ bokat i schemat, ? förslag, ✎ plan, · ej gjort än, ! saknas (personen har passerat kravets ST-år). Peka på en ruta för hela texten, klicka för att ange status för hand.',
+    'Alla ST-läkare mot klinikens krav. ✓ klart, ▶ pågår (startveckan har kommit), ◷ bokat i schemat, ? förslag, ✎ plan, · ej gjort än, ! saknas (personen har passerat kravets ST-år). Peka på en ruta för hela texten, klicka för att ange status för hand.',
     'Klicka på en rubrik för att sortera: ST-läkare, ST-tid, % klart eller ett krav (de som gjort det först). Klicka igen för omvänd ordning. Filtrera på kategori och växla mellan kompakt och detaljerad vy.']],
   ['#/plan', 'Utbildningsplan', [
     '<strong>Översikt:</strong> förloppet per ST-år och kraven med status. <strong>Delmål:</strong> målbeskrivningens delmål med kopplade krav och hur många som är klara. <strong>Historik:</strong> ändringar i planen och status satt för hand. Ingen signering behövs — ST-läkaren håller själv koll, handledaren ser planen.',
@@ -47,9 +49,13 @@ const HELP = [
   ['#/installningar/st', 'ST-utbildning · Krav', [
     'Klinikens mall: det som ska uppnås, per ST-år. ST-läkarna ser samma vy i sin utbildningsplan.',
     '<strong>Dra</strong> ett krav till ett annat år, <strong>klicka</strong> för att ändra det (delmål, randning, längd, i tjänst).']],
-  ['#/installningar/konto', 'Inställningar · Mitt konto', ['Ditt namn, användarnamn, telefon och PIN.']],
-  ['#/installningar/klinik', 'Inställningar · Klinik', ['Vilka moduler kliniken använder.']],
-  ['#/installningar/system', 'Inställningar · System', ['För global admin: kliniker, anslutningen till DOPS och felrapporter.']],
+  ['#/installningar/konto', 'Inställningar · Mitt konto', ['Ditt namn, användarnamn, telefon, e-post, startsida och PIN.']],
+  ['#/installningar/klinik', 'Inställningar · Klinik', ['Vilka moduler kliniken använder.',
+    '<strong>Global admin:</strong> välj vilken klinik du arbetar i — valet gäller hela ST-Lotsen tills du byter tillbaka (gul rad överst). <em>Importera inställningar</em> hämtar valda delar (jourbytestid, moduler, aktivitetstyper, krav med delmål, bemanning, målbeskrivning, jobbschemats koder) från en annan klinik. Inget tas bort; det som har samma namn skrivs över. Förhandsgranska först.']],
+  ['#/installningar/system', 'Inställningar · System', ['För global admin: kliniker (lägg upp, byt namn, radera, arbeta i) och anslutningen till DOPS.',
+    'Att radera en klinik tar bort allt som hör till den och går inte att ångra. Du bekräftar genom att skriva klinikens namn. En klinik med ett globalt adminkonto kan inte raderas.']],
+  ['#/installningar/anvandning', 'Inställningar · Användning', ['För global admin: hur ST-Lotsen och DOPS-appen används — personer, sessioner, sidvisningar, mest besökta sidor, enheter och webbläsare. ST-Lotsen samlar in sedan version 0.39.0; ingen IP-adress sparas.']],
+  ['#/installningar/felanmalan', 'Inställningar · Felanmälan', ['För global admin: användarnas felanmälningar och fel som appen rapporterat automatiskt. Markera som hanterade när de är åtgärdade.']],
   ['#/installningar/anvandare', 'Inställningar · Användare', ['Alla användare och allt som gäller en person: klinikroller (admin, studierektor), yrkesroll, Opjour (bokar, reserv, statistik), DOPS (användarroll, koppling) och konto (PIN, inaktivera, slå ihop). Klicka på en person.', 'Med modulen DOPS påslagen: DOPS-konton — godkänn förslagen, koppla övriga för hand, hämta namn eller e-post från DOPS och skapa ST-Lotsen-konton för dem som bara finns i DOPS (tillfällig PIN visas en gång). Kliniken kopplas till DOPS av global admin.']]
 ];
 

@@ -8,6 +8,8 @@
 // ST-läkaren ändrar sin egen rad; studierektor och admin alla rader (servern kontrollerar).
 // Dra över flera veckor i en rad (dator) för att skapa en period. Bemanningsvarning: "I tjänst" blir röd under klinikens minsta antal.
 // Vyer: Tabell (förval på dator), Jag (min rad som lista vecka för vecka) och Alla (lista per vecka) — förval på mobil.
+// Otilldelade perioder (studierektor/admin): raden "Ej tilldelat" under "I tjänst" — randningar och kurser utan person. En period öppnas
+// med kandidatlistan: de som inte gjort momentet först, med krockar mot det som redan är inlagt; Tilldela gör den till en vanlig post.
 
 let _sch = null;
 
@@ -156,7 +158,10 @@ function schYearView() {
   return `<div class="sch-scroll"><table class="sch ysch">
       <thead><tr><th class="pname">${_sch.year}</th>${months.map(x => `<th colspan="${x.n}" class="ymon">${MON[x.mo - 1]}</th>`).join('')}</tr>
         <tr><th class="pname"></th>${weeks.map(m => `<th class="ywk${m === d.thisMonday ? ' now' : ''}">${isoWeek(m) % 2 ? isoWeek(m) : ''}</th>`).join('')}</tr></thead>
-      <tbody><tr class="svc-row"><th class="pname">I tjänst</th>${svc}</tr>${rows}</tbody></table></div>
+      <tbody><tr class="svc-row"><th class="pname">I tjänst</th>${svc}</tr>${d.openSlots ? `<tr class="open-row"><th class="pname">Ej tilldelat</th>${weeks.map(m => {
+        const here = d.openSlots.filter(o => m >= o.weekFrom && m <= o.weekTo);
+        return `<td class="yc${m === d.thisMonday ? ' now' : ''}" data-w="${m}" title="${esc(`v${isoWeek(m)}${here.length ? ': ' + here.map(label).join(' / ') : ''}`)}"${here.length ? ` style="background:repeating-linear-gradient(45deg,${esc(typeOf(here[0].typeId)?.color || '#9aa5ad')} 0 3px,#fff 3px 6px)"` : ''}></td>`;
+      }).join('')}</tr>` : ''}${rows}</tbody></table></div>
     <p class="hint">Peka på en ruta för att se vad som är inlagt. Klicka för att öppna veckan i tabellen.</p>`;
 }
 
@@ -177,6 +182,11 @@ function drawSchema(root) {
 
   const head = weeks.map(m => `<th class="${m === data.thisMonday ? 'now' : ''}">v${isoWeek(m)}<br><span>${fmtDM(m)}</span></th>`).join('');
   const service = weeks.map(m => `<td class="svc${m === data.thisMonday ? ' now' : ''}${schLow(m) ? ' low' : ''}"${schLow(m) ? ` title="Under ${data.minInService} i tjänst"` : ''}>${data.inService[m]}</td>`).join('');
+  const slots = data.openSlots || [];
+  const slotRow = data.canEditAll ? `<tr class="open-row"><th class="pname" title="Randningar och kurser som ännu inte har någon person">Ej tilldelat</th>${weeks.map(m => {
+    const here = slots.filter(o => m >= o.weekFrom && m <= o.weekTo);
+    return `<td class="ocell${m === data.thisMonday ? ' now' : ''}" data-w="${m}" role="button" tabindex="0" title="${here.length ? '' : 'Lägg in en otilldelad period'}">${here.map(o => actChip({ ...o, status: 'bokad' })).join('')}</td>`;
+  }).join('')}</tr>` : '';
   const rows = data.people.map(p => {
     const editable = schCanEdit(p.id);
     const cells = weeks.map(m => {
@@ -220,6 +230,7 @@ function drawSchema(root) {
           <thead><tr><th class="pname">ST-läkare</th>${head}</tr></thead>
           <tbody>
             <tr class="svc-row"><th class="pname">I tjänst</th>${service}</tr>
+            ${slotRow}
             ${rows}
           </tbody>
         </table>
@@ -245,6 +256,11 @@ function drawSchema(root) {
   root.querySelectorAll('.wk-row.edit').forEach(r => r.addEventListener('click', () => { _sch.sheet = { userId: r.dataset.p, monday: r.dataset.w, editing: null }; drawSchemaSheet(); }));
   schDragSetup(root);
 
+  root.querySelectorAll('.ocell').forEach(td => {
+    const open = () => { _sch.sheet = { slot: true, monday: td.dataset.w, editing: null }; drawSchemaSheet(); };
+    td.addEventListener('click', open);
+    td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+  });
   root.querySelectorAll('.scell.edit').forEach(td => {
     const open = () => { if (_sch.dragged) { _sch.dragged = false; return; } _sch.sheet = { userId: td.dataset.p, monday: td.dataset.w, editing: null }; drawSchemaSheet(); };
     td.addEventListener('click', open);
@@ -259,6 +275,7 @@ function drawSchemaSheet() {
   if (!root) { root = document.createElement('div'); root.id = 'sheet-root'; document.body.appendChild(root); }
   const s = _sch && _sch.sheet;
   if (!s) { root.innerHTML = ''; return; }
+  if (s.slot) { drawSlotSheet(root, s); return; }
   const { data } = _sch;
   const person = data.people.find(p => p.id === s.userId);
   const acts = data.activities.filter(a => a.userId === s.userId && s.monday >= a.weekFrom && s.monday <= a.weekTo);
@@ -285,7 +302,7 @@ function drawSchemaSheet() {
   if (typeSel) { typeSel.addEventListener('change', syncReqField); el('af-req').addEventListener('change', onReqPicked); syncReqField(); }
 }
 
-function activityForm(a, monday, prefillWeeks) {
+function activityForm(a, monday, prefillWeeks, slot) {
   const types = _sch.data.types.filter(t => t.active || (a && t.id === a.typeId));
   const reqs = _sch.data.requirements.filter(r => r.active || (a && r.id === a.requirementId));
   const cats = [...new Set(reqs.map(r => r.category))];
@@ -306,9 +323,9 @@ function activityForm(a, monday, prefillWeeks) {
       <div><label for="af-from">Från vecka (valfri dag i veckan)</label><input type="date" id="af-from" value="${a ? a.weekFrom : monday}" required></div>
       <div><label for="af-weeks">Antal veckor</label><input type="number" id="af-weeks" min="1" max="104" value="${weeks}" required></div>
     </div>
-    <label class="row" style="gap:8px;font-weight:normal;margin-top:12px"><input type="checkbox" id="af-ev"${a && a.status === 'ev' ? ' checked' : ''}> Ev. (preliminär — räknas ändå i "I tjänst")</label>
-    <button class="btn btn-block" data-ss="save" data-id="${a ? esc(a.id) : ''}">${a ? 'Spara' : 'Lägg till'}</button>
-    ${a ? `<button class="btn btn-danger btn-block" data-ss="delete" data-id="${esc(a.id)}">Ta bort aktiviteten</button>` : ''}`;
+    ${slot ? '' : `<label class="row" style="gap:8px;font-weight:normal;margin-top:12px"><input type="checkbox" id="af-ev"${a && a.status === 'ev' ? ' checked' : ''}> Ev. (preliminär — räknas ändå i "I tjänst")</label>`}
+    <button class="btn btn-block" data-ss="${slot ? 'slot-save' : 'save'}" data-id="${a ? esc(a.id) : ''}">${a ? 'Spara' : 'Lägg till'}</button>
+    ${a ? `<button class="btn btn-danger btn-block" data-ss="${slot ? 'slot-delete' : 'delete'}" data-id="${esc(a.id)}">Ta bort ${slot ? 'perioden' : 'aktiviteten'}</button>` : ''}`;
 }
 
 // Kravfältet visas bara för typer som ger måluppfyllelse (Rand, Kurs, Körkort, Projekt …).
@@ -332,9 +349,30 @@ async function onSchemaSheet(e) {
   }
   e.stopPropagation();
   const s = _sch.sheet, id = e.currentTarget.dataset.id;
-  if (kind === 'new') { s.editing = 'new'; drawSchemaSheet(); return; }
-  if (kind === 'edit') { s.editing = id; drawSchemaSheet(); return; }
+  if (kind === 'new') { s.editing = 'new'; s.cand = null; drawSchemaSheet(); return; }
+  if (kind === 'edit') { s.editing = id; s.cand = null; drawSchemaSheet(); return; }
+  if (kind === 'cand') { s.editing = null; s.cand = { id, data: null }; drawSchemaSheet(); loadCandidates(id); return; }
+  if (kind === 'back') { s.cand = null; drawSchemaSheet(); return; }
   try {
+    if (kind === 'slot-save' || kind === 'assign') {
+      if (kind === 'assign') {
+        const c = s.cand.data.candidates.find(x => x.userId === id);
+        if (c.conflicts.length && !confirm(`${c.displayName} har redan ${c.conflicts.length} post${c.conflicts.length === 1 ? '' : 'er'} de veckorna. Tilldela ändå?`)) return;
+        await api(`/open-slots/${encodeURIComponent(s.cand.id)}/assign`, { method: 'POST', body: { userId: id } });
+        toast(`Tilldelad ${c.displayName}.`);
+      } else {
+        const body = { typeId: el('af-type').value, requirementId: el('af-req').value || null, detail: el('af-detail').value,
+          weekFrom: el('af-from').value, weeks: Number(el('af-weeks').value) };
+        if (id) await api('/open-slots/' + encodeURIComponent(id), { method: 'PUT', body });
+        else await api('/open-slots', { method: 'POST', body });
+      }
+      _sch.sheet = null; await reloadSchema(); return;
+    }
+    if (kind === 'slot-delete') {
+      if (!confirm('Ta bort den otilldelade perioden?')) return;
+      await api('/open-slots/' + encodeURIComponent(id), { method: 'DELETE' });
+      _sch.sheet = null; await reloadSchema(); return;
+    }
     if (kind === 'save') {
       const body = {
         typeId: el('af-type').value, requirementId: el('af-req').value || null, detail: el('af-detail').value,
@@ -351,4 +389,55 @@ async function onSchemaSheet(e) {
   } catch (err) {
     const box = el('ss-err'); if (box) box.textContent = err.message;
   }
+}
+
+// ── Otilldelade perioder: lista för veckan, formulär och kandidater ──────
+function drawSlotSheet(root, s) {
+  const { data } = _sch;
+  const here = (data.openSlots || []).filter(o => s.monday >= o.weekFrom && s.monday <= o.weekTo);
+  const editing = s.editing === 'new' ? null : here.find(o => o.id === s.editing) || null;
+  const showForm = !s.cand && (s.editing === 'new' || editing || !here.length);
+  const span = o => { const n = Math.round((Date.parse(o.weekTo) - Date.parse(o.weekFrom)) / 6048e5) + 1; return `v${isoWeek(o.weekFrom)}${n > 1 ? '–v' + isoWeek(o.weekTo) : ''} (${n} v)`; };
+  const list = here.map(o => `<div class="pass-card"><span>${actChip({ ...o, status: 'bokad' })} <span class="muted" style="font-size:13px">${span(o)}</span></span>
+      <span class="row" style="gap:10px"><button class="link-btn" data-ss="cand" data-id="${esc(o.id)}">Välj person…</button><button class="link-btn" data-ss="edit" data-id="${esc(o.id)}">Ändra</button></span></div>`).join('');
+  root.innerHTML = `
+    <div class="overlay" data-ss="close">
+      <div class="sheet" role="dialog" aria-label="Otilldelad period">
+        <h2>Ej tilldelat · v${isoWeek(s.monday)} <button class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" data-ss="close" aria-label="Stäng">✕</button></h2>
+        ${s.cand ? candidatesView(s) : `
+        <p class="hint" style="margin-top:0">Randningar och kurser som ska göras men ännu inte har någon person. De syns bara för studierektor och admin och räknas inte i "I tjänst".</p>
+        ${here.length ? `<h3>Den här veckan</h3>${list}` : ''}
+        ${showForm ? activityForm(editing, s.monday, editing ? null : 1, true) : '<button class="btn btn-block" data-ss="new">Lägg in otilldelad period</button>'}`}
+        <div id="ss-err" class="status err"></div>
+      </div>
+    </div>`;
+  root.querySelectorAll('[data-ss]').forEach(n => n.addEventListener('click', onSchemaSheet));
+  const typeSel = el('af-type');
+  if (typeSel) { typeSel.addEventListener('change', syncReqField); el('af-req').addEventListener('change', onReqPicked); syncReqField(); }
+}
+
+async function loadCandidates(id) {
+  try { const d = await api(`/open-slots/${encodeURIComponent(id)}/candidates`); if (_sch.sheet?.cand?.id === id) { _sch.sheet.cand.data = d; drawSchemaSheet(); } }
+  catch (err) { const b = el('ss-err'); if (b) b.textContent = err.message; }
+}
+
+// Kandidater: status för kravet (som i Måluppfyllelsen), ST-år när perioden börjar och krockar. Ordningen kommer från servern.
+function candidatesView(s) {
+  const d = s.cand.data;
+  if (!d) return '<p class="muted">Laddar kandidater…</p>';
+  const o = d.slot, r = d.requirement;
+  const group = c => ['saknas', 'ejgjort', null, undefined].includes(c.status) ? 'todo' : ['klart', 'tidigare', 'ej'].includes(c.status) ? 'done' : 'mid';
+  const statusChip = c => !r ? '' : `<span class="pchip st-${c.late ? 'saknas' : c.status || 'ejgjort'}">${esc(c.late ? 'Försenat' : OV_LABEL[c.status] || 'Ej gjort')}</span>`;
+  const conflicts = c => c.conflicts.length ? `<div class="cand-conf">Krockar: ${c.conflicts.map(a => actChip(a) + ` <span class="muted">v${isoWeek(a.weekFrom)}${a.weekTo !== a.weekFrom ? '–' + isoWeek(a.weekTo) : ''}</span>`).join(' ')}</div>`
+    : '<div class="cand-conf ok">Inget inlagt de veckorna</div>';
+  const row = c => `<div class="cand ${group(c)}"><div class="cand-main"><strong>${esc(c.displayName)}</strong>
+      <span class="muted" style="font-size:13px">${c.stMonths == null ? 'ST-start saknas' : `ST-år ${Math.floor(c.stMonths / 12) + 1} vid start`}</span> ${statusChip(c)}</div>
+      ${conflicts(c)}<button class="btn${group(c) === 'todo' && !c.conflicts.length ? '' : '-ghost'}" data-ss="assign" data-id="${esc(c.userId)}">Tilldela</button></div>`;
+  const todo = d.candidates.filter(c => group(c) === 'todo'), rest = d.candidates.filter(c => group(c) !== 'todo');
+  return `<button class="link-btn" data-ss="back">‹ Tillbaka</button>
+    <p style="margin:8px 0 2px">${actChip({ ...o, status: 'bokad' })} <span class="muted">v${isoWeek(o.weekFrom)}–v${isoWeek(o.weekTo)}</span></p>
+    ${r ? '' : '<p class="hint">Perioden är inte kopplad till något krav — alla visas utan status. Koppla ett krav för att se vilka som redan gjort momentet.</p>'}
+    <h3>${r ? `Har inte gjort ${esc(r.name)} (${todo.length})` : `ST-läkare (${d.candidates.length})`}</h3>
+    ${(r ? todo : d.candidates).map(row).join('') || '<p class="muted">Alla har gjort eller bokat momentet.</p>'}
+    ${r && rest.length ? `<details class="cand-rest"><summary>Bokat, klart eller borttaget ur planen (${rest.length})</summary>${rest.map(row).join('')}</details>` : ''}`;
 }
