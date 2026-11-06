@@ -20,26 +20,27 @@ function suggestUsername(name) {
 
 const ROLE_LABEL = { user: 'Användare', admin: 'Admin', display: 'Visning' };
 
-async function renderAdmin(root) {
+// mode: 'users' (Inställningar → Användare), 'clinic' (→ Klinik) eller 'system' (→ System, global admin).
+async function renderAdmin(root, mode = 'users') {
   root.innerHTML = '<p class="muted">Laddar…</p>';
   try {
     const me = await api('/me');
     setMenuForUser(me);
-    if (!me.isAdmin) { location.hash = '#/'; return; }
-    _admin = { me, draw: drawAdmin, open: new Set(), filter: 'alla', q: '', panel: null, notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
-    if (me.isGlobalAdmin) {
+    if (!me.isAdmin || (mode === 'system' && !me.isGlobalAdmin)) { location.hash = '#/installningar/konto'; return; }
+    _admin = { me, mode, draw: drawAdmin, open: new Set(), filter: 'alla', q: '', panel: null, notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
+    if (mode === 'system') {
       _admin.clinics = (await api('/admin/clinics')).clinics;
       _admin.errors = await api('/error-reports').catch(() => null);
       _admin.dops = await api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message }));
     }
-    if ((me.modules || []).includes('dops')) await loadDopsUsers();
+    if (mode === 'users' && (me.modules || []).includes('dops')) await loadDopsUsers();
     drawAdmin(root);
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }
 }
 
-// Administration och Opjour → Inställningar delar användarlistans maskineri (_admin, userBlock, userAction); _admin.draw ritar rätt sida.
+// Administration och Inställningar → Opjour delar användarlistans maskineri (_admin, userBlock, userAction); _admin.draw ritar rätt sida.
 async function reloadAdmin() {
   _admin.me = await api('/me');
   (_admin.draw || drawAdmin)(el('view'));
@@ -75,7 +76,7 @@ function userBlock(u, selfId) {
   const fixed = isSelf || u.isGlobalAdmin || locked;   // får inte inaktiveras/degraderas här
   const why = isSelf ? 'Du kan inte ändra detta på dig själv.' : u.isGlobalAdmin ? 'Globalt adminkonto.' : '';
   // Snabbreglagen sitter i huvudraden så att man slipper fälla ut kortet. Visningskonton har bara "Aktiv".
-  // Reserv och Statistik ställs in under Opjour → Inställningar.
+  // Reserv och Statistik ställs in under Inställningar → Opjour.
   const quick = u.isDisplay
     ? quickSwitch('Aktiv', 'active', u.active, fixed, why)
     : quickSwitch('Admin', 'admin', u.isAdmin, fixed, why) + quickSwitch('Aktiv', 'active', u.active, fixed, why);
@@ -108,7 +109,7 @@ function userBlock(u, selfId) {
     </div>`;
 }
 
-// ST-roller: ändras direkt med reglagen. ST-start/-slut, målbeskrivning och handledare sätts under ST-utbildning → Inställningar.
+// ST-roller: ändras direkt med reglagen. ST-start/-slut, målbeskrivning och handledare sätts under Inställningar → ST-utbildning.
 function stSection(u, locked) {
   return `
         <div class="st-sec" style="margin-top:14px;padding-top:10px;border-top:1px solid var(--line)">
@@ -116,7 +117,7 @@ function stSection(u, locked) {
           <div class="qsws" style="grid-template-columns:repeat(2, 90px);margin:6px 0">
             ${quickSwitch('ST-läkare', 'st', u.isSt, locked, '')}${quickSwitch('Studierektor', 'director', u.isDirector, locked, '')}
           </div>
-          ${u.isSt ? '<p class="hint" style="margin:4px 0 0">ST-start, målbeskrivning och handledare: <a href="#/st/personer">ST-utbildning → Inställningar</a>.</p>' : ''}
+          ${u.isSt ? '<p class="hint" style="margin:4px 0 0">ST-start, målbeskrivning och handledare: <a href="#/installningar/st/personer">Inställningar → ST-utbildning</a>.</p>' : ''}
         </div>`;
 }
 
@@ -136,14 +137,21 @@ const sortedRoster = () => [...(_admin.me.roster || [])].sort((a, b) => a.displa
 function drawAdmin(root) {
   const { me } = _admin;
   const opjour = (me.modules || ['opjour']).includes('opjour');
-  const roster = sortedRoster().filter(u => !u.isDisplay);   // väggskärmarna hanteras under Opjour → Inställningar
+  const roster = sortedRoster().filter(u => !u.isDisplay);   // väggskärmarna hanteras under Inställningar → Opjour
 
+  const mode = _admin.mode || 'users';
+  if (mode === 'clinic') {
+    root.innerHTML = `<h1 class="page">Klinik</h1>${noticeCard()}${moduleCard()}`;
+    return;
+  }
+  if (mode === 'system') {
+    root.innerHTML = `<h1 class="page">System</h1>${noticeCard()}${_admin.clinics ? clinicCard() : ''}${_admin.dops ? dopsCard() : ''}${_admin.errors ? errorCard() : ''}`;
+    return;
+  }
   root.innerHTML = `
-    <h1 class="page">Administration</h1>
+    <h1 class="page">Användare</h1>
 
     ${noticeCard()}
-
-    ${opjour ? `<p class="hint" style="margin:-4px 0 14px">Jourbyte, väggskärmar och en samlad lista över reserver och statistik finns under <a href="#/opjour-settings">Opjour → Inställningar</a>.</p>` : ''}
 
     <div class="card">
       <div class="row" style="justify-content:space-between">
@@ -161,15 +169,7 @@ function drawAdmin(root) {
       <div id="u-rows" class="urows"></div>
     </div>
 
-    ${moduleCard()}
-
     ${_admin.dopsUsers ? dopsUsersCard() : ''}
-
-    ${_admin.errors ? errorCard() : ''}
-
-    ${_admin.clinics ? clinicCard() : ''}
-
-    ${_admin.dops ? dopsCard() : ''}
   `;
   el('u-filter').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { _admin.filter = b.dataset.f; drawAdmin(el('view')); } });
   el('u-rows').addEventListener('click', e => { const r = e.target.closest('[data-uid]'); if (r) openUserPanel({ kind: 'user', id: r.dataset.uid, tab: 'roller' }); });
@@ -248,6 +248,27 @@ function roleRow(title, info, attr, checked, disabled, why) {
   return `<label class="role-row"${why ? ` title="${esc(why)}"` : ''}><span><strong>${title}</strong><small>${info}</small></span>${sw(`data-r="${attr}"`, checked, disabled)}</label>`;
 }
 
+// DOPS i användarpanelen: kopplingen till DOPS-kontot och personens användarroll i DOPS (vad hen gör där). Klinikroller och yrkesroll
+// sätts ovan och gäller även DOPS; under parallellkörningen visas DOPS-appens värden och skillnader, och ändringar där är låsta
+// tills ST-Lotsen får skriva i DOPS-appens databas.
+function dopsUserSection(u) {
+  const d = _admin.dopsUsers;
+  if (!d || d.error) return `<h3>DOPS</h3><p class="hint">${d?.error ? esc(d.error) : 'Kopplingen till DOPS är inte inläst.'}</p>`;
+  const link = d.linked.find(x => x.user.id === u.id), sugg = d.suggestions.find(x => x.user.id === u.id);
+  if (!link) return `<h3>DOPS</h3><p class="hint">Inte kopplat till något DOPS-konto.${sugg ? ` Förslag: <strong>${esc(sugg.dops.name)}</strong> (${sugg.by === 'email' ? 'samma e-post' : 'samma namn'}).` : ''} Kopplas i listan <em>DOPS-konton</em> på sidan Användare.</p>`;
+  const x = link.dops;
+  if (!x) return `<h3>DOPS</h3><p class="err">Kopplat DOPS-konto finns inte längre.</p>`;
+  const diff = [];
+  if (link.diffs.includes('admin')) diff.push(`Admin: ${x.admin ? 'ja' : 'nej'} i DOPS`);
+  if (link.diffs.includes('studierektor')) diff.push(`Studierektor: ${x.director ? 'ja' : 'nej'} i DOPS`);
+  if ((u.jobRole || '') !== (x.jobRole || '')) diff.push(`Yrkesroll i DOPS: ${esc(x.jobRole || '–')}`);
+  return `<h3>DOPS</h3>
+    <div class="role-info"><strong>Kopplat till</strong><small>${esc(x.name)} · ${esc(x.email || 'ingen e-post')}</small></div>
+    <label class="role-row"><span><strong>Användarroll i DOPS</strong><small>Blandbild registrerar och tar emot, Registrerare bara registrerar, Mottagare bara tar emot.</small></span>
+      <select id="up-dopsrole" data-dops="${esc(x.id)}" style="max-width:140px">${['Blandbild', 'Registrerare', 'Mottagare'].map(r => `<option${r === x.userRole ? ' selected' : ''}>${r}</option>`).join('')}</select></label>
+    ${diff.length ? `<p class="hint">Skiljer sig i DOPS-appen: ${diff.join(' · ')}. Förs över när ST-Lotsen får skriva i DOPS-appens databas.</p>` : ''}`;
+}
+
 function drawUserPanel() {
   const p = _admin.panel;
   let title, body, foot = '';
@@ -304,17 +325,21 @@ function drawUserPanel() {
         <label for="up-email">E-post</label><input type="email" id="up-email" value="${esc(u.email || '')}" maxlength="120" autocapitalize="none" spellcheck="false">
         <div class="row" style="margin-top:12px"><button class="btn" onclick="saveUserDetails()" ${locked ? 'disabled' : ''}>Spara</button></div>`,
       roller: `
-        <h3>Klinik</h3>
+        <h3>Klinik <small class="muted" style="font-weight:normal">— gäller alla moduler</small></h3>
         ${roleRow('Admin', 'Hanterar användare, moduler och alla inställningar på kliniken.', 'admin', u.isAdmin, fixed, why)}
+        ${roleRow('Studierektor', 'Ställer in ST-utbildningen och DOPS och ser alla ST-läkare och deras bedömningar.', 'director', u.isDirector, locked, '')}
+        <label class="role-row"><span><strong>Yrkesroll</strong><small>Samma i alla moduler. ST = ST-läkare med utbildningsplan.</small></span>
+          <select id="up-jobrole" style="max-width:140px"${locked ? ' disabled' : ''}>${[['', '–'], ['ST', 'ST-läkare'], ['BT', 'BT-läkare'], ['AT', 'AT-läkare'], ['Spec', 'Specialist'], ['Annan', 'Annan']]
+            .map(([v, l]) => `<option value="${v}"${v === (u.jobRole || (u.isSt ? 'ST' : '')) ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
         ${mods().includes('opjour') ? `<h3>Opjour</h3>
-        ${roleRow('Reserv', 'Ingår i utlottningen när ingen har bokat dagen. Personen kan också slå på det själv.', 'reserve', u.availableReserve, locked, '')}
+        ${roleRow('Bokar opjour', 'Av = visningsläge: ser vem som har opjour men bokas inte och är inte reserv (t.ex. överläkare).', 'opjour', !u.opjourView, locked, '')}
+        ${roleRow('Reserv', 'Ingår i utlottningen när ingen har bokat dagen. Personen kan också slå på det själv.', 'reserve', u.availableReserve, locked || u.opjourView, u.opjourView ? 'Visningsläge — kan inte vara reserv.' : '')}
         ${roleRow('Statistik', u.isAdmin ? 'Ser sidan Statistik — admin ser den alltid.' : 'Ser sidan Statistik.', 'stats', u.isAdmin || u.canSeeStats, u.isAdmin || locked, '')}` : ''}
         ${st ? `<h3>ST-utbildning</h3>
-        ${roleRow('ST-läkare', 'Syns i veckoschemat och måluppfyllelsen och har en utbildningsplan.', 'st', u.isSt, locked, '')}
-        ${roleRow('Studierektor', 'Ställer in ST-utbildningen (krav, typer, delmål, handledare) och ser alla ST-läkare.', 'director', u.isDirector, locked, '')}
         <div class="role-info"><strong>Handledare för</strong><small>${adepts.length ? adepts.map(a => esc(a.displayName)).join(', ') : 'ingen'}</small></div>
         ${u.isSt ? `<div class="role-info"><strong>Handledare</strong><small>${(u.supervisorIds || []).length ? u.supervisorIds.map(id => esc(nameOf(id))).join(', ') : 'ingen angiven'}</small></div>` : ''}
-        <p class="hint">ST-start, målbeskrivning och handledare ändras under <a href="#/st/personer">ST-utbildning → Inställningar</a>.</p>` : ''}`,
+        <p class="hint">ST-start, målbeskrivning och handledare: <a href="#/installningar/st/personer">Inställningar → ST-utbildning</a>.</p>` : ''}
+        ${mods().includes('dops') ? dopsUserSection(u) : ''}`,
       konto: `
         ${roleRow('Aktiv', 'Ett inaktivt konto kan inte logga in. Bokningar och historik ligger kvar.', 'active', u.active, fixed, why)}
         <h3>PIN</h3>
@@ -345,6 +370,8 @@ function drawUserPanel() {
   });
   root.addEventListener('change', e => {
     const box = e.target.closest('input[data-r]'); if (box) onRoleChange(box);
+    if (e.target.id === 'up-jobrole') panelAction(() => api('/admin/users/' + encodeURIComponent(_admin.panel.id), { method: 'PATCH', body: { jobRole: e.target.value } }), 'Yrkesrollen är sparad.');
+    if (e.target.id === 'up-dopsrole') panelAction(() => api('/dops/app/users/' + encodeURIComponent(e.target.dataset.dops), { method: 'PATCH', body: { userRole: e.target.value } }), 'Sparat i DOPS.');
     if (e.target.name === 'mg-keep') { _admin.panel.keep = e.target.value; drawUserPanel(); }
   });
   document.body.appendChild(root);
@@ -369,6 +396,7 @@ function onRoleChange(box) {
   if (a === 'active' && !on && !confirm(`Inaktivera ${u.displayName}? Kontot kan inte längre logga in. Befintliga bokningar ligger kvar i kalendern.`)) { box.checked = true; return; }
   const patch = body => api('/admin/users/' + encodeURIComponent(u.id), { method: 'PATCH', body });
   panelAction(() => a === 'reserve' ? api('/reserve', { method: 'PUT', body: { available: on, userId: u.id } })
+    : a === 'opjour' ? patch({ opjourView: !on })
     : patch({ [{ admin: 'isAdmin', stats: 'canSeeStats', st: 'isSt', director: 'isDirector', active: 'active' }[a]]: on }), 'Sparat.');
 }
 
@@ -577,6 +605,7 @@ function onUserChange(e) {
   if (a === 'active' && !on && !confirm(`Inaktivera ${u.displayName}? Kontot kan inte längre logga in. Befintliga bokningar ligger kvar i kalendern.`)) { box.checked = true; return; }
   userAction(d, id => {
     if (a === 'reserve') return api('/reserve', { method: 'PUT', body: { available: on, userId: id } });
+    if (a === 'opjour') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { opjourView: !on } });
     if (a === 'stats') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { canSeeStats: on } });
     if (a === 'admin') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { isAdmin: on } });
     if (a === 'st') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { isSt: on } });
@@ -588,9 +617,9 @@ function onUserChange(e) {
 // ── Moduler (klinikens admin) ────────────────────────────────────────────
 const MODULE_INFO = [
   ['opjour', 'Opjour', 'Operationsjourlinjen: kalender, bokning, reserv och visningsskärm.'],
-  ['schema', 'Planering', 'Veckoschemat: ST-gruppens schema vecka för vecka med raden "I tjänst" och bemanningsvarning. Aktivitetstyper ställs in under Planering → Inställningar.'],
+  ['schema', 'Planering', 'Veckoschemat: ST-gruppens schema vecka för vecka med raden "I tjänst" och bemanningsvarning. Aktivitetstyper ställs in under Inställningar → Planering.'],
   ['mal', 'ST-utbildning', 'Måluppfyllelse, individuella utbildningsplaner, krav per ST-år och delmål. Status hämtas ur veckoschemat och det som anges för hand.'],
-  ['dops', 'DOPS', 'Bedömningar (DOPS, Mini-CEX m.fl.): fliken DOPS med progress, och kopplingen av klinikens konton (Administration → DOPS-konton). Under parallellkörningen läses DOPS-appens databas; registrering slås på senare.']
+  ['dops', 'DOPS', 'Bedömningar (DOPS, Mini-CEX m.fl.): fliken DOPS med progress, och kopplingen av klinikens konton (Inställningar → Användare). Under parallellkörningen läses DOPS-appens databas; registrering slås på senare.']
 ];
 
 function moduleCard() {

@@ -1,4 +1,4 @@
-// ── Opjour → Inställningar (#/opjour-settings) ───────────────────────────
+// ── Inställningar → Opjour (#/opjour-settings) ───────────────────────────
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser() och js/admin.js (_admin, userBlock, quickSwitch,
 // onUserClick, onUserChange, noticeCard, sortedRoster, randomPin, suggestUsername). Endast för admin.
 // Allt som bara gäller opjourlinjen: jourbyte, vem som är reserv, vem som ser statistiken och väggskärmarna (visningskonton).
@@ -10,6 +10,7 @@ async function renderOpSettings(root) {
     setMenuForUser(me);
     if (!me.isAdmin) { location.hash = '#/'; return; }
     _admin = { me, draw: drawOpSettings, open: new Set(), notice: null, pin: randomPin(), userTouched: false };
+    _admin.sheet = await api('/admin/sheet').catch(() => null);
     drawOpSettings(root);
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
@@ -19,27 +20,16 @@ async function renderOpSettings(root) {
 function drawOpSettings(root) {
   const roster = sortedRoster();
   const people = roster.filter(u => u.active && !u.isDisplay), screens = roster.filter(u => u.isDisplay);
-  const reserves = people.filter(u => u.availableReserve).length, stats = people.filter(u => u.isAdmin || u.canSeeStats).length;
   root.innerHTML = `
-    <h1 class="page">Inställningar för Opjour</h1>
+    <h1 class="page">Opjour</h1>
 
     ${noticeCard()}
 
     ${shiftCard()}
 
-    <div class="card">
-      <h2>Reserv och statistik</h2>
-      <p class="muted" style="margin:0 0 8px"><strong>Reserv:</strong> ingår i utlottningen när ingen har bokat (var och en kan också slå på det själv i kalendern).
-        <strong>Statistik:</strong> ser sidan Statistik — admin ser den alltid. ${reserves} reserv${reserves === 1 ? '' : 'er'} · ${stats} med statistik.</p>
-      <div class="ulist">${people.map(u => {
-        const locked = u.isGlobalAdmin && !_admin.me.isGlobalAdmin;
-        return `<div class="ublock" data-id="${esc(u.id)}"><div class="uhead">
-          <span class="uinfo plain"><span class="uname">${esc(u.displayName)}${u.id === _admin.me.userId ? ' <span class="muted">(du)</span>' : ''}</span>
-            <span class="uuser">${esc(u.username || '')}</span></span>
-          <div class="qsws">${quickSwitch('Reserv', 'reserve', u.availableReserve, locked, '')}${quickSwitch('Statistik', 'stats', u.isAdmin || u.canSeeStats, u.isAdmin || locked, u.isAdmin ? 'Admin ser alltid statistiken.' : '')}</div>
-        </div><div class="status" data-s></div></div>`;
-      }).join('') || '<p class="muted">Inga aktiva användare.</p>'}</div>
-    </div>
+    ${_admin.sheet ? sheetCard() : ''}
+
+    <p class="hint" style="margin:-4px 0 14px">Vem som bokar opjour, är reserv eller ser statistiken ställs in per person under <a href="#/installningar/anvandare">Inställningar → Användare</a>.</p>
 
     <div class="card">
       <h2>Väggskärmar (${screens.length})</h2>
@@ -106,3 +96,77 @@ async function saveShiftChange() {
   } catch (err) { done(err.message, false); }
 }
 
+
+// ── Synk från nuvarande opjoursystemet (Google-formuläret) ────────────────
+// Tills ST-Lotsen ersätter formuläret hålls kalendern, historiken och reservlistan uppdaterade från arket. Arket gäller helt och
+// hållet: bokningar som inte stämmer med arket ändras eller avbokas. Automatisk synk körs när kalendern visas, högst var 10:e minut.
+function sheetCard() {
+  const s = _admin.sheet, st = s.status;
+  const people = sortedRoster().filter(u => !u.isDisplay);
+  const unknown = s.names.filter(n => !n.userId);
+  const when = iso => iso ? new Date(iso).toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' }) : '';
+  const last = !st ? '<span class="muted">Ingen synk har körts än.</span>'
+    : st.error ? `<span class="err">Senaste synken misslyckades ${esc(when(st.at))}: ${esc(st.error)}</span>`
+    : `Senast ${esc(when(st.at))}: ${st.inserted} bokade, ${st.cancelled} avbokade, ${st.reserveChanged} reservändringar.${st.unknown?.length ? ` <span class="err">Okända namn: ${esc(st.unknown.join(', '))}.</span>` : ''}`;
+  return `<div class="card">
+      <h2>Synk från Google-formuläret</h2>
+      <p class="muted" style="margin:0 0 8px">Tills ST-Lotsen ersätter det nuvarande opjoursystemet hämtas bokningar (med historik) och reservlistan från arket.
+        Arket gäller helt och hållet: bokningar här som inte stämmer med arket ändras eller avbokas, även sådana som gjorts i ST-Lotsen. Dagar med okända namn lämnas orörda.
+        Klistra in arkens publiceringslänkar (Arkiv → Dela → Publicera på webben).</p>
+      <label for="sh-claims">Formulärsvaren (Timestamp, Namn, Annat datum)</label>
+      <input type="text" inputmode="url" id="sh-claims" value="${esc(s.claimsUrl)}" placeholder="https://docs.google.com/spreadsheets/d/e/…/pubhtml?gid=…">
+      <label for="sh-res">Reservlistan (Namn, Last response)</label>
+      <input type="text" inputmode="url" id="sh-res" value="${esc(s.reserveUrl)}" placeholder="https://docs.google.com/spreadsheets/d/e/…/pubhtml?gid=0">
+      <label class="role-row" style="margin-top:10px"><span><strong>Automatisk synk</strong><small>När kalendern visas, högst var 10:e minut.</small></span>${sw('id="sh-on"', s.on)}</label>
+      <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="saveSheet()">Spara</button>
+        <button class="btn-ghost" onclick="sheetRun(true)">Förhandsgranska</button>
+        <button class="btn-ghost" onclick="sheetRun(false)">Synka nu</button>
+      </div>
+      <p style="margin:10px 0 0;font-size:14px">${last}</p>
+      <div id="sh-preview"></div>
+      ${s.names.length ? `<details style="margin-top:12px"${unknown.length ? ' open' : ''}><summary style="cursor:pointer;font-weight:bold">Namn i arket (${s.names.length}${unknown.length ? `, ${unknown.length} okända` : ''})</summary>
+        <p class="hint">Vem namnet i arket är i ST-Lotsen. Okända namn hoppas över tills de kopplas.</p>
+        ${s.names.map(n => `<div class="pass-card"><span>${esc(n.label)}${n.userId ? '' : ' <span class="err">okänd</span>'}</span>
+          <select data-sheet-name="${esc(n.key)}" style="max-width:240px"><option value="">— ingen —</option>
+          ${people.map(u => `<option value="${esc(u.id)}"${u.id === n.userId ? ' selected' : ''}>${esc(u.displayName)}${u.active ? '' : ' (inaktiv)'}</option>`).join('')}</select></div>`).join('')}
+      </details>` : ''}
+    </div>`;
+}
+
+async function saveSheet() {
+  try {
+    await api('/admin/sheet', { method: 'PUT', body: { claimsUrl: el('sh-claims').value, reserveUrl: el('sh-res').value, on: el('sh-on').checked } });
+    _admin.sheet = await api('/admin/sheet');
+    drawOpSettings(el('view'));
+    toast('Synkinställningarna är sparade.');
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function sheetRun(dryRun) {
+  if (!dryRun && !confirm('Synka nu? Bokningar och reservlistan uppdateras från arket.')) return;
+  const box = el('sh-preview');
+  box.innerHTML = '<p class="muted">Hämtar arket…</p>';
+  try {
+    const r = await api('/admin/sheet/' + (dryRun ? 'preview' : 'sync'), { method: 'POST' });
+    _admin.sheet = await api('/admin/sheet');
+    if (!dryRun) { await reloadAdmin(); toast(`Synkat: ${r.inserted} bokade, ${r.cancelled} avbokade, ${r.reserveChanged} reservändringar.`); return; }
+    drawOpSettings(el('view'));
+    el('sh-preview').innerHTML = `<div class="notice card" style="margin-top:10px">
+      <strong>Förhandsgranskning</strong> — inget är ändrat. ${r.days} jourdagar i arket, ${r.same} stämmer redan.
+      <br>Skulle boka ${r.inserted}${r.replaced ? ` (varav ${r.replaced} i stället för en annan person)` : ''}, avboka ${r.cancelled} och ändra reservstatus för ${r.reserveChanged}.
+      ${r.unknown.length ? `<br><span class="err">Okända namn (hoppas över): ${esc(r.unknown.join(', '))}</span>` : ''}
+      ${r.changes.length ? `<details style="margin-top:6px"><summary style="cursor:pointer">Senaste ${r.changes.length} bokningarna</summary>${r.changes.map(c => `<div>${esc(c.date)} ${esc(c.name)}${c.replaces ? ' <span class="muted">(ersätter annan)</span>' : ''}</div>`).join('')}</details>` : ''}
+      ${r.reserves.length ? `<div style="margin-top:6px">Reserv: ${r.reserves.map(x => `${esc(x.name)} ${x.reserve ? 'på' : 'av'}`).join(', ')}</div>` : ''}
+    </div>`;
+  } catch (err) { box.innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+}
+
+document.addEventListener('change', async e => {
+  const sel = e.target.closest?.('[data-sheet-name]'); if (!sel) return;
+  try {
+    await api('/admin/sheet/names', { method: 'PUT', body: { key: sel.dataset.sheetName, userId: sel.value || null } });
+    _admin.sheet = await api('/admin/sheet');
+    toast('Kopplingen är sparad.');
+  } catch (err) { toast(err.message, 'err'); }
+});

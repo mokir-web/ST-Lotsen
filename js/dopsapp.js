@@ -20,8 +20,10 @@ async function dopsStart(root, title) {
 }
 // Undersidor som beror på behörigheten i DOPS (Studierektor/Administratör).
 function dopsNav(dme) {
+  el('nav-dops-registrera')?.classList.toggle('hidden', dme.userRole === 'Mottagare');
   el('nav-dops-kliniken')?.classList.toggle('hidden', !dopsPriv(dme));
   el('nav-dops-statistik')?.classList.toggle('hidden', !dopsPriv(dme));
+  el('nav-dops-installningar')?.classList.toggle('hidden', !dopsPriv(dme));
   el('nav-dops-dokument')?.classList.toggle('hidden', !(dme.privileges || []).some(p => p.privilege === 'Administratör'));
 }
 const dopsFail = (root, title, err) => { root.innerHTML = `<h1 class="page">${title}</h1><p class="err">${esc(err.message)}</p>`; };

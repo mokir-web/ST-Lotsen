@@ -69,12 +69,12 @@ async function stepCalendar(n) {
 
 function actingUser() {
   const { me, acting } = _app;
-  const self = { id: me.userId, displayName: me.displayName, availableReserve: me.availableReserve };
+  const self = { id: me.userId, displayName: me.displayName, availableReserve: me.availableReserve, opjourView: me.opjourView };
   if (acting === me.userId) return self;
   return (me.roster || []).find(u => u.id === acting) || self;
 }
 
-const hasInterests = () => !!_app.cal.interestsByDate;
+const hasInterests = () => !_app.cal.sheetSync && !!_app.cal.interestsByDate;   // inga intresseanmälningar medan formuläret gäller
 const interestsFor = d => (_app.cal.interestsByDate && _app.cal.interestsByDate[d]) || [];
 const claimFor = d => _app.cal.claims.find(c => c.serviceDate === d);
 const inWindow = d => d >= _app.cal.window.fromISO && d <= _app.cal.window.toISO;
@@ -91,7 +91,7 @@ function drawApp(root) {
 
   let adminBar = '';
   if (me.isAdmin) {
-    const opts = (me.roster || []).filter(u => u.active && !u.isDisplay).map(u =>
+    const opts = (me.roster || []).filter(u => u.active && !u.isDisplay && !u.opjourView).map(u =>
       `<option value="${esc(u.id)}"${u.id === _app.acting ? ' selected' : ''}>${esc(u.displayName)}${u.id === me.userId ? ' (jag)' : ''}</option>`
     ).join('');
     adminBar = `<div class="card"><label for="acting" style="margin-top:0">Boka / anmäl åt</label>
@@ -122,9 +122,14 @@ function drawApp(root) {
   const atDefault = _app.view.start === defaultView(cal.todayISO).start && _app.view.weeks === defaultView(cal.todayISO).weeks;
 
   root.innerHTML = `
-    ${adminBar}
+    ${cal.sheetSync ? '' : adminBar}
 
-    <div class="card">
+    ${cal.sheetSync ? `<div class="card notice"><strong>Opjouren bokas fortfarande i Google-formuläret.</strong>
+      Kalendern här visar det som står där, inklusive reserverna, och uppdateras automatiskt. Boka, avboka och ändra reservstatus i formuläret som vanligt.</div>` : ''}
+
+    ${acting.opjourView && !cal.sheetSync ? `<div class="card notice">${isSelf ? 'Du är' : esc(acting.displayName) + ' är'} i <strong>visningsläge</strong> för Opjour: ser vem som har opjour men bokas inte och är inte reserv.</div>` : ''}
+
+    <div class="card${cal.sheetSync || acting.opjourView ? ' hidden' : ''}">
       <label class="switch-row">
         <span>${isSelf ? 'Jag är tillgänglig som reserv' : esc(acting.displayName) + ' är tillgänglig som reserv'}
           <span class="sub">Reserven rullar dag för dag bland dem som är på. Stäng av om du inte kan ta jouren.</span></span>
@@ -136,7 +141,7 @@ function drawApp(root) {
     <div class="card">
       <h2>Kalender</h2>
       <p class="muted" style="margin-top:-4px;font-size:13px">
-        Tryck på en dag för att boka${hasInterests() ? ' eller anmäla intresse' : ''}. Passerade dagar går att titta på men inte ändra. Är texten i en ruta för lång visas resten när du trycker på den.
+        ${cal.sheetSync ? 'Tryck på en dag för att se den.' : `Tryck på en dag för att boka${hasInterests() ? ' eller anmäla intresse' : ''}. Passerade dagar går att titta på men inte ändra.`} Är texten i en ruta för lång visas resten när du trycker på den.
       </p>
       <div class="cal-nav">
         <button class="btn-ghost" data-nav="-1" aria-label="Föregående vecka">‹ Föregående vecka</button>
@@ -222,7 +227,11 @@ function drawSheet() {
   }
 
   let actions = '';
-  if (isPast) {
+  if (_app.cal.sheetSync) {
+    actions = '<p class="hint">Opjouren bokas fortfarande i Google-formuläret. Ändringar görs där och syns här inom tio minuter.</p>';
+  } else if (acting.opjourView) {
+    actions = '<p class="hint">Visningsläge — bokas inte i Opjour.</p>';
+  } else if (isPast) {
     actions = '<p class="hint">Passerade dagar går inte att ändra.</p>';
   } else if (!claim) {
     actions += `<button class="btn btn-block" data-sheet="book">${isSelf ? 'Ta opjour' : 'Boka åt ' + esc(acting.displayName)}</button>`;

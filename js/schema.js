@@ -30,6 +30,7 @@ async function renderSchema(root) {
 
 async function reloadSchema() {
   _sch.data = await api(`/schema?from=${_sch.from}&weeks=${SCH_WEEKS}`);
+  _sch.yearData = null;   // årsvyn hämtas om nästa gång den visas
   drawSchema(el('view'));
 }
 
@@ -61,7 +62,7 @@ function schList(weeks, byCell) {
   const { data } = _sch;
   const mine = _sch.view === 'me';
   const people = mine ? data.people.filter(p => p.id === data.me) : data.people;
-  return `<div class="wk-list">${weeks.map(m => {
+  const week = m => {
     const rows = people.map(p => {
       const acts = byCell.get(p.id + '|' + m) || [];
       const inSt = data.inServiceByPerson[p.id][m] !== null;
@@ -73,7 +74,22 @@ function schList(weeks, byCell) {
     return `<div class="wk${m === data.thisMonday ? ' now' : ''}"><h3><span>v${isoWeek(m)} · ${fmtDM(m)}</span>
       <span class="svcn${schLow(m) ? ' low' : ''}">${data.inService[m]} i tjänst${schLow(m) ? ` (minst ${data.minInService})` : ''}</span></h3>
       ${rows || '<div class="wk-row out">Inga aktiviteter inlagda</div>'}</div>`;
-  }).join('')}</div>`;
+  };
+  if (!mine || !people.length) return `<div class="wk-list">${weeks.map(week).join('')}</div>`;
+  // Läget Jag: veckor i följd i tjänst utan aktivitet slås ihop till en rad, t.ex. "v45–v53 · i tjänst" (granskning G6).
+  const p = people[0];
+  const quiet = m => data.inServiceByPerson[p.id][m] !== null && !(byCell.get(p.id + '|' + m) || []).length && m !== data.thisMonday && !schLow(m);
+  const out = [];
+  for (let i = 0; i < weeks.length; i++) {
+    let j = i;
+    if (quiet(weeks[i])) while (j + 1 < weeks.length && quiet(weeks[j + 1])) j++;
+    if (j === i) { out.push(week(weeks[i])); continue; }
+    const edit = schCanEdit(p.id);
+    out.push(`<div class="wk"><button type="button" class="wk-row${edit ? ' edit' : ''}"${edit ? ` data-p="${esc(p.id)}" data-w="${weeks[i]}"` : ' disabled'}>
+      <span>v${isoWeek(weeks[i])}–v${isoWeek(weeks[j])} · ${fmtDM(weeks[i])}–${fmtDM(addDaysISO(weeks[j], 6))}</span><span class="muted">– i tjänst –</span></button></div>`);
+    i = j;
+  }
+  return `<div class="wk-list">${out.join('')}</div>`;
 }
 
 // Dra över veckor i en rad: markera från första till sista rutan och öppna "Ny aktivitet" med period ifylld.
@@ -108,6 +124,46 @@ function schDragSetup(root) {
   table.addEventListener('pointerleave', () => { if (start && cur !== start.w) finish(); else { start = cur = null; table.classList.remove('dragging'); paint(); } });
 }
 
+// ── Årsöversikt: en rad per ST-läkare, en smal ruta per vecka (färg = aktivitetstypen), hela kalenderåret ──
+// Data från samma /schema (53 veckor från måndagen i vecka 1). Klick på en ruta öppnar tabellen vid den veckan.
+async function loadSchYear(year) {
+  const jan4 = `${year}-01-04`;   // vecka 1 innehåller alltid 4 januari
+  const from = mondayOfISO(jan4);
+  const data = await api(`/schema?from=${from}&weeks=53`);
+  data.window.weeks = data.window.weeks.filter(m => isoWeekYear(m) === year);
+  _sch.year = year; _sch.yearData = data;
+}
+const isoWeekYear = iso => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 3); return d.getUTCFullYear(); };
+
+function schYearView() {
+  const d = _sch.yearData, weeks = d.window.weeks;
+  const typeOf = id => d.types.find(t => t.id === id);
+  const label = a => { const t = typeOf(a.typeId), r = a.requirementId ? d.requirements.find(x => x.id === a.requirementId) : null;
+    return (a.status === 'ev' ? 'Ev. ' : '') + (r ? `${t ? t.code + ': ' : ''}${r.name}` : (t ? t.label : '?')) + (a.detail ? ` · ${a.detail}` : ''); };
+  const months = [];
+  for (const m of weeks) { const mo = +m.slice(5, 7); if (!months.length || months[months.length - 1].mo !== mo) months.push({ mo, n: 1 }); else months[months.length - 1].n++; }
+  const MON = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+  const rows = d.people.map(p => `<tr><th class="pname${p.id === d.me ? ' me' : ''}">${esc(p.displayName)}</th>${weeks.map(m => {
+    const acts = d.activities.filter(a => a.userId === p.id && m >= a.weekFrom && m <= a.weekTo);
+    const out = d.inServiceByPerson[p.id]?.[m] === null;
+    const cols = acts.map(a => typeOf(a.typeId)?.color || '#9aa5ad');
+    const bg = !cols.length ? '' : cols.length === 1 ? cols[0] : `linear-gradient(${cols.map((c, i) => `${c} ${i / cols.length * 100}% ${(i + 1) / cols.length * 100}%`).join(',')})`;
+    const tip = `v${isoWeek(m)} ${fmtDM(m)}${acts.length ? ': ' + acts.map(label).join(' / ') : ''}${out ? ' (utanför ST)' : ''}`;
+    return `<td class="yc${out ? ' out' : ''}${m === d.thisMonday ? ' now' : ''}${acts.some(a => a.status === 'ev') ? ' ev' : ''}" data-w="${m}" title="${esc(tip)}"${bg ? ` style="background:${esc(bg)}"` : ''}></td>`;
+  }).join('')}</tr>`).join('');
+  const svc = weeks.map(m => { const low = d.minInService != null && d.inService[m] < d.minInService;
+    return `<td class="yc ysvc${low ? ' low' : ''}" title="v${isoWeek(m)}: ${d.inService[m]} i tjänst${low ? ` (under ${d.minInService})` : ''}">${d.inService[m]}</td>`; }).join('');
+  return `<div class="sch-scroll"><table class="sch ysch">
+      <thead><tr><th class="pname">${_sch.year}</th>${months.map(x => `<th colspan="${x.n}" class="ymon">${MON[x.mo - 1]}</th>`).join('')}</tr>
+        <tr><th class="pname"></th>${weeks.map(m => `<th class="ywk${m === d.thisMonday ? ' now' : ''}">${isoWeek(m) % 2 ? isoWeek(m) : ''}</th>`).join('')}</tr></thead>
+      <tbody><tr class="svc-row"><th class="pname">I tjänst</th>${svc}</tr>${rows}</tbody></table></div>
+    <p class="hint">Peka på en ruta för att se vad som är inlagt. Klicka för att öppna veckan i tabellen.</p>`;
+}
+
+async function stepSchYear(n) {
+  try { await loadSchYear(_sch.year + n); drawSchema(el('view')); } catch (err) { alert(err.message); }
+}
+
 function drawSchema(root) {
   const { data } = _sch;
   const weeks = data.window.weeks;
@@ -140,7 +196,12 @@ function drawSchema(root) {
   root.innerHTML = `
     <div class="card">
       <h1 class="page" style="margin-top:0">Veckoschema</h1>
-      <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap">
+      ${_sch.view === 'year' ? `<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <button class="btn-ghost" onclick="stepSchYear(-1)">‹ ${_sch.year - 1}</button>
+        <strong>Året ${_sch.year}</strong>
+        <span class="row" style="gap:8px"><button class="btn-ghost" onclick="stepSchYear(${new Date().getFullYear()} - _sch.year)">I år</button>
+          <button class="btn-ghost" onclick="stepSchYear(1)">${_sch.year + 1} ›</button></span>
+      </div>` : `<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap">
         <button class="btn-ghost" onclick="stepSchema(-1)">‹ ${SCH_STEP} veckor</button>
         <strong>v${isoWeek(first)} ${first.slice(0, 4)} – v${isoWeek(last)} ${last.slice(0, 4)}</strong>
         <span class="row" style="gap:8px">
@@ -148,12 +209,12 @@ function drawSchema(root) {
           <button class="btn-ghost" onclick="stepSchema(1)">${SCH_STEP} veckor ›</button>
           ${data.canEditAll ? '<button class="btn-ghost" onclick="openJobImport()" title="Fyll i veckoschemat från jobbschemat (.xlsx)">Importera jobbschema…</button>' : ''}
         </span>
-      </div>
+      </div>`}
       ${data.people.length ? `
-      <div class="seg" id="sch-view" style="margin-top:10px">${[['table', 'Tabell'], ...(data.people.some(p => p.id === data.me) ? [['me', 'Jag']] : []), ['all', 'Alla']].map(([k, l]) =>
+      <div class="seg" id="sch-view" style="margin-top:10px">${[['table', 'Tabell'], ...(data.people.some(p => p.id === data.me) ? [['me', 'Jag']] : []), ['all', 'Alla'], ['year', 'År']].map(([k, l]) =>
         `<button type="button" data-v="${k}" class="${_sch.view === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       ${data.minInService != null ? `<span class="muted" style="font-size:13px;margin-left:8px">Minst ${data.minInService} i tjänst</span>` : ''}
-      ${_sch.view !== 'table' ? schList(weeks, byCell) : `
+      ${_sch.view === 'year' ? schYearView() : _sch.view !== 'table' ? schList(weeks, byCell) : `
       <div class="sch-scroll">
         <table class="sch">
           <thead><tr><th class="pname">ST-läkare</th>${head}</tr></thead>
@@ -162,16 +223,25 @@ function drawSchema(root) {
             ${rows}
           </tbody>
         </table>
-      </div>`}` : `<div class="empty"><p><strong>Inga ST-läkare i perioden.</strong></p><p class="hint">Vem som är ST-läkare och när ST började sätts under ST-utbildning → Inställningar.</p>
-        ${data.canEditAll ? '<a class="btn" href="#/st/personer" style="text-decoration:none">ST-läkare och handledare</a>' : ''}</div>`}
+      </div>`}` : `<div class="empty"><p><strong>Inga ST-läkare i perioden.</strong></p><p class="hint">Vem som är ST-läkare och när ST började sätts under Inställningar → ST-utbildning.</p>
+        ${data.canEditAll ? '<a class="btn" href="#/installningar/st/personer" style="text-decoration:none">ST-läkare och handledare</a>' : ''}</div>`}
       ${types.length ? `<p style="margin:12px 0 0;line-height:2">${legend}<span class="sact ev" style="--c:#9aa5ad">Ev.</span> <span class="muted" style="font-size:13px">preliminär</span></p>`
         : `<div class="empty"><p><strong>Inga aktivitetstyper än.</strong> ${data.canEditAll ? 'Börja med standardtyperna — allt går att ändra efteråt.' : 'Studierektor lägger in dem.'}</p>
-          ${data.canEditAll ? '<a class="btn" href="#/schema/installningar" style="text-decoration:none">Till inställningarna</a>' : ''}</div>`}
-      <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att lägga till eller ändra.' : 'Tryck på en ruta i din egen rad för att lägga till eller ändra.'}
+          ${data.canEditAll ? '<a class="btn" href="#/installningar/planering" style="text-decoration:none">Till inställningarna</a>' : ''}</div>`}
+      <p class="hint${_sch.view === 'year' ? ' hidden' : ''}">${data.canEditAll ? 'Tryck på en ruta för att lägga till eller ändra.' : 'Tryck på en ruta i din egen rad för att lägga till eller ändra.'}
         ${_sch.view === 'table' ? 'Dra över flera veckor i en rad för att lägga in en period.' : ''}</p>
     </div>`;
 
-  el('sch-view')?.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { _sch.view = b.dataset.v; drawSchema(el('view')); } });
+  el('sch-view')?.addEventListener('click', async e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.v === 'year' && !_sch.yearData) { try { await loadSchYear(new Date().getFullYear()); } catch (err) { alert(err.message); return; } }
+    _sch.view = b.dataset.v; drawSchema(el('view'));
+  });
+  // Årsvyn: klick på en vecka → tabellen med den veckan nära början.
+  root.querySelectorAll('.ysch td.yc[data-w]').forEach(td => td.addEventListener('click', async () => {
+    _sch.from = addDaysISO(td.dataset.w, -14); _sch.view = 'table';
+    try { await reloadSchema(); } catch (err) { alert(err.message); }
+  }));
   root.querySelectorAll('.wk-row.edit').forEach(r => r.addEventListener('click', () => { _sch.sheet = { userId: r.dataset.p, monday: r.dataset.w, editing: null }; drawSchemaSheet(); }));
   schDragSetup(root);
 
@@ -220,7 +290,7 @@ function activityForm(a, monday, prefillWeeks) {
   const reqs = _sch.data.requirements.filter(r => r.active || (a && r.id === a.requirementId));
   const cats = [...new Set(reqs.map(r => r.category))];
   const weeks = a ? Math.round((Date.parse(a.weekTo) - Date.parse(a.weekFrom)) / 6048e5) + 1 : prefillWeeks || 1;
-  if (!types.length) return '<p class="hint">Inga aktivitetstyper finns. Studierektor eller admin lägger in dem under Planering → Inställningar.</p>';
+  if (!types.length) return '<p class="hint">Inga aktivitetstyper finns. Studierektor eller admin lägger in dem under Inställningar → Planering.</p>';
   return `
     <h3>${a ? 'Ändra aktivitet' : 'Ny aktivitet'}</h3>
     <label for="af-type" style="margin-top:0">Typ</label>

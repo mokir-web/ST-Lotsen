@@ -1,4 +1,4 @@
-// ── ST-utbildning → Inställningar (#/st/<flik>) och Planering → Inställningar (#/schema/installningar) ──
+// ── Inställningar → ST-utbildning (#/st/<flik>) och Inställningar → Planering (#/schema/installningar) ──
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser(). Global entry: renderStSettings(root).
 //
 // Klinikens egna inställningar för veckoschemat (plattform_plan.md §3, §5): aktivitetstyper (kod, namn, färg, påverkan på
@@ -17,7 +17,7 @@ const effectOptions = (sel, inherit) =>
 const STS_TABS = [['krav', 'Krav'], ['delmal', 'Delmål'], ['personer', 'ST-läkare och handledare']];
 
 async function renderStSettings(root, tab, page = 'st') {
-  if (page === 'st' && tab === 'typer') { location.hash = '#/schema/installningar'; return; }   // gamla länkar
+  if (page === 'st' && tab === 'typer') { location.hash = '#/installningar/planering'; return; }   // gamla länkar
   if (page === 'st' && !STS_TABS.some(t => t[0] === tab)) tab = 'krav';
   root.innerHTML = '<p class="muted">Laddar…</p>';
   try {
@@ -59,10 +59,10 @@ const stsDefaultGoals = () => (_sts.frameworks.find(f => f.id === _sts.cfg.defau
 function drawStSettings(root) {
   const { tab } = _sts;
   root.innerHTML = _sts.page === 'plan' ? `
-    <h1 class="page">Inställningar för planering</h1>
+    <h1 class="page">Planering</h1>
     ${stsTypesTab()}` : `
-    <h1 class="page">Inställningar för ST-utbildning</h1>
-    <nav class="subtabs" aria-label="Flikar">${STS_TABS.map(([k, l]) => `<a href="#/st/${k}"${k === tab ? ' class="active" aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
+    <h1 class="page">ST-utbildning</h1>
+    <nav class="subtabs" aria-label="Flikar">${STS_TABS.map(([k, l]) => `<a href="#/installningar/st/${k}"${k === tab ? ' class="active" aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
     ${tab === 'delmal' ? stsGoalsTab() : tab === 'personer' ? stsPeopleTab() : stsReqTab()}`;
   attachTypeCards(root);
   attachYearBoard(root, { onMove: moveReq, onEdit: id => openReqPanel(id), onAdd: y => openReqPanel(null, y) });
@@ -171,7 +171,7 @@ function openReqPanel(id, year) {
       <h3>Delmål${fw ? ' · ' + esc(fw.label) : ''}</h3>
       ${goals.length ? `<input type="search" id="rp-gsearch" placeholder="Sök delmål…" oninput="filterReqGoals(this.value)" style="max-width:none">
         <div class="goalpick">${goals.map(g => `<label data-txt="${esc((g.code + ' ' + g.text).toLowerCase())}"><input type="checkbox" data-goal="${esc(g.id)}"${(r.goalIds || []).includes(g.id) ? ' checked' : ''}><b>${esc(g.code)}</b><span>${esc(g.text)}</span></label>`).join('')}</div>`
-      : '<p class="hint">Välj en förvald målbeskrivning under fliken <a href="#/st/delmal">Delmål</a> för att koppla delmål.</p>'}
+      : '<p class="hint">Välj en förvald målbeskrivning under fliken <a href="#/installningar/st/delmal">Delmål</a> för att koppla delmål.</p>'}
     </div>
     <div class="sp-foot"><button class="btn" onclick="saveReqPanel(${id ? `'${esc(id)}'` : 'null'})">${id ? 'Spara' : 'Lägg till'}</button>
       <button class="btn-ghost" onclick="closeReqPanel()">Avbryt</button><div class="status err" id="rp-status"></div></div>
@@ -231,8 +231,8 @@ function openGoalPanel(goal, fwLabel, reqs, onSaved) {
       <h3>Krav som räknas till delmålet</h3>
       ${active.length ? `<input type="search" placeholder="Sök krav…" oninput="filterReqGoals(this.value)" style="max-width:none">
         <div class="goalpick reqpick">${cats.map(c => active.filter(r => r.category === c).map(r => `<label data-txt="${esc((r.category + ' ' + r.name).toLowerCase())}"><input type="checkbox" data-req="${esc(r.id)}"${(r.goalIds || []).includes(goal.id) ? ' checked' : ''}><b>${esc(r.category)}</b><span>${esc(r.name)}${r.stYear ? ` <span class="muted">år ${r.stYear}</span>` : ''}${r.mandatory ? '' : ' <span class="muted">*</span>'}</span></label>`).join('')).join('')}</div>
-        <p class="hint">* = valfritt. Saknas en aktivitet läggs den till som krav under fliken <a href="#/st/krav" onclick="closeReqPanel()">Krav</a>.</p>`
-      : '<p class="hint">Kliniken har inga aktiva krav. Lägg till dem under fliken <a href="#/st/krav" onclick="closeReqPanel()">Krav</a>.</p>'}
+        <p class="hint">* = valfritt. Saknas en aktivitet läggs den till som krav under fliken <a href="#/installningar/st/krav" onclick="closeReqPanel()">Krav</a>.</p>`
+      : '<p class="hint">Kliniken har inga aktiva krav. Lägg till dem under fliken <a href="#/installningar/st/krav" onclick="closeReqPanel()">Krav</a>.</p>'}
     </div>
     <div class="sp-foot"><button class="btn" id="gp-save">Spara</button>
       <button class="btn-ghost" onclick="closeReqPanel()">Avbryt</button><div class="status err" id="gp-status"></div></div>
@@ -286,7 +286,7 @@ function stsGoalsTab() {
           <select id="st-vfw" onchange="setStsViewFw(this.value)">${_sts.frameworks.map(f => `<option value="${esc(f.id)}"${f.id === vfw?.id ? ' selected' : ''}>${esc(f.label)}${f.id === _sts.cfg.defaultFrameworkId ? ' (förval)' : ''}</option>`).join('')}${vfw ? '' : '<option value="" selected>– välj –</option>'}</select></div>
       </div>
       ${goals.length ? `<p class="hint"><strong>${covered} av ${goals.length}</strong> delmål har minst ett krav. <strong>Klicka på ett delmål</strong> för att välja vilka
-        krav som räknas till det (det går också att välja delmål genom att klicka på ett krav i fliken <a href="#/st/krav">Krav</a>).
+        krav som räknas till det (det går också att välja delmål genom att klicka på ett krav i fliken <a href="#/installningar/st/krav">Krav</a>).
         Ett delmål kan också uppfyllas på annat sätt — det här är bara klinikens mall.</p>
       <div class="status" id="st-goals-status"></div>
       <div class="sch-scroll"><table class="imp-table goal-cov">
@@ -333,7 +333,7 @@ function stsPeopleTab() {
     ${done.length ? `<div class="card stp"><details><summary style="cursor:pointer;font-weight:bold">Avslutad ST (${done.length})</summary>${done.map(card).join('')}</details></div>` : ''}
     <div class="card stp">
       <h2>Övriga på kliniken (${others.length})</h2>
-      <p class="hint" style="margin-top:0">Kan väljas som handledare. ${_sts.me.isAdmin ? 'Studierektor utses under Administration.' : 'Studierektor utses av admin.'}</p>
+      <p class="hint" style="margin-top:0">Kan väljas som handledare. ${_sts.me.isAdmin ? 'Studierektor utses under Inställningar → Användare.' : 'Studierektor utses av admin.'}</p>
       ${others.map(p => `<div class="stp-row compact" data-id="${esc(p.id)}"><span>${esc(p.displayName)}${p.isDirector ? ' <span class="tagchip">Studierektor</span>' : ''}</span>
         <button class="btn-ghost" data-a="mkst">Gör till ST-läkare</button><div class="status" data-s></div></div>`).join('')}
     </div>`;

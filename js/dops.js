@@ -25,7 +25,8 @@ async function renderBedomningar(root) {
 
 async function loadBedomningar(root) {
   _bed.data = await api('/dops/assessments?recipient=' + encodeURIComponent(_bed.recipient));
-  if (!_bed.data.formTypes.some(t => t.id === _bed.type)) _bed.type = _bed.data.formTypes[0]?.id || null;
+  // Standard: alla formulärtyper. Ett valt formulär behålls om personen har det.
+  if (_bed.type !== 'all' && !_bed.data.formTypes.some(t => t.id === _bed.type)) _bed.type = 'all';
   drawBedomningar(root);
 }
 
@@ -45,10 +46,13 @@ function drawBedomningar(root) {
     ${!types.length ? `<div class="card"><p class="muted" style="margin:0">${_bed.recipient === people.self.id ? 'Du har' : esc(data.recipient.name) + ' har'} inga bedömningar i DOPS än.</p></div>` : `
     <div class="card">
       <h2 style="margin-top:0">${esc(data.recipient.name)}</h2>
-      <div class="bed-types">${types.map(x => `<button type="button" class="bed-type${x.id === _bed.type ? ' on' : ''}" data-t="${esc(x.id)}">
+      <div class="bed-types"><button type="button" class="bed-type${_bed.type === 'all' ? ' on' : ''}" data-t="all">
+        <strong>Alla formulär</strong><span class="muted">${types.reduce((n, x) => n + x.count, 0)} st · ${types.length} formulär</span></button>${types.map(x => `<button type="button" class="bed-type${x.id === _bed.type ? ' on' : ''}" data-t="${esc(x.id)}">
         <strong>${esc(x.name)}</strong><span class="muted">${x.count} st · senast ${bedDate(x.last)}</span></button>`).join('')}</div>
     </div>
-    ${t ? bedTypeDetail(t) : ''}`}`;
+    <div class="card" id="bed-ai"><h2 style="margin-top:0">AI-sammanställning</h2><p class="muted" style="margin:0">Hämtar…</p></div>
+    ${_bed.type === 'all' ? types.map(x => `<h2 class="bed-section">${esc(x.name)} <span class="muted" style="font-weight:normal;font-size:14px">${x.count} st</span></h2>${bedTypeDetail(x)}`).join('') : t ? bedTypeDetail(t) : ''}`}`;
+  if (types.length) loadBedAi();
   root.querySelector('.bed-types')?.addEventListener('click', e => {
     const b = e.target.closest('[data-t]'); if (!b) return;
     _bed.type = b.dataset.t; drawBedomningar(root);
@@ -115,4 +119,68 @@ function bedRadio(q, list) {
       <div class="bed-head"><strong>${esc(q.question)}</strong><span class="muted">n=${answers.length}</span><span class="muted">senast: ${esc(answers[answers.length - 1])}</span></div>
       ${q.options.map(o => { const n = answers.filter(a => a === o).length; return `<div class="bed-bar"><span>${esc(o)}</span><div><i style="width:${(n / max * 100).toFixed(0)}%"></i></div><span>${n}</span></div>`; }).join('')}
     </div>`;
+}
+
+// ── AI-sammanställning (DOPS-appens progress/ai-summary) ─────────────────
+// För vald formulärtyp eller alla. Sparade sammanställningar visas; en ny kräver att ST-Lotsen får spara i DOPS-appens databas
+// (servern kontrollerar det innan Claude anropas, så ett låst försök kostar inget) och att AI är konfigurerat i backend.
+const bedAiType = () => _bed.type === 'all' ? '' : (_bed.data.formTypes.find(t => t.id === _bed.type)?.name || '');
+
+function bedMd(md) {
+  let out = '', list = false;
+  for (const raw of String(md || '').split('\n')) {
+    const line = esc(raw).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    const li = line.match(/^\s*[-*] (.*)$/);
+    if (li) { if (!list) { out += '<ul>'; list = true; } out += `<li>${li[1]}</li>`; continue; }
+    if (list) { out += '</ul>'; list = false; }
+    const h = line.match(/^#{1,4} (.*)$/);
+    out += h ? `<h3 style="margin:12px 0 4px">${h[1]}</h3>` : line.trim() ? `<p style="margin:4px 0">${line}</p>` : '';
+  }
+  return out + (list ? '</ul>' : '');
+}
+
+async function loadBedAi() {
+  const box = el('bed-ai'); if (!box) return;
+  const email = _bed.data.recipient.email, ft = bedAiType();
+  let hist = null;
+  try { hist = await dopsApi('/progress/ai-summaries?' + new URLSearchParams({ recipientEmail: email, formType: ft })); } catch { hist = { items: [] }; }
+  const last = hist.items?.[0];
+  box.innerHTML = `<h2 style="margin-top:0">AI-sammanställning <span class="muted" style="font-weight:normal;font-size:14px">${ft ? esc(ft) : 'alla formulär'}</span></h2>
+    ${last ? `<p class="muted" style="margin:0 0 6px">Sparad ${esc(last.createdAt)} · ${last.assessmentCount} bedömningar${hist.newSinceLatest ? ` · <strong>${hist.newSinceLatest} nya sedan dess</strong>` : ''}</p>
+      <div class="bed-free">${bedMd(last.content)}</div>` : '<p class="muted" style="margin:0 0 6px">Ingen sammanställning gjord än.</p>'}
+    <div class="row" style="margin-top:8px"><button class="btn-ghost" id="bed-ai-run">Gör ny sammanställning</button></div>
+    <div id="bed-ai-out"></div>`;
+  el('bed-ai-run').onclick = () => runBedAi(email, ft);
+}
+
+// Svaret strömmas som NDJSON ({t:'delta',text} … {t:'done'} / {t:'error'}); fel före strömmen kommer som vanlig JSON.
+async function runBedAi(email, ft) {
+  const out = el('bed-ai-out'), btn = el('bed-ai-run');
+  btn.disabled = true; out.innerHTML = '<p class="muted">Läser underlaget och analyserar…</p>';
+  try {
+    const res = await fetch(API_BASE + '/dops/app/progress/ai-summary', { method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + state.token }, body: JSON.stringify({ recipientEmail: email, formType: ft }) });
+    if (!res.ok || !(res.headers.get('content-type') || '').includes('ndjson')) {
+      const d = await res.json().catch(() => ({}));
+      if (d.summary) { out.innerHTML = `<p>${esc(d.summary)}</p>`; return; }
+      throw new Error(d.error || 'HTTP ' + res.status);
+    }
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = '', text = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 1);
+        if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.t === 'delta') { text += ev.text; out.innerHTML = `<div class="bed-free">${bedMd(text)}</div>`; }
+        else if (ev.t === 'error') throw new Error(ev.error);
+        else if (ev.t === 'done') { await loadBedAi(); return; }
+      }
+    }
+  } catch (err) { out.innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+  finally { if (el('bed-ai-run')) el('bed-ai-run').disabled = false; }
 }

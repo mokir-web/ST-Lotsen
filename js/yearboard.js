@@ -1,5 +1,5 @@
 // ── Kraven per ST-år (K3) ────────────────────────────────────────────────
-// Klassiskt script. Beror på index.html: esc(). Delas av ST-utbildning → Inställningar → Krav (redigerbar) och utbildningsplanen
+// Klassiskt script. Beror på index.html: esc(). Delas av Inställningar → ST-utbildning → Krav (redigerbar) och utbildningsplanen
 // (läsläge med status per krav), så att studierektorn redigerar i samma vy som ST-läkaren ser.
 //   yearBoardHtml(reqs, { editable, add (standard true; false = inga "+ Krav"-knappar), status(r) → html|'' , detail(r) → html|'' })
 //   attachYearBoard(rootEl, { onMove(id, year|null), onEdit(id), onAdd?(year|null) })   — bara i redigerbart läge

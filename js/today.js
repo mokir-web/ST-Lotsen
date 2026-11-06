@@ -13,13 +13,14 @@ async function renderToday(root) {
     setMenuForUser(me);
     const mods = me.modules || ['opjour'], today = todayStockholm(), monday = mondayOfISO(today);
     const soft = p => p ? p.catch(() => null) : Promise.resolve(null);
-    const [cal, sch, plan, todo] = await Promise.all([
+    const [cal, sch, plan, todo, dops] = await Promise.all([
       soft(mods.includes('opjour') ? api(`/calendar?start=${monday}&weeks=1`) : null),
       soft(mods.includes('schema') && (me.isSt || me.isDirector || me.isAdmin) ? api(`/schema?from=${monday}&weeks=12`) : null),
       soft(mods.includes('mal') && me.isSt ? api('/plan/me') : null),
-      soft(api('/today/todo'))
+      soft(api('/today/todo')),
+      soft(mods.includes('dops') && me.dopsUser ? api('/dops/app/overview') : null)
     ]);
-    drawToday(root, { me, mods, today, cal, sch, plan, todo });
+    drawToday(root, { me, mods, today, cal, sch, plan, todo, dops });
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }
@@ -33,7 +34,7 @@ function greeting() {
 function drawToday(root, d) {
   const { me, today } = d;
   const first = (me.displayName || '').split(' ')[0];
-  const cards = [todoCard(d), opjourCard(d), myWeekCard(d), staffingCard(d), progressCard(d)].filter(Boolean);
+  const cards = [todoCard(d), opjourCard(d), myWeekCard(d), staffingCard(d), progressCard(d), todayDopsCard(d)].filter(Boolean);
   root.innerHTML = `
     <h1 class="page" style="margin-bottom:2px">${greeting()}${first ? ', ' + esc(first) : ''}</h1>
     <p class="muted" style="margin:0 0 14px">${esc(fmtDateLong(today))} · vecka ${isoWeek(today)}</p>
@@ -108,4 +109,24 @@ function progressCard({ plan }) {
     ${goals.length ? `<p style="margin:4px 0 0">${covered} av ${goals.length} delmål med alla kopplade krav klara</p>` : ''}
     ${p.stMonths != null ? `<p class="muted" style="margin:4px 0 0">ST-år ${Math.floor(p.stMonths / 12) + 1}, månad ${p.stMonths} av 60${p.expectedEnd ? ` · beräknat klar ${esc(fmtMonth(p.expectedEnd))}` : ''}</p>` : ''}`,
     ['#/plan', 'Min utbildningsplan']);
+}
+
+// DOPS: mottagna bedömningar senaste 6 månaderna mot klinikens mål (som DOPS → Översikt). Lägst måluppfyllelse först; utan mål
+// visas antalet. Bara när modulen DOPS är på och kontot är kopplat.
+function todayDopsCard({ dops }) {
+  if (!dops) return '';
+  const hidden = new Set(dops.hiddenFormTypes?.received || []);
+  const rec6 = dops.received_6m || {};
+  const goals = Object.entries(dops.received || {}).filter(([ft, v]) => v.goal && !hidden.has(ft))
+    .map(([ft, v]) => ({ ft: ft.replace(/^DOPS:?\s*/, ''), n: rec6[ft] || 0, g: v.goal })).sort((a, b) => a.n / a.g - b.n / b.g);
+  const total = Object.values(rec6).reduce((s, n) => s + n, 0);
+  const met = goals.filter(x => x.n >= x.g).length;
+  const color = x => x.n >= x.g ? '#4a9e62' : x.n > 0 ? '#d9a441' : '#c0392b';
+  const body = goals.length
+    ? `<p style="margin:0 0 6px"><strong>${met} av ${goals.length}</strong> mål uppnådda · ${total} mottagna senaste 6 mån</p>
+      ${goals.slice(0, 5).map(x => `<div class="dov-row" style="grid-template-columns:1fr 1fr 44px"><span class="dov-name">${esc(x.ft)}</span>
+        <span class="dov-track"><i style="width:${Math.min(100, Math.round(x.n / x.g * 100))}%;background:${color(x)}"></i></span><strong class="dov-n">${x.n}/${x.g}</strong></div>`).join('')}
+      ${goals.length > 5 ? `<p class="muted" style="margin:4px 0 0;font-size:13px">och ${goals.length - 5} till</p>` : ''}`
+    : `<p style="margin:0"><strong>${total}</strong> mottagna bedömningar senaste 6 månaderna.</p>`;
+  return todayCard('DOPS', body, ['#/dops', 'Till DOPS']);
 }

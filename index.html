@@ -2,6 +2,8 @@
 <html lang="sv">
 <head>
   <meta charset="utf-8">
+  <!-- CSP (granskning S4): skript och stil bara härifrån (inline krävs för onclick=), anrop bara till API:t (och lokal backend vid utveckling). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://opjour-backend-110110585004.europe-north1.run.app http://localhost:8080 http://127.0.0.1:8080; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>ST-Lotsen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1c2b36">
@@ -84,6 +86,18 @@
       #worlds { order: 3; flex: 0 0 calc(100% + 32px); margin: 0 -16px; height: 42px; border-top: 1px solid rgba(255,255,255,0.12); }
       #worlds a { flex: 1 1 auto; justify-content: center; padding: 0 6px; font-size: 14px; }
       #menu-btn { max-width: 120px; }
+      /* G5: logga, ikoner och namn på en rad; modulflikarna rullar i sidled vid behov. */
+      header { padding-top: calc(var(--safe-top) + 8px); row-gap: 6px; gap: 8px; }
+      header .brand img { width: 30px; height: 30px; }
+      header .brand-name { font-size: 15px; }
+      header .clinic { font-size: 11px; }
+      #tools { gap: 4px; }
+      header .iconbtn { width: 32px; height: 30px; }
+      header .iconbtn svg { width: 18px; height: 18px; }
+      #menu-btn { max-width: 104px; padding: 5px 8px; font-size: 13px; }
+      #worlds { height: 40px; overflow-x: auto; scrollbar-width: none; }
+      #worlds::-webkit-scrollbar { display: none; }
+      #worlds a { flex: 1 0 auto; padding: 0 10px; }
       .shell { display: block; }
       #subnav [data-world] { display: flex; }
       #subnav { position: relative; width: auto; min-height: 0; overflow-x: auto; padding: 0 8px; border-right: none; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
@@ -190,6 +204,7 @@
     .plist { list-style: none; margin: 6px 0 0; padding: 0; }
     .plist li { padding: 3px 0; }
     /* Mobil: kalendern blir en lodrät lista, en rad per dag, veckorubrik per vecka (ingen sidscroll) */
+    @media (max-width: 430px) { header .brand-text { display: none; } }   /* G5: bara loggan på smala telefoner */
     @media (max-width: 640px) {
       main { padding: 12px; }
       .card { padding: 12px; }
@@ -309,6 +324,16 @@
     .imp-table td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: top; }
     .imp-table tr.error td { background: #fbecea; }
     /* Veckoschema (#/schema) och ST-inställningar (#/st) */
+    .ysch { font-size: 11px; }
+    .ysch td.yc { width: 14px; min-width: 14px; height: 22px; padding: 0; cursor: pointer; }
+    .ysch td.yc.out { background: repeating-linear-gradient(45deg, #f3f5f6, #f3f5f6 3px, #e3e8eb 3px, #e3e8eb 6px); }
+    .ysch td.yc.ev { opacity: .55; }
+    .ysch td.yc:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
+    .ysch .ysvc { font-size: 9px; text-align: center; height: 18px; color: var(--ink-soft); cursor: default; }
+    .ysch .ysvc.low { background: #f6d5cf; color: #9e2a18; font-weight: bold; }
+    .ysch .ymon { text-align: left; font-size: 11px; }
+    .ysch .ywk { font-size: 9px; font-weight: normal; color: var(--ink-soft); padding: 1px 0; }
+    #subnav.single { display: none; }
     .sch-scroll { overflow-x: auto; margin-top: 12px; -webkit-overflow-scrolling: touch; }
     .sch { border-collapse: separate; border-spacing: 0; font-size: 12px; }
     .sch th, .sch td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 3px; vertical-align: top; }
@@ -476,9 +501,21 @@
     .dst-table tr:first-child th { font-size: 12px; }
     .dcp-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
     .dsel { margin: 0 4px 0 0; vertical-align: -2px; }
+    .dreg-q { padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .dreg-label { font-weight: bold; margin-bottom: 4px; }
+    .dreg-opts { display: flex; flex-wrap: wrap; gap: 4px; }
+    .dreg-opts .chip { cursor: pointer; font-size: 14px; }
+    .dreg-scale label { display: inline-flex; cursor: pointer; }
+    .dreg-scale input { position: absolute; opacity: 0; pointer-events: none; }
+    .dreg-scale span { display: block; padding: 9px 16px; border-right: 1px solid var(--line); background: #fff; }
+    .dreg-scale label:last-child span { border-right: none; }
+    .dreg-scale input:checked + span { background: var(--chrome); color: #fff; font-weight: bold; }
+    .dreg-scale input:focus-visible + span { outline: 2px solid var(--accent); }
+    .dfb-table input, .dfb-table select { min-width: 110px; font-size: 13px; padding: 4px 6px; }
     .dmi-types { display: flex; flex-wrap: wrap; gap: 4px; }
     .dmi-types .chip { font-size: 13px; cursor: pointer; }
     @media (max-width: 640px) { .dov-row { grid-template-columns: 1fr 34px; } .dov-row .dov-bar { grid-column: 1 / -1; order: 3; } .dov-row .link-btn { order: 4; justify-self: start; } }
+    .bed-section { margin: 22px 0 8px; }
     .bed-q { font-weight: bold; font-size: 15px; margin: 12px 0 6px; }
     .bed-free { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; font-size: 14px; }
     .bed-free .muted { font-size: 12px; margin-bottom: 2px; }
@@ -649,14 +686,14 @@
         <button class="iconbtn" onclick="openFeedback(event)" title="Felanmälan" aria-label="Felanmälan">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9h8M8 13h5M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/></svg>
         </button>
-        <a class="iconbtn hidden" href="#/admin" id="tool-admin" title="Administration" aria-label="Administration">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V7z"/><circle cx="12" cy="11" r="2.5"/><path d="M12 13.5V16"/></svg>
+        <a class="iconbtn hidden" href="#/installningar" id="tool-admin" title="Inställningar" aria-label="Inställningar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         </a>
         <div id="menu-wrap">
           <button id="menu-btn" onclick="toggleMenu(event)" aria-haspopup="true" aria-expanded="false">Konto ▾</button>
           <nav id="menu" class="hidden">
-            <a href="#/settings" data-route="#/settings">Mitt konto</a>
-            <a href="#/admin" data-route="#/admin" id="menu-admin" class="hidden">Administration</a>
+            <a href="#/installningar/konto" data-route="#/installningar/konto">Mitt konto</a>
+            <a href="#/installningar" id="menu-admin" class="hidden">Inställningar</a>
             <a href="#" onclick="openFeedback(event)" id="menu-feedback">Felanmälan</a>
             <hr>
             <button onclick="logout()">Logga ut</button>
@@ -670,22 +707,21 @@
           <div class="sn-title">Opjour</div>
           <a href="#/kalender" data-route="#/kalender">Kalender</a>
           <a href="#/stats" data-route="#/stats" id="nav-stats" class="hidden">Statistik</a>
-          <a href="#/opjour-settings" data-route="#/opjour-settings" id="nav-opset" class="hidden">Inställningar</a>
         </div>
         <div data-world="plan" class="hidden">
           <div class="sn-title">Planering</div>
           <a href="#/schema" data-route="#/schema" id="nav-schema" class="hidden">Veckoschema</a>
-          <a href="#/schema/installningar" data-route="#/schema/installningar" id="nav-planset" class="hidden">Inställningar</a>
         </div>
         <div data-world="st" class="hidden">
           <div class="sn-title">ST-utbildning</div>
           <a href="#/oversikt" data-route="#/oversikt" id="nav-oversikt" class="hidden">Måluppfyllelse</a>
           <a href="#/plan" data-route="#/plan" id="nav-plan" class="hidden">Min utbildningsplan</a>
-          <a href="#/st" data-route="#/st" id="nav-st" class="hidden">Inställningar</a>
         </div>
         <div data-world="dops" class="hidden">
           <div class="sn-title">DOPS</div>
           <a href="#/dops" data-route="#/dops">Översikt</a>
+          <a href="#/dops/registrera" data-route="#/dops/registrera" id="nav-dops-registrera">Registrera bedömning</a>
+          <a href="#/dops/inkorg" data-route="#/dops/inkorg">Inkorg</a>
           <a href="#/dops/mina" data-route="#/dops/mina">Mina bedömningar</a>
           <a href="#/dops/progress" data-route="#/dops/progress">Progress</a>
           <a href="#/dops/kliniken" data-route="#/dops/kliniken" id="nav-dops-kliniken" class="hidden">Kliniken</a>
@@ -693,10 +729,16 @@
           <a href="#/dops/tavling" data-route="#/dops/tavling">Tävling</a>
           <a href="#/dops/dokument" data-route="#/dops/dokument" id="nav-dops-dokument" class="hidden">Dokument</a>
         </div>
-        <div data-world="acc" class="hidden">
-          <div class="sn-title">Konto och klinik</div>
-          <a href="#/settings" data-route="#/settings">Mitt konto</a>
-          <a href="#/admin" data-route="#/admin" id="nav-admin" class="hidden">Administration</a>
+        <div data-world="set" class="hidden">
+          <div class="sn-title">Inställningar</div>
+          <a href="#/installningar/konto" data-route="#/installningar/konto">Mitt konto</a>
+          <a href="#/installningar/anvandare" data-route="#/installningar/anvandare" id="nav-set-users" class="hidden">Användare</a>
+          <a href="#/installningar/klinik" data-route="#/installningar/klinik" id="nav-set-clinic" class="hidden">Klinik</a>
+          <a href="#/installningar/opjour" data-route="#/installningar/opjour" id="nav-set-opjour" class="hidden">Opjour</a>
+          <a href="#/installningar/planering" data-route="#/installningar/planering" id="nav-set-plan" class="hidden">Planering</a>
+          <a href="#/installningar/st" data-route="#/installningar/st" id="nav-set-st" class="hidden">ST-utbildning</a>
+          <a href="#/installningar/dops" data-route="#/installningar/dops" id="nav-set-dops" class="hidden">DOPS</a>
+          <a href="#/installningar/system" data-route="#/installningar/system" id="nav-set-system" class="hidden">System</a>
         </div>
       </nav>
       <main id="view"></main>
@@ -708,7 +750,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.35.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.38.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -913,19 +955,31 @@
       const h = location.hash;
       markNav(h);
       const root = el('view');
-      root.classList.toggle('wide', !['#/settings', '#/admin', '#/stats', '#/opjour-settings'].includes(h) && worldOf(h) !== 'today');   // bred vy för kalendern, schemat och ST-inställningarna
-      if (h === '#/settings') renderSettings(root);
-      else if (h === '#/admin') renderAdmin(root);
-      else if (h === '#/opjour-settings') renderOpSettings(root);
+      // Gamla adresser till inställningarna (före 0.38.0) → modulen Inställningar.
+      const old = { '#/settings': '#/installningar/konto', '#/admin': '#/installningar/anvandare', '#/opjour-settings': '#/installningar/opjour',
+        '#/schema/installningar': '#/installningar/planering', '#/installningar': '#/installningar/konto' };
+      if (old[h]) { location.replace(old[h]); return; }
+      if (h === '#/st' || h.startsWith('#/st/')) { location.replace('#/installningar/st' + h.slice(4)); return; }
+      if (h.startsWith('#/dops/installningar')) { location.replace('#/installningar/dops' + h.slice('#/dops/installningar'.length)); return; }
+      const narrow = ['#/installningar/konto', '#/installningar/anvandare', '#/installningar/klinik', '#/installningar/opjour', '#/installningar/system', '#/stats'];
+      root.classList.toggle('wide', !narrow.includes(h) && worldOf(h) !== 'today');   // bred vy för kalendern, schemat och ST-inställningarna
+      if (h === '#/installningar/konto') renderSettings(root);
+      else if (h === '#/installningar/anvandare') renderAdmin(root, 'users');
+      else if (h === '#/installningar/klinik') renderAdmin(root, 'clinic');
+      else if (h === '#/installningar/system') renderAdmin(root, 'system');
+      else if (h === '#/installningar/opjour') renderOpSettings(root);
+      else if (h === '#/installningar/planering') renderStSettings(root, 'typer', 'plan');
+      else if (h === '#/installningar/st' || h.startsWith('#/installningar/st/')) renderStSettings(root, h.split('/')[3]);
+      else if (h === '#/installningar/dops' || h.startsWith('#/installningar/dops/')) renderDopsSettings(root, h.split('/')[3]);
       else if (h === '#/kalender') renderApp(root);
       else if (h === '#/stats') renderStats(root);
       else if (h === '#/schema') renderSchema(root);
-      else if (h === '#/st' || h.startsWith('#/st/')) renderStSettings(root, h.split('/')[2]);
-      else if (h === '#/schema/installningar') renderStSettings(root, 'typer', 'plan');
       else if (h === '#/oversikt') renderOversikt(root);
       else if (h === '#/bedomningar') location.replace('#/dops/progress');   // gammal adress (0.33.0)
       else if (h === '#/dops') renderDopsOverview(root);
       else if (h === '#/dops/mina') renderDopsMine(root);
+      else if (h === '#/dops/registrera') renderDopsRegister(root);
+      else if (h === '#/dops/inkorg') renderDopsInbox(root);
       else if (h === '#/dops/progress') renderBedomningar(root);
       else if (h === '#/dops/kliniken') renderDopsClinic(root);
       else if (h === '#/dops/statistik') renderDopsStats(root);
@@ -948,25 +1002,34 @@
     // Navigeringen (hybrid): varje sida hör till en "värld" — Idag, Opjour, Planering, ST-utbildning eller konto/klinik.
     // Världens flik i headern markeras och dess undersidor visas i vänsterspalten.
     function worldOf(h) {
-      if (h === '#/settings' || h === '#/admin') return 'acc';
+      if (h.startsWith('#/installningar')) return 'set';
       if (h === '#/schema' || h.startsWith('#/schema/')) return 'plan';
-      if (['#/oversikt', '#/st'].includes(h) || h.startsWith('#/st/') || h.startsWith('#/plan')) return 'st';
+      if (h === '#/oversikt' || h.startsWith('#/plan')) return 'st';
       if (h === '#/dops' || h.startsWith('#/dops/')) return 'dops';
-      if (['#/kalender', '#/stats', '#/opjour-settings'].includes(h)) return 'op';
+      if (['#/kalender', '#/stats'].includes(h)) return 'op';
       return 'today';
     }
     function markNav(h) {
-      const world = worldOf(h), key = !h || h === '#' ? '#/' : h.startsWith('#/plan') ? '#/plan' : h.startsWith('#/st/') ? '#/st' : h;
+      const world = worldOf(h), key = !h || h === '#' ? '#/' : h.startsWith('#/plan') ? '#/plan'
+        : h.startsWith('#/installningar/st') ? '#/installningar/st' : h.startsWith('#/installningar/dops') ? '#/installningar/dops' : h;
       el('world-today').classList.toggle('active', world === 'today');
       el('world-op').classList.toggle('active', world === 'op');
       el('subnav').classList.toggle('hidden', state.scope !== 'user' || world === 'today');   // Idag har inga undersidor
       el('world-plan').classList.toggle('active', world === 'plan');
       el('world-st').classList.toggle('active', world === 'st');
       el('world-dops').classList.toggle('active', world === 'dops');
-      el('tool-admin').classList.toggle('active', h === '#/admin');
+      el('tool-admin').classList.toggle('active', world === 'set');
       el('subnav').querySelectorAll('[data-world]').forEach(g => g.classList.toggle('hidden', g.dataset.world !== world));
+      fitSubnav();
       document.querySelectorAll('#subnav a, #menu a').forEach(a => a.classList.toggle('active', a.dataset.route === key));
       scrollSubnav();
+    }
+
+    // Sidomenyn döljs när modulen bara har en undersida (G8) — då finns inget att välja.
+    function fitSubnav() {
+      const g = el('subnav').querySelector('[data-world]:not(.hidden)');
+      const n = g ? g.querySelectorAll('a:not(.hidden)').length : 0;
+      el('subnav').classList.toggle('single', !!g && n <= 1);
     }
 
     function scrollSubnav() {   // mobil: undersidorna är en vågrät rad — rulla fram den aktiva
@@ -980,19 +1043,26 @@
       const show = (id, on) => el(id).classList.toggle('hidden', !on);
       show('world-op', mods.includes('opjour'));
       show('nav-stats', me.canSeeStats && mods.includes('opjour'));
-      show('nav-opset', me.isAdmin && mods.includes('opjour'));
       show('nav-schema', schema && (me.isSt || me.isDirector || me.isAdmin));
-      show('nav-planset', schema && (me.isDirector || me.isAdmin));
       show('world-plan', schema && (me.isSt || me.isDirector || me.isAdmin));
-      show('nav-oversikt', mal && (me.isSt || me.isDirector || me.isAdmin || me.isSupervisor));
+      show('nav-oversikt', mal && (me.isDirector || me.isAdmin || me.isSupervisor));   // ST-läkaren ser samma sak i sin utbildningsplan (G8)
       show('nav-plan', mal && me.isSt);
-      show('nav-st', (schema || mal) && (me.isDirector || me.isAdmin));
       show('world-dops', mods.includes('dops') && me.dopsUser);   // DOPS: modulen påslagen och eget konto kopplat
-      const firstSt = ['nav-oversikt', 'nav-plan', 'nav-st'].map(el).find(a => !a.classList.contains('hidden'));
+      const firstSt = ['nav-oversikt', 'nav-plan'].map(el).find(a => !a.classList.contains('hidden'));
       show('world-st', !!firstSt);
       if (firstSt) el('world-st').href = firstSt.getAttribute('href');
-      ['nav-admin', 'menu-admin', 'tool-admin'].forEach(id => show(id, me.isAdmin));
+      // Inställningar: en egen modul, med de delar personen har behörighet till (Mitt konto har alla).
+      ['menu-admin', 'tool-admin'].forEach(id => show(id, true));
+      const lead = me.isDirector || me.isAdmin;
+      show('nav-set-users', me.isAdmin);
+      show('nav-set-clinic', me.isAdmin);
+      show('nav-set-opjour', me.isAdmin && mods.includes('opjour'));
+      show('nav-set-plan', schema && lead);
+      show('nav-set-st', (schema || mal) && lead);
+      show('nav-set-dops', mods.includes('dops') && lead);
+      show('nav-set-system', !!me.isGlobalAdmin);
       el('menu-btn').textContent = (me.displayName || 'Konto') + ' ▾';
+      fitSubnav();
       scrollSubnav();
     }
 
@@ -1133,6 +1203,8 @@
   <script src="js/dops.js"></script>
   <script src="js/dopsapp.js"></script>
   <script src="js/dopsstats.js"></script>
+  <script src="js/dopsforms.js"></script>
+  <script src="js/dopssettings.js"></script>
   <script src="js/today.js"></script>
   <script src="js/help.js"></script>
 </body>
