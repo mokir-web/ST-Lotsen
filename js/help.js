@@ -4,12 +4,18 @@
 // matchande början av adressen (#/st/krav före #/st).
 
 const HELP = [
-  ['#/', 'Idag', [
-    'Det viktigaste från alla moduler på ett ställe: det du behöver ta hand om, dagens opjour och dina pass, din vecka i schemat, bemanningen, ditt förlopp, vad som är kvar under ditt ST-år och dina senaste bedömningar i DOPS.',
-    'Korten syns bara om de gäller dig. Klicka på länken under ett kort för att gå vidare. Loggan uppe till vänster leder alltid hit.',
-    '<strong>Anpassa</strong> (uppe till höger) gör korten redigerbara: dra i ⠿ för att flytta ett kort (eller markera ⠿ och använd piltangenterna), välj storlek (liten, bred, hög eller stor), ⚙ för vad kortet ska visa och ✕ för att dölja det. Dolda kort ligger under rutnätet och läggs tillbaka med +. Tryck <em>Klar</em> för att spara. Layouten sparas på ditt konto och gäller på alla enheter. <em>Återställ</em> går tillbaka till standardlayouten.',
-    'På telefon ligger korten i en kolumn, och storleken styr bara hur högt kortet får bli.',
+  ['#/', 'Startsida', [
+    'Det viktigaste från alla moduler på ett ställe: det du behöver ta hand om, dagens opjour och dina pass, din vecka, veckoschemat, dina aktiviteter framåt, bemanningen, ditt förlopp, vad som är kvar under ditt ST-år, dina senaste bedömningar i DOPS och nytt i utbildningsmaterialet.',
+    'Korten syns bara om de gäller dig. Klicka på länken under ett kort för att gå vidare, och på en bedömning i DOPS-kortet för att läsa den. Fliken Startsida och loggan uppe till vänster leder alltid hit. På telefon finns alla moduler och deras undersidor i menyn ☰.',
+    '<strong>Anpassa</strong> (uppe till höger) gör korten redigerbara. Dra i ⠿ och släpp kortet på valfri ruta, även en tom. De andra korten ligger kvar. Får kortet inte plats i sin storlek där du släpper det fälls det ihop (stor → bred → hög → liten) tills det får plats. Markeringen under pekaren visar var kortet hamnar. Med tangentbordet: markera ⠿ och använd piltangenterna.',
+    'Välj storlek (liten, bred, hög eller stor; storlekar som inte får plats där kortet ligger är gråa), ⚙ för vad kortet ska visa (antal väljer du fritt) och ✕ för att dölja det. Dolda kort, och nya kort som Veckoschemat, Mina aktiviteter och Utbildningsmaterial, ligger under rutnätet och läggs till med +. Tryck <em>Klar</em> för att spara. Layouten sparas på ditt konto och gäller på alla enheter. <em>Återställ</em> går tillbaka till standardlayouten.',
+    'På telefon och smala skärmar ligger korten i läsordning. Där flyttar du dem i ordning; fri placering gör du på en större skärm.',
     'Vill du börja på en annan sida när du öppnar ST-Lotsen: välj startsida under Inställningar → Mitt konto.']],
+  ['#/utbildning', 'Utbildningsmaterial', [
+    'Klinikens samling av bra utbildningsmaterial (artiklar, videor, kurser), ordnad i områden. Områdena finns i undermenyn.',
+    'Videor från YouTube, Vimeo och videofiler (.mp4) spelas upp direkt på sidan med <em>▶ Spela upp här</em>. Övriga länkar öppnas i en ny flik.',
+    '<strong>Alla kan föreslå</strong> nytt material, ändringar (✎) och borttagning (✕), och nya områden. Förslaget går till klinikens admin, som godkänner det, justerar det först eller avböjer med ett svar. Dina förslag och svaren ser du under <em>Mina förslag</em>.',
+    '<strong>Admin</strong> lägger till, ändrar, flyttar (↑↓) och tar bort direkt, och behandlar förslagen under <em>Förslag</em>. Väntande förslag syns också under Att göra på startsidan.']],
   ['#/kalender', 'Opjour · Kalender', [
     'Vem som har opjour vilken dag. Klicka på en dag för att se detaljer och boka eller släppa ditt pass.',
     'Passet byter person vid den tid kliniken har ställt in (Inställningar → Opjour).']],

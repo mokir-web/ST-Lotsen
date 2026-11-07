@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <!-- CSP (granskning S4): skript och stil bara härifrån (inline krävs för onclick=), anrop bara till API:t (och lokal backend vid utveckling). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://opjour-backend-110110585004.europe-north1.run.app http://localhost:8080 http://127.0.0.1:8080; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://opjour-backend-110110585004.europe-north1.run.app http://localhost:8080 http://127.0.0.1:8080; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; media-src https:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>ST-Lotsen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1c2b36">
@@ -59,9 +59,10 @@
     header .clinic { font-size: 12px; color: #9fb2c0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Navigering (hybrid): modulflikar i headern, modulens undersidor i en vänsterspalt (mobil: vågrät rad under headern). */
     #worlds { display: flex; gap: 2px; align-self: stretch; margin: -12px 0 -12px 8px; }
-    #worlds a { display: flex; align-items: center; padding: 0 16px; color: #c6d3dc; text-decoration: none; font-size: 15px; border-bottom: 3px solid transparent; white-space: nowrap; }
-    #worlds a:hover { color: #fff; }
-    #worlds a.active { color: #fff; font-weight: bold; border-bottom-color: #e8a35c; background: rgba(255,255,255,0.07); }
+    /* Aktiv modul: färgad ram runt fliken. */
+    #worlds a { display: flex; align-items: center; padding: 0 14px; margin: 9px 0; color: #c6d3dc; text-decoration: none; font-size: 15px; border: 2px solid transparent; border-radius: 8px; white-space: nowrap; }
+    #worlds a:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    #worlds a.active { color: #fff; font-weight: bold; border-color: #e8a35c; background: rgba(232,163,92,0.16); }
     header .spacer { flex: 1; }
     #tools { display: flex; align-items: center; gap: 6px; }
     header .iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 34px; padding: 0; color: #eef1f3; text-decoration: none; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.28); border-radius: 5px; }
@@ -81,30 +82,41 @@
     #subnav a { display: block; padding: 10px 18px; font-size: 15px; color: var(--ink); text-decoration: none; border-right: 3px solid transparent; }
     #subnav a:hover { background: #eef1f3; }
     #subnav a.active { background: var(--accent-soft); color: var(--accent); font-weight: bold; border-right-color: var(--accent); }
+    /* Trädmenyn (telefon): ☰ fäller ut alla moduler; en modul med flera undersidor fälls ut i sin tur. */
+    header { position: relative; }
+    #nav-btn { display: none; }
+    #navtree { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; background: #fff; color: var(--ink); box-shadow: 0 10px 24px rgba(20,30,38,0.28);
+      max-height: calc(100vh - 70px); max-height: calc(100dvh - 70px); overflow-y: auto; overscroll-behavior: contain; padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); }
+    #navtree a, #navtree .nt-mod { display: flex; align-items: center; justify-content: space-between; width: 100%; box-sizing: border-box; text-align: left;
+      padding: 13px 18px; font-size: 16px; color: var(--ink); text-decoration: none; background: none; border: none; border-left: 4px solid transparent; border-radius: 0; }
+    #navtree .nt-mod { font-weight: bold; }
+    #navtree .nt-mod.cur, #navtree > a.cur { border-left-color: #e8a35c; }
+    #navtree .nt-mod::after { content: '▸'; color: var(--ink-soft); transition: transform .15s; }
+    #navtree .nt-mod[aria-expanded="true"]::after { transform: rotate(90deg); }
+    #navtree > a { font-weight: bold; }
+    #navtree .nt-sub { background: #f6f8f9; border-top: 1px solid #eef1f3; border-bottom: 1px solid #eef1f3; }
+    #navtree .nt-sub a { padding: 11px 18px 11px 34px; font-size: 15px; font-weight: normal; }
+    #navtree a.active { color: var(--accent); font-weight: bold; background: var(--accent-soft); border-left-color: var(--accent); }
+    #navtree a:hover, #navtree .nt-mod:hover { background: #eef1f3; }
     @media (max-width: 760px) {
-      header { flex-wrap: wrap; padding-bottom: 0; row-gap: 8px; }
-      #worlds { order: 3; flex: 0 0 calc(100% + 32px); margin: 0 -16px; height: 42px; border-top: 1px solid rgba(255,255,255,0.12); }
-      #worlds a { flex: 1 1 auto; justify-content: center; padding: 0 6px; font-size: 14px; }
-      #menu-btn { max-width: 120px; }
-      /* G5: logga, ikoner och namn på en rad; modulflikarna rullar i sidled vid behov. */
-      header { padding-top: calc(var(--safe-top) + 8px); row-gap: 6px; gap: 8px; }
+      #worlds, #subnav { display: none !important; }
+      #nav-btn { display: inline-flex; }
+      #menu-btn { max-width: 104px; padding: 5px 8px; font-size: 13px; }
+      header { padding-top: calc(var(--safe-top) + 8px); gap: 8px; }
       header .brand img { width: 30px; height: 30px; }
       header .brand-name { font-size: 15px; }
       header .clinic { font-size: 11px; }
       #tools { gap: 4px; }
       header .iconbtn { width: 32px; height: 30px; }
       header .iconbtn svg { width: 18px; height: 18px; }
-      #menu-btn { max-width: 104px; padding: 5px 8px; font-size: 13px; }
-      #worlds { height: 40px; overflow-x: auto; scrollbar-width: none; }
-      #worlds::-webkit-scrollbar { display: none; }
-      #worlds a { flex: 1 0 auto; padding: 0 10px; }
       .shell { display: block; }
-      #subnav [data-world] { display: flex; }
-      #subnav { position: relative; width: auto; min-height: 0; overflow-x: auto; padding: 0 8px; border-right: none; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
-      #subnav .sn-title { display: none; }
-      #subnav a { padding: 11px 12px; font-size: 14px; white-space: nowrap; border-right: none; border-bottom: 3px solid transparent; }
-      #subnav a.active { background: none; border-bottom-color: var(--accent); }
     }
+    /* Får flikarna inte plats (t.ex. platta på höjden) används trädmenyn även på bredare skärmar (fitNav). */
+    body.navcompact #worlds, body.navcompact #subnav { display: none !important; }
+    body.navcompact #nav-btn { display: inline-flex; }
+    body.navcompact .shell { display: block; }
+    @media (min-width: 761px) { body:not(.navcompact) #navtree { display: none !important; } }
+    @media (min-width: 761px) { header .brand { flex: none; } header .brand-text { white-space: nowrap; } }   /* krymper inte; får inte flikarna plats blir det trädmeny */
     header button {
       background: rgba(255,255,255,0.12); color: #eef1f3;
       border: 1px solid rgba(255,255,255,0.28); border-radius: 5px; padding: 7px 12px; font-size: 14px;
@@ -113,6 +125,7 @@
     #login, #changepin { max-width: 400px; }
     #login input, #changepin input { width: 100%; box-sizing: border-box; }
     main#view.wide { max-width: 1440px; }
+    main#view.roomy { max-width: 1380px; }   /* Startsidan: 50 % bredare än standard där skärmen räcker */
     @media (min-width: 1100px) { main#view.wide { padding: 20px 28px; } }
 
     .card {
@@ -307,7 +320,7 @@
     .dg-head strong { font-size: 22px; }
     .dg-track { background: #e3e8eb; border-radius: 6px; height: 14px; overflow: hidden; }
     .dg-track i { display: block; height: 100%; border-radius: 6px; transition: width .4s; }
-    .dg-list li { display: flex; gap: 10px; align-items: flex-start; }
+    .dg-list li { display: block; }
     .dg-dir { flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; }
     .dg-dir.in { background: #d7ecdf; color: #1f5a3a; } .dg-dir.ut { background: #dce8f4; color: #23466b; }
     .yr-late { margin: 0 0 8px; font-size: 14px; color: var(--danger); } .yr-late strong { font-weight: 600; }
@@ -317,7 +330,26 @@
     .tw-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
     .tw-actions { display: flex; gap: 8px; }
     .tw-actions .btn { padding: 9px 18px; font-size: 14px; }
-    .today-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-auto-rows: 215px; grid-auto-flow: row dense; gap: 16px; }
+    .today-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-auto-rows: 215px; grid-auto-flow: row dense; gap: 16px; position: relative; }
+    .today-grid.placed { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: row; }
+    .today-grid.placed .tw { z-index: 1; }
+    .tw-cell { border: 2px dashed #d5dde3; border-radius: 10px; background: rgba(255,255,255,.35); }
+    .tw-ghost { z-index: 2; border: 3px solid var(--accent); border-radius: 10px; background: rgba(181,100,26,.12); pointer-events: none;
+      display: flex; align-items: flex-end; justify-content: center; padding: 10px; font-size: 13px; font-weight: bold; color: var(--accent); }
+    .tw-ghost.bad { border-color: var(--danger); background: rgba(192,57,43,.1); color: var(--danger); }
+    .tw-opt input[type=number] { display: block; margin-top: 3px; width: 100px; }
+    .dg-open { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+    .dg-open:hover strong { text-decoration: underline; }
+    .tw-sch { overflow: auto; }
+    .tw-sch table { border-collapse: collapse; font-size: 13px; width: 100%; }
+    .tw-sch th { font-weight: normal; color: var(--ink-soft); padding: 2px 4px; text-align: left; }
+    .tw-sch th.cur { color: var(--accent); font-weight: bold; }
+    .tw-sch td { padding: 3px 4px; border-top: 1px solid #eef1f3; white-space: nowrap; }
+    .tw-sch td:first-child { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+    .tw-sch td.cur { background: #f6f9fb; }
+    .tw-sch tr.me td:first-child { font-weight: bold; }
+    .tw-sch .sact { font-size: 11px; padding: 0 5px; margin-right: 2px; }
+    .tw-sch tr.svc td { font-weight: bold; color: var(--ink-soft); } .tw-sch tr.svc td.low { color: var(--danger); }
     .today-grid .card { margin: 0; }
     .tw { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
     .tw-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
@@ -380,6 +412,36 @@
     .tagchip { display: inline-block; font-size: 11px; font-weight: bold; padding: 1px 8px; border-radius: 9px; background: #eef1f3; color: var(--ink-soft); border: 1px solid var(--line); }
     .tagchip.admin { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
     .tagchip.off { background: #f6e3df; color: var(--danger); border-color: #e3b3ab; }
+    .tagchip.ok { background: #d7ecdf; color: #1f5a3a; border-color: #9ccbad; } .tagchip.no { background: #f6e3df; color: var(--danger); border-color: #e3b3ab; }
+    /* Utbildningsmaterial */
+    .edu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .edu-grid .card { margin: 0; position: relative; }
+    .edu-sec h2 { font-size: 18px; margin-bottom: 6px; } .edu-sec h2 a { color: var(--ink); text-decoration: none; } .edu-sec h2 a:hover { color: var(--accent); }
+    .edu-sec .edu-tools { position: absolute; top: 10px; right: 10px; }
+    .edu-intro { margin: 0 0 8px; font-size: 14px; color: var(--ink-soft); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .edu-intro-card { font-size: 15px; }
+    .edu-list { list-style: none; margin: 0; padding: 0; }
+    .edu-item { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid #eef1f3; }
+    .edu-item:first-child { border-top: none; padding-top: 0; }
+    .edu-main { flex: 1; min-width: 0; }
+    .edu-title { font-size: 16px; } .edu-title a { font-weight: bold; color: var(--interest); }
+    .edu-kind { display: inline-block; width: 20px; text-align: center; font-size: 13px; color: var(--accent); }
+    .edu-host { font-size: 13px; }
+    .edu-note { margin: 4px 0 0 24px; font-size: 14px; overflow-wrap: anywhere; }
+    .edu-meta { margin: 6px 0 0 24px; font-size: 12px; }
+    .edu-play { margin: 8px 0 0 24px; padding: 6px 12px; }
+    .edu-video { margin: 10px 0 0; position: relative; width: 100%; max-width: 720px; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
+    .edu-video iframe, .edu-video video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .edu-tools { display: flex; gap: 4px; flex: none; align-items: flex-start; }
+    .edu-tools .tw-ico:disabled { opacity: .35; }
+    .edu-danger { color: var(--danger); border-color: #e3b3ab; }
+    .edu-sug { }
+    .edu-diff { border-collapse: collapse; width: 100%; font-size: 14px; margin: 4px 0; }
+    .edu-diff th { text-align: left; vertical-align: top; color: var(--ink-soft); font-weight: normal; padding: 4px 10px 4px 0; width: 100px; }
+    .edu-diff td { padding: 4px 0; overflow-wrap: anywhere; }
+    .edu-diff del { color: var(--danger); } .edu-diff ins { text-decoration: none; background: #e3f2e8; }
+    .edu-comment { margin: 6px 0 0; font-style: italic; } .edu-reply { margin: 6px 0 0; font-size: 14px; }
+    @media (max-width: 640px) { .edu-item { flex-direction: column; gap: 6px; } .edu-note, .edu-meta, .edu-play { margin-left: 0; } .edu-tools { order: 2; } }
     .imp-table { border-collapse: collapse; font-size: 14px; width: 100%; }
     .imp-table th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--ink-soft); padding: 4px 8px 4px 0; }
     .imp-table td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); vertical-align: top; }
@@ -746,19 +808,24 @@
   <!-- ── App ───────────────────────────────────────────── -->
   <div id="app" class="hidden">
     <header>
-      <a class="brand" href="#/" aria-label="ST-Lotsen — startsidan">
+      <a class="brand" id="brand" href="#/" aria-label="ST-Lotsen — startsidan">
         <img src="icons/logo.svg" width="34" height="34" alt="">
         <span class="brand-text"><span class="brand-name">ST-Lotsen</span><span class="clinic" id="app-clinic"></span></span>
       </a>
       <nav id="worlds" class="hidden" aria-label="Moduler">
+        <a href="#/" id="world-home">Startsida</a>
         <a href="#/kalender" id="world-op" class="hidden">Opjour</a>
         <a href="#/schema" id="world-plan" class="hidden">Planering</a>
         <a href="#/oversikt" id="world-st" class="hidden">ST-utbildning</a>
         <a href="#/dops" id="world-dops" class="hidden">DOPS</a>
+        <a href="#/utbildning" id="world-edu" class="hidden">Utbildningsmaterial</a>
       </nav>
       <span class="spacer"></span>
       <button id="logout-btn" class="hidden" onclick="logout()">Logga ut</button>
       <div id="tools" class="hidden">
+        <button class="iconbtn" id="nav-btn" onclick="toggleNavTree(event)" aria-haspopup="true" aria-expanded="false" aria-controls="navtree" title="Meny" aria-label="Meny">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
         <button class="iconbtn" onclick="openHelp()" title="Hjälp om sidan" aria-label="Hjälp">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7"/><path d="M12 17h.01"/></svg>
         </button>
@@ -779,6 +846,7 @@
           </nav>
         </div>
       </div>
+      <nav id="navtree" class="hidden" aria-label="Meny"></nav>
     </header>
     <div class="shell">
       <nav id="subnav" class="hidden" aria-label="Undersidor">
@@ -808,6 +876,10 @@
           <a href="#/dops/tavling" data-route="#/dops/tavling">Tävling</a>
           <a href="#/dops/dokument" data-route="#/dops/dokument" id="nav-dops-dokument" class="hidden">Dokument</a>
         </div>
+        <div data-world="edu" class="hidden" id="sn-edu">
+          <div class="sn-title">Utbildningsmaterial</div>
+          <a href="#/utbildning" data-route="#/utbildning">Alla områden</a>
+        </div>
         <div data-world="set" class="hidden">
           <div class="sn-title">Inställningar</div>
           <a href="#/installningar/konto" data-route="#/installningar/konto">Mitt konto</a>
@@ -831,7 +903,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.40.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.42.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1063,6 +1135,7 @@
     function route() {
       if (state.scope !== 'user') return;
       closeMenu();
+      closeNavTree();
       el('sheet-root')?.remove();
       if (typeof _app !== 'undefined' && _app) _app.sheet = null;
       if (typeof _sch !== 'undefined' && _sch) _sch.sheet = null;
@@ -1079,6 +1152,7 @@
       if (h.startsWith('#/dops/installningar')) { location.replace('#/installningar/dops' + h.slice('#/dops/installningar'.length)); return; }
       const narrow = ['#/installningar/konto', '#/installningar/anvandare', '#/installningar/klinik', '#/installningar/opjour', '#/installningar/system', '#/installningar/felanmalan', '#/stats'];
       root.classList.toggle('wide', !narrow.includes(h) && worldOf(h) !== 'today');   // bred vy för kalendern, schemat och ST-inställningarna
+      root.classList.toggle('roomy', worldOf(h) === 'today');
       if (h === '#/installningar/konto') renderSettings(root);
       else if (h === '#/installningar/anvandare') renderAdmin(root, 'users');
       else if (h === '#/installningar/klinik') renderAdmin(root, 'clinic');
@@ -1104,6 +1178,7 @@
       else if (h === '#/dops/tavling') renderDopsCompetition(root);
       else if (h === '#/dops/dokument') renderDopsDocuments(root);
       else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
+      else if (h === '#/utbildning' || h.startsWith('#/utbildning/')) renderEdu(root, h.slice('#/utbildning/'.length) || '');
       else renderToday(root);
       window.scrollTo(0, 0);
     }
@@ -1111,6 +1186,7 @@
 
     function toggleMenu(e) {
       e.stopPropagation();
+      closeNavTree();
       const open = el('menu').classList.toggle('hidden') === false;
       el('menu-btn').setAttribute('aria-expanded', String(open));
     }
@@ -1125,21 +1201,24 @@
       if (h === '#/oversikt' || h.startsWith('#/plan')) return 'st';
       if (h === '#/dops' || h.startsWith('#/dops/')) return 'dops';
       if (['#/kalender', '#/stats'].includes(h)) return 'op';
+      if (h === '#/utbildning' || h.startsWith('#/utbildning/')) return 'edu';
       return 'today';
     }
     function markNav(h) {
       const world = worldOf(h), key = !h || h === '#' ? '#/' : h.startsWith('#/plan') ? '#/plan'
-        : h.startsWith('#/installningar/st') ? '#/installningar/st' : h.startsWith('#/installningar/dops') ? '#/installningar/dops' : h;
+        : h.startsWith('#/installningar/st') ? '#/installningar/st' : h.startsWith('#/installningar/dops') ? '#/installningar/dops'
+        : h.startsWith('#/utbildning/forslag') ? '#/utbildning/forslag' : h;
       el('world-op').classList.toggle('active', world === 'op');
       el('subnav').classList.toggle('hidden', state.scope !== 'user' || world === 'today');   // Idag har inga undersidor
       el('world-plan').classList.toggle('active', world === 'plan');
       el('world-st').classList.toggle('active', world === 'st');
       el('world-dops').classList.toggle('active', world === 'dops');
+      el('world-edu').classList.toggle('active', world === 'edu');
+      el('world-home').classList.toggle('active', world === 'today');
       el('tool-admin').classList.toggle('active', world === 'set');
       el('subnav').querySelectorAll('[data-world]').forEach(g => g.classList.toggle('hidden', g.dataset.world !== world));
-      fitSubnav();
       document.querySelectorAll('#subnav a, #menu a').forEach(a => a.classList.toggle('active', a.dataset.route === key));
-      scrollSubnav();
+      fitSubnav();
     }
 
     // Sidomenyn döljs när modulen bara har en undersida (G8) — då finns inget att välja.
@@ -1149,17 +1228,72 @@
       el('subnav').classList.toggle('single', !!g && n <= 1);
     }
 
-    function scrollSubnav() {   // mobil: undersidorna är en vågrät rad — rulla fram den aktiva
-      const act = el('subnav').querySelector('[data-world]:not(.hidden) a.active:not(.hidden)');
-      if (act) el('subnav').scrollLeft = Math.max(0, act.offsetLeft - 40);
+    // Trädmenyn på telefon: Startsida, modulerna (samma flikar som på dator) och Inställningar. En modul med flera undersidor
+    // fälls ut när man trycker på den; den aktuella modulen är utfälld från början. Byggs ur flikarna och sidomenyn när den öppnas,
+    // så den visar alltid samma val som datorns menyer.
+    const NAV_MODS = [['world-op', 'op'], ['world-plan', 'plan'], ['world-st', 'st'], ['world-dops', 'dops'], ['world-edu', 'edu'], ['tool-admin', 'set', 'Inställningar']];
+    function drawNavTree() {
+      const world = worldOf(location.hash);
+      const link = a => `<a href="${esc(a.getAttribute('href'))}" class="${a.classList.contains('active') ? 'active' : ''}">${esc(a.textContent.trim())}</a>`;
+      let html = `<a href="#/" class="${world === 'today' ? 'cur active' : ''}">Startsida</a>`;
+      for (const [id, w, name] of NAV_MODS) {
+        const tab = el(id);
+        if (!tab || tab.classList.contains('hidden')) continue;
+        const label = name || tab.textContent.trim();
+        const subs = [...el('subnav').querySelectorAll(`[data-world="${w}"] a:not(.hidden)`)];
+        if (subs.length <= 1) { html += `<a href="${esc((subs[0] || tab).getAttribute('href'))}" class="${world === w ? 'cur active' : ''}">${esc(label)}</a>`; continue; }
+        const open = world === w;
+        html += `<button type="button" class="nt-mod${open ? ' cur' : ''}" aria-expanded="${open}" data-nt="${w}">${esc(label)}</button>
+          <div class="nt-sub${open ? '' : ' hidden'}" data-nt-sub="${w}">${subs.map(link).join('')}</div>`;
+      }
+      el('navtree').innerHTML = html;
     }
+    function toggleNavTree(e) {
+      e.stopPropagation();
+      closeMenu();
+      const open = el('navtree').classList.contains('hidden');
+      if (open) drawNavTree();
+      el('navtree').classList.toggle('hidden', !open);
+      el('nav-btn').setAttribute('aria-expanded', String(open));
+      el('nav-btn').classList.toggle('active', open);
+    }
+    // Trädmenyn även på bredare skärmar när modulflikarna inte får plats i headern, så att inget någonsin spiller ut i sidled.
+    function fitNav() {
+      const b = document.body, h = document.querySelector('header');
+      if (!h || el('worlds').classList.contains('hidden')) return;
+      b.classList.remove('navcompact');
+      if (matchMedia('(max-width: 760px)').matches) return;
+      if (h.scrollWidth > h.clientWidth + 1) b.classList.add('navcompact');
+      else closeNavTree();
+    }
+    // Följer headerns bredd (fönster, zoom, vridning). Klassbytet ändrar inte headerns bredd, så det blir ingen slinga.
+    new ResizeObserver(() => { clearTimeout(fitNav._t); fitNav._t = setTimeout(fitNav, 60); }).observe(document.querySelector('header'));
+    function closeNavTree() {
+      el('navtree')?.classList.add('hidden');
+      el('nav-btn')?.setAttribute('aria-expanded', 'false');
+      el('nav-btn')?.classList.remove('active');
+    }
+    el('navtree').addEventListener('click', e => {
+      const b = e.target.closest('[data-nt]');
+      if (b) {
+        e.stopPropagation();
+        const open = b.getAttribute('aria-expanded') !== 'true';
+        b.setAttribute('aria-expanded', String(open));
+        el('navtree').querySelector(`[data-nt-sub="${b.dataset.nt}"]`).classList.toggle('hidden', !open);
+        return;
+      }
+      if (e.target.closest('a')) closeNavTree();   // samma sida (ingen hashchange) ska också stänga
+    });
+    document.addEventListener('click', e => { if (!el('navtree').classList.contains('hidden') && !el('navtree').contains(e.target) && !el('nav-btn').contains(e.target)) closeNavTree(); });
+    addEventListener('keydown', e => { if (e.key === 'Escape') closeNavTree(); });
 
     // Startsidor (som i DOPS-appen): de sidor personen har tillgång till. me = /me (för admin: personen i panelen har samma klinik).
-    const START_PAGES = [['', 'Idag', () => true], ['#/kalender', 'Opjour – kalender', m => m.includes('opjour')],
+    const START_PAGES = [['', 'Startsida', () => true], ['#/kalender', 'Opjour – kalender', m => m.includes('opjour')],
       ['#/schema', 'Planering – veckoschema', m => m.includes('schema')], ['#/oversikt', 'ST-utbildning – måluppfyllelse', m => m.includes('mal')],
       ['#/plan', 'ST-utbildning – min utbildningsplan', m => m.includes('mal')], ['#/dops', 'DOPS – översikt', m => m.includes('dops')],
       ['#/dops/registrera', 'DOPS – registrera bedömning', m => m.includes('dops')], ['#/dops/inkorg', 'DOPS – inkorg', m => m.includes('dops')],
-      ['#/dops/mina', 'DOPS – mina bedömningar', m => m.includes('dops')], ['#/dops/progress', 'DOPS – progress', m => m.includes('dops')]];
+      ['#/dops/mina', 'DOPS – mina bedömningar', m => m.includes('dops')], ['#/dops/progress', 'DOPS – progress', m => m.includes('dops')],
+      ['#/utbildning', 'Utbildningsmaterial', m => m.includes('utbildning')]];
     function startPageOptions(me, current) {
       const mods = me.modules || ['opjour'];
       return START_PAGES.filter(([v, , ok]) => ok(mods) || v === (current || ''))
@@ -1177,6 +1311,7 @@
       show('nav-oversikt', mal && (me.isDirector || me.isAdmin || me.isSupervisor));   // ST-läkaren ser samma sak i sin utbildningsplan (G8)
       show('nav-plan', mal && me.isSt);
       show('world-dops', mods.includes('dops') && me.dopsUser);   // DOPS: modulen påslagen och eget konto kopplat
+      show('world-edu', mods.includes('utbildning'));
       const firstSt = ['nav-oversikt', 'nav-plan'].map(el).find(a => !a.classList.contains('hidden'));
       show('world-st', !!firstSt);
       if (firstSt) el('world-st').href = firstSt.getAttribute('href');
@@ -1196,7 +1331,7 @@
       drawActingBar(me);
       el('menu-btn').textContent = (me.displayName || 'Konto') + ' ▾';
       fitSubnav();
-      scrollSubnav();
+      fitNav();
     }
 
     // ── Delad kalender-render ──────────────────────────────
@@ -1342,6 +1477,7 @@
   <script src="js/dopssettings.js"></script>
   <script src="js/today.js"></script>
   <script src="js/usage.js"></script>
+  <script src="js/edu.js"></script>
   <script src="js/help.js"></script>
 </body>
 </html>

@@ -630,6 +630,7 @@ const MODULE_INFO = [
   ['opjour', 'Opjour', 'Operationsjourlinjen: kalender, bokning, reserv och visningsskärm.'],
   ['schema', 'Planering', 'Veckoschemat: ST-gruppens schema vecka för vecka med raden "I tjänst" och bemanningsvarning. Aktivitetstyper ställs in under Inställningar → Planering.'],
   ['mal', 'ST-utbildning', 'Måluppfyllelse, individuella utbildningsplaner, krav per ST-år och delmål. Status hämtas ur veckoschemat och det som anges för hand.'],
+  ['utbildning', 'Utbildningsmaterial', 'Klinikens länksamling med utbildningsmaterial (artiklar, videor, kurser) i områden. Admin redigerar; alla kan föreslå ändringar som admin godkänner.'],
   ['dops', 'DOPS', 'Bedömningar (DOPS, Mini-CEX m.fl.): fliken DOPS med progress, och kopplingen av klinikens konton (Inställningar → Användare). Under parallellkörningen läses DOPS-appens databas; registrering slås på senare.']
 ];
 

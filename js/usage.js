@@ -6,7 +6,7 @@
 let _use = null;
 
 const USE_PANEL = {
-  '#/': 'Idag', '#/kalender': 'Opjour – kalender', '#/stats': 'Opjour – statistik', '#/schema': 'Planering – veckoschema',
+  '#/': 'Startsida', '#/kalender': 'Opjour – kalender', '#/stats': 'Opjour – statistik', '#/schema': 'Planering – veckoschema',
   '#/oversikt': 'Måluppfyllelse', '#/plan': 'Min utbildningsplan', '#/plan/:id': 'Utbildningsplan (annan)', '#/dops': 'DOPS – översikt',
   '#/dops/registrera': 'DOPS – registrera', '#/dops/inkorg': 'DOPS – inkorg', '#/dops/mina': 'DOPS – mina', '#/dops/progress': 'DOPS – progress',
   '#/dops/kliniken': 'DOPS – kliniken', '#/dops/statistik': 'DOPS – statistik', '#/dops/tavling': 'DOPS – tävling', '#/dops/dokument': 'DOPS – dokument'

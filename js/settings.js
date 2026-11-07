@@ -33,7 +33,7 @@ async function renderSettings(root) {
 
       <div class="card">
         <h2>Startsida</h2>
-        <p class="hint" style="margin-top:0">Sidan som öppnas när du startar ST-Lotsen. Loggan uppe till vänster leder alltid till Idag.</p>
+        <p class="hint" style="margin-top:0">Sidan som öppnas när du startar ST-Lotsen. Fliken Startsida och loggan leder alltid till startsidan.</p>
         <select id="st-start" onchange="saveStartPage(this.value)" style="max-width:320px">${startPageOptions(me, me.startPage)}</select>
         <div id="st-start-status" class="status"></div>
       </div>
