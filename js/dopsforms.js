@@ -148,7 +148,7 @@ function drawDregSection(root) {
       .map(q => ({ section: q.section, question: q.question, answer: d.answers[dregKey(q)] }));
     if (!answers.length) return toast('Fyll i minst en fråga.', 'err');
     const ok = await dopsWrite(async () => {
-      const email = await dopsApi('/users/lookup?fullName=' + encodeURIComponent(d.recipient));
+      const email = await dopsApi('/users/lookup', { method: 'POST', body: { fullName: d.recipient } });   // namnet i innehållet, inte i adressen (serverloggar)
       if (!email) throw new Error('Mottagaren hittades inte i DOPS.');
       await dopsApi('/assessments', { method: 'POST', body: { recipientEmail: email, formType: d.form, category: dregCategory(),
         elapsedSeconds: Math.round((Date.now() - d.started) / 1000), answers } });
@@ -197,7 +197,7 @@ async function renderDopsInbox(root) {
       const to = el('dib-to').value;
       if (!to) return toast('Välj bedömare.', 'err');
       if (await dopsWrite(async () => {
-        const email = await dopsApi('/users/lookup?fullName=' + encodeURIComponent(to));
+        const email = await dopsApi('/users/lookup', { method: 'POST', body: { fullName: to } });
         if (!email) throw new Error('Bedömaren hittades inte i DOPS.');
         await dopsApi('/requests', { method: 'POST', body: { toEmail: email, formType: el('dib-form').value, message: el('dib-msg').value.trim() } });
       }, 'Förfrågan är skickad.')) reload();

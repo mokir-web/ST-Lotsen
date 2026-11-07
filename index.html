@@ -438,6 +438,21 @@
     .u-sel { flex: none; width: 18px; height: 18px; margin: 12px 4px 0 6px; }
     .u-selall { display: flex; gap: 8px; align-items: center; font-weight: normal; font-size: 14px; color: var(--ink-soft); padding: 4px 6px 8px; margin: 0; }
     .u-bulk { position: sticky; top: 0; z-index: 4; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
+    .tw-gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+    .tw-gal-item { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+    .tw-gal-item p { margin: 3px 0 0; font-size: 13px; color: var(--ink-soft); }
+    .tw-gal-item.off { opacity: .6; }
+    .tw-gal-item .btn { flex: none; padding: 6px 12px; font-size: 14px; }
+    .tw-gal-need { font-style: italic; }
+    .stg-list li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+    .stg-list li .muted { font-size: 13px; min-width: 0; }
+    .stg-list .pchip { font-size: 11px; padding: 0 6px; }
+    .tw-opt input[type=text] { display: block; margin-top: 3px; width: 100%; box-sizing: border-box; }
+    .ret-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+    .ret-table th { text-align: left; font-weight: normal; padding: 6px 12px 6px 0; }
+    .ret-table td { padding: 4px 8px 4px 0; white-space: nowrap; }
+    @media (max-width: 640px) { .ret-table tr { display: grid; grid-template-columns: 1fr auto; } .ret-table td.muted { grid-column: 1 / -1; padding-top: 0; } }
+    .ret-runs { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
     .ub-list { margin: 4px 0; padding-left: 18px; font-size: 14px; } .ub-list li { margin: 6px 0; } .ub-list del { color: var(--danger); } .ub-list ins { text-decoration: none; background: #e3f2e8; }
     .urow:hover, .urow.on { background: var(--accent-soft); }
     .urow .uname { font-weight: bold; min-width: 160px; }
@@ -948,7 +963,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.44.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.45.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];

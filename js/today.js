@@ -18,7 +18,8 @@ async function renderToday(root) {
     const dopsOn = mods.includes('dops') && me.dopsUser;
     const layout = twLayout(me.todayLayout, me.todayTemplate).cards, on = id => layout.find(c => c.id === id)?.on;
     const weeks = twWeeksNeeded(layout);
-    const [cal, sch, plan, todo, dops, dopsRec, dopsSent, edu] = await Promise.all([
+    const lead = me.isDirector || me.isAdmin;
+    const [cal, sch, plan, todo, dops, dopsRec, dopsSent, edu, progress, dopsReq] = await Promise.all([
       soft(mods.includes('opjour') ? api(`/calendar?start=${monday}&weeks=1`) : null),
       soft(mods.includes('schema') && (me.isSt || me.isDirector || me.isAdmin) ? api(`/schema?from=${monday}&weeks=${weeks}`) : null),
       soft(mods.includes('mal') && me.isSt ? api('/plan/me') : null),
@@ -26,9 +27,13 @@ async function renderToday(root) {
       soft(dopsOn ? api('/dops/app/overview') : null),
       soft(dopsOn ? api('/dops/app/assessments/mine?role=received') : null),
       soft(dopsOn ? api('/dops/app/assessments/mine?role=sent') : null),
-      soft(mods.includes('utbildning') && on('utbildning') ? api('/edu') : null)
+      soft(mods.includes('utbildning') && on('utbildning') ? api('/edu') : null),
+      soft(mods.includes('mal') && (lead || me.isSupervisor) && on('stgrupp') ? api('/progress') : null),
+      soft(dopsOn && on('dopsinbox') ? api('/dops/app/requests') : null)
     ]);
-    drawToday(root, { me, mods, today, cal, sch, plan, todo, dops, dopsRec, dopsSent, edu: edu ? { ...edu, loaded: true } : mods.includes('utbildning') ? { sections: [], loaded: false } : null });
+    // undefined = inte hämtat (kortet är inte på startsidan); hämtas när kortet läggs till (twNeedsReload).
+    drawToday(root, { me, mods, today, cal, sch, plan, todo, dops, dopsRec, dopsSent, edu: edu ? { ...edu, loaded: true } : mods.includes('utbildning') ? { sections: [], loaded: false } : null,
+      progress: on('stgrupp') ? progress : undefined, dopsReq: on('dopsinbox') ? dopsReq : undefined });
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }
@@ -62,32 +67,55 @@ const TW_MAXH = 30, TW_MAXCOLS = 10, TW_GAP = 16, TW_PLACED_MIN = 720;
 const TW_LEGACY = { s: [1, 1], w: [2, 1], t: [1, 2], l: [2, 2] };   // storlekar före 0.43.0
 const TW_COMPACT = { k: 'compact', label: 'Kompakt läge (mindre text och luft)', def: false };
 const TW_PERIOD = [['months', 'Ett antal månader framåt'], ['year', 'Resten av innevarande ST-år']];
+// desc: förklaring i kortgalleriet. can(d): om kortet gäller personen (annars visas need i galleriet). Kort som gäller men vars data
+// inte hämtats än (nytillagda) visar en platshållare tills sidan laddats om.
+const TW_LEAD = d => d.me.isDirector || d.me.isAdmin, TW_MOD = (d, m) => (d.mods || []).includes(m);
 const TODAY_WIDGETS = [
-  { id: 'todo', title: 'Att göra', w: 1, h: 2, fn: todoCard, opts: [{ k: 'names', label: 'Visa namn under varje punkt', def: true }, TW_COMPACT] },
-  { id: 'opjour', title: 'Opjour', w: 1, h: 1, fn: opjourCard, opts: [
+  { id: 'todo', title: 'Att göra', w: 1, h: 2, fn: todoCard, desc: 'Det du behöver ta hand om: ST-läkare utan handledare, förslag att granska, felrapporter.',
+    can: d => TW_LEAD(d) || d.me.isSupervisor || !!d.todo?.items?.length, need: 'studierektor, admin eller handledare', opts: [{ k: 'names', label: 'Visa namn under varje punkt', def: true }, TW_COMPACT] },
+  { id: 'opjour', title: 'Opjour', w: 1, h: 1, fn: opjourCard, desc: 'Vem som har opjour i dag och i morgon, och dina kommande pass.',
+    can: d => TW_MOD(d, 'opjour'), need: 'modulen Opjour', opts: [
     { k: 'tomorrow', label: 'Visa vem som har i morgon', def: true }, { k: 'mine', label: 'Visa mina kommande pass', def: true },
     { k: 'mineCount', label: 'Antal pass', def: 4, min: 1, max: 20 }, TW_COMPACT] },
-  { id: 'vecka', title: 'Min vecka', w: 1, h: 2, fn: myWeekCard, opts: [
+  { id: 'vecka', title: 'Min vecka', w: 1, h: 2, fn: myWeekCard, desc: 'Det du har inlagt i veckoschemat den här veckan och dina kommande aktiviteter.',
+    can: d => TW_MOD(d, 'schema') && d.me.isSt, need: 'ST-läkare (modulen Planering)', opts: [
     { k: 'later', label: 'Visa kommande aktiviteter', def: true }, { k: 'period', label: 'Kommande', def: 'months', choices: TW_PERIOD },
     { k: 'months', label: 'Antal månader', def: 6, min: 1, max: 24 }, TW_COMPACT] },
-  { id: 'bemanning', title: 'I tjänst', w: 1, h: 1, fn: staffingCard, opts: [
+  { id: 'bemanning', title: 'I tjänst', w: 1, h: 1, fn: staffingCard, desc: 'Hur många ST-läkare som är i tjänst per vecka, med varning under klinikens gräns.',
+    can: d => TW_MOD(d, 'schema') && TW_LEAD(d), need: 'studierektor eller admin (modulen Planering)', opts: [
     { k: 'weeks', label: 'Antal veckor', def: 6, min: 1, max: 12 }, { k: 'hint', label: 'Visa förklaring', def: true }, TW_COMPACT] },
-  { id: 'forlopp', title: 'Mitt förlopp', w: 1, h: 1, fn: progressCard, opts: [
+  { id: 'forlopp', title: 'Mitt förlopp', w: 1, h: 1, fn: progressCard, desc: 'Hur stor del av de obligatoriska kraven och delmålen som är klara.',
+    can: d => TW_MOD(d, 'mal') && d.me.isSt, need: 'ST-läkare (modulen ST-utbildning)', opts: [
     { k: 'goals', label: 'Visa delmål', def: true }, { k: 'year', label: 'Visa ST-år och beräknat slut', def: true }, TW_COMPACT] },
-  { id: 'plan', title: 'Min utbildningsplan', w: 1, h: 2, fn: planCard, opts: [
+  { id: 'plan', title: 'Min utbildningsplan', w: 1, h: 2, fn: planCard, desc: 'Krav och moment som är kvar under ST-året eller en vald period, och försenade krav.',
+    can: d => TW_MOD(d, 'mal') && d.me.isSt, need: 'ST-läkare (modulen ST-utbildning)', opts: [
     { k: 'period', label: 'Visa', def: 'year', choices: [['year', 'Innevarande ST-år'], ['months', 'Ett antal månader framåt']] },
     { k: 'months', label: 'Antal månader', def: 12, min: 1, max: 60 },
     { k: 'late', label: 'Visa ej klara krav från tidigare år', def: true }, { k: 'optional', label: 'Ta med valfria krav', def: true },
     { k: 'goals', label: 'Visa delmål som inte är uppfyllda', def: false }, TW_COMPACT] },
-  { id: 'dops', title: 'DOPS', w: 1, h: 2, fn: todayDopsCard, opts: [
+  { id: 'stgrupp', title: 'ST-läkarnas utbildningsplaner', w: 1, h: 2, fn: stGroupCard, desc: 'Per ST-läkare: krav som är kvar under ST-året och försenade krav. Klicka för personens plan.',
+    can: d => TW_MOD(d, 'mal') && (TW_LEAD(d) || d.me.isSupervisor), need: 'studierektor, admin eller handledare (modulen ST-utbildning)', opts: [
+    { k: 'sort', label: 'Ordning', def: 'late', choices: [['late', 'Flest försenade först'], ['name', 'Namn']] },
+    { k: 'onlyLate', label: 'Bara de som har försenade krav', def: false }, TW_COMPACT] },
+  { id: 'dops', title: 'DOPS', w: 1, h: 2, fn: todayDopsCard, desc: 'Måluppfyllelse för dina bedömningar och de senaste bedömningarna.',
+    can: d => TW_MOD(d, 'dops') && d.me.dopsUser, need: 'modulen DOPS och ett kopplat DOPS-konto', opts: [
     { k: 'bar', label: 'Visa måluppfyllelse', def: true },
     { k: 'goalMode', label: 'Måluppfyllelse', def: 'sum', choices: [['sum', 'En sammanslagen stapel'], ['each', 'En stapel per mål']] },
     { k: 'list', label: 'Visa senaste bedömningar', def: true }, { k: 'count', label: 'Antal bedömningar', def: 5, min: 1, max: 30 },
     { k: 'dir', label: 'Bedömningar', def: 'alla', choices: [['alla', 'Mottagna och registrerade'], ['in', 'Bara mottagna'], ['ut', 'Bara registrerade']] }, TW_COMPACT] },
-  { id: 'schema', title: 'Veckoschemat', w: 2, h: 3, on: false, fn: schemaCard, opts: [
+  { id: 'dopsinbox', title: 'DOPS-förfrågningar', w: 1, h: 1, on: false, fn: dopsInboxCard, desc: 'Förfrågningar om bedömning som väntar på dig.',
+    can: d => TW_MOD(d, 'dops') && d.me.dopsUser, need: 'modulen DOPS och ett kopplat DOPS-konto', opts: [
+    { k: 'count', label: 'Antal förfrågningar', def: 5, min: 1, max: 20 }, TW_COMPACT] },
+  { id: 'schema', title: 'Veckoschemat', w: 2, h: 3, on: false, fn: schemaCard, desc: 'Hela ST-gruppens schema de närmaste veckorna.',
+    can: d => TW_MOD(d, 'schema') && (d.me.isSt || TW_LEAD(d)), need: 'ST-läkare, studierektor eller admin (modulen Planering)', opts: [
     { k: 'weeks', label: 'Antal veckor', def: 4, min: 1, max: 12 }, { k: 'service', label: 'Visa raden I tjänst', def: true }, TW_COMPACT] },
-  { id: 'utbildning', title: 'Utbildningsmaterial', w: 1, h: 1, on: false, fn: eduCard, opts: [
-    { k: 'count', label: 'Antal nya poster', def: 5, min: 1, max: 20 }, TW_COMPACT] }
+  { id: 'utbildning', title: 'Utbildningsmaterial', w: 1, h: 1, on: false, fn: eduCard, desc: 'Det senast tillagda i klinikens utbildningsmaterial.',
+    can: d => TW_MOD(d, 'utbildning'), need: 'modulen Utbildningsmaterial', opts: [
+    { k: 'count', label: 'Antal nya poster', def: 5, min: 1, max: 20 }, TW_COMPACT] },
+  { id: 'lankar', title: 'Snabblänkar', w: 1, h: 1, on: false, fn: linksCard, desc: 'Egna länkar, t.ex. till PM, kursanmälan eller schemasystemet.',
+    can: () => true, opts: [
+    { k: 'title', label: 'Rubrik', def: 'Snabblänkar', text: 40 },
+    ...[1, 2, 3, 4, 5, 6].map(n => ({ k: 'l' + n, label: `Länk ${n} (namn | adress)`, def: '', text: 300, placeholder: 'Kursanmälan | https://…' })), TW_COMPACT] }
 ];
 const twDef = id => TODAY_WIDGETS.find(w => w.id === id);
 const twOpts = (w, c) => Object.fromEntries(w.opts.map(o => [o.k, c?.opts && o.k in c.opts ? c.opts[o.k] : o.def]));
@@ -206,15 +234,21 @@ const twPlacedMode = () => (el('tw-grid')?.parentElement?.clientWidth || 0) >= T
 // Kortets innehåll med inställningarna, eller null när kortet inte gäller personen. När admin redigerar en mall visas kort som
 // inte gäller admin själv med ett exempel, så att hela mallen går att lägga.
 function twRender(c) {
-  const w = twDef(c.id);
-  return w.fn(_today.d, twOpts(w, c)) || (_today.tpl ? { title: w.title, body: `<p class="muted tw-sample">Exempel — kortet visas för dem det gäller (t.ex. ST-läkare). Ditt eget konto har inget att visa här.</p>` } : null);
+  const w = twDef(c.id), d = _today.d;
+  const r = w.fn(d, twOpts(w, c));
+  if (r) return r;
+  if (_today.tpl) return { title: w.title, body: `<p class="muted tw-sample">Exempel — kortet visas för ${esc(w.need || 'dem det gäller')}. Ditt eget konto har inget att visa här.</p>` };
+  if (w.can(d) && twMissing(c.id)) return { title: w.title, body: '<p class="muted tw-sample">Visas när du tryckt Klar.</p>' };
+  return null;
 }
+// Kort vars data inte hämtas förrän kortet finns på startsidan.
+const twMissing = id => ({ stgrupp: _today.d.progress === undefined, dopsinbox: _today.d.dopsReq === undefined, utbildning: !!_today.d.edu && !_today.d.edu.loaded })[id] || false;
 
 function drawTw() {
   const { layout, edit, open } = _today, me = _today.d.me;
   const placed = _today.placed = twPlacedMode();
   el('tw-actions').innerHTML = edit
-    ? `${me.isAdmin ? `<select id="tw-target" title="Vilken startsida du redigerar"><option value="">Min startsida</option>${TW_ROLES.map(([k, l]) => `<option value="${k}"${_today.tpl === k ? ' selected' : ''}>Mall: ${esc(l)}${(me.todayTemplateRoles || []).includes(k) ? '' : ' (ingen än)'}</option>`).join('')}</select>` : ''}${me.isAdmin && !_today.tpl ? '<button type="button" class="btn-ghost" data-act="template" title="Gör den här layouten till utgångsläge för en yrkesroll">Spara som mall…</button>' : ''}<label class="tw-colsl" title="Rutnätets upplösning: fler kolumner ger mindre rutor">Rutnät <input type="number" id="tw-cols" min="1" max="${TW_MAXCOLS}" value="${TW_COLS}"> kolumner</label><button type="button" class="btn-ghost" data-act="reset">Återställ</button><button type="button" class="btn-ghost" data-act="cancel">Avbryt</button><button type="button" class="btn" data-act="save">Klar</button>`
+    ? `${me.isAdmin ? `<select id="tw-target" title="Vilken startsida du redigerar"><option value="">Min startsida</option>${TW_ROLES.map(([k, l]) => `<option value="${k}"${_today.tpl === k ? ' selected' : ''}>Mall: ${esc(l)}${(me.todayTemplateRoles || []).includes(k) ? '' : ' (ingen än)'}</option>`).join('')}</select>` : ''}${me.isAdmin && !_today.tpl ? '<button type="button" class="btn-ghost" data-act="template" title="Gör den här layouten till utgångsläge för en yrkesroll">Spara som mall…</button>' : ''}<label class="tw-colsl" title="Rutnätets upplösning: fler kolumner ger mindre rutor">Rutnät <input type="number" id="tw-cols" min="1" max="${TW_MAXCOLS}" value="${TW_COLS}"> kolumner</label><button type="button" class="btn-ghost" data-act="gallery">+ Lägg till kort</button><button type="button" class="btn-ghost" data-act="reset">Återställ</button><button type="button" class="btn-ghost" data-act="cancel">Avbryt</button><button type="button" class="btn" data-act="save">Klar</button>`
     : '<button type="button" class="btn-ghost tw-edit" data-act="edit" title="Flytta, ändra storlek, dölj och ställ in korten">✎ Anpassa</button>';
   const hint = el('tw-hint');
   hint.classList.toggle('hidden', !edit);
@@ -260,6 +294,8 @@ function twOptsForm(w, c) {
   const o = twOpts(w, c);
   const opt = d => d.choices
     ? `<label class="tw-opt">${esc(d.label)}<select data-opt="${d.k}" data-id="${c.id}">${d.choices.map(([v, l]) => `<option value="${esc(v)}"${String(o[d.k]) === String(v) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
+    : d.text
+    ? `<label class="tw-opt">${esc(d.label)}<input type="text" maxlength="${d.text}" value="${esc(o[d.k])}" placeholder="${esc(d.placeholder || '')}" data-opt="${d.k}" data-id="${c.id}"></label>`
     : d.min != null
     ? `<label class="tw-opt">${esc(d.label)} <span class="muted">(${d.min}–${d.max})</span><input type="number" inputmode="numeric" min="${d.min}" max="${d.max}" step="1" value="${esc(o[d.k])}" data-opt="${d.k}" data-id="${c.id}"></label>`
     : `<label class="tw-opt tw-check"><input type="checkbox" data-opt="${d.k}" data-id="${c.id}"${o[d.k] ? ' checked' : ''}> ${esc(d.label)}</label>`;
@@ -279,6 +315,7 @@ async function onTwAction(e) {
   if (act === 'edit') { _today.before = twSnap(); _today.edit = true; }
   else if (act === 'cancel') { twUse(JSON.parse(_today.tpl ? _today.own : _today.before)); _today.tpl = null; _today.edit = false; _today.open = null; }
   else if (act === 'template') return twTemplateDialog();
+  else if (act === 'gallery') return twGallery();
   else if (act === 'reset') {
     if (_today.tpl) {
       if (!confirm('Återställa mallen till den inbyggda standarden?')) return;
@@ -310,7 +347,7 @@ async function onTwAction(e) {
 }
 function twNeedsReload() {
   const d = _today.d;
-  if (twFind('utbildning')?.on && d.edu && !d.edu.loaded) return true;
+  if (['utbildning', 'stgrupp', 'dopsinbox'].some(id => twFind(id)?.on && twDef(id).can(d) && twMissing(id))) return true;
   return !!d.sch && twWeeksNeeded(_today.layout) > d.sch.window.weeks.length;
 }
 
@@ -375,6 +412,33 @@ function twTemplateDialog() {
       showStatus(el('twt-st'), `Mallen är sparad för ${roles.length} ${roles.length === 1 ? 'yrkesroll' : 'yrkesroller'}.`, true);
     } catch (err) { st.textContent = err.message; st.className = 'status err'; }
   });
+}
+
+// Kortgalleriet: alla kort med förklaring. De som finns på startsidan är markerade, dolda och nya läggs till med ett klick, och kort
+// som inte gäller personen visas med vad som krävs (t.ex. "ST-läkare"). I mallredigeringen går alla att lägga till.
+function twGallery() {
+  const d = _today.d;
+  let root = el('sheet-root');
+  if (!root) { root = document.createElement('div'); root.id = 'sheet-root'; document.body.appendChild(root); }
+  const draw = () => {
+    root.innerHTML = `<div class="overlay" data-close="1"><div class="sheet wide" role="dialog" aria-label="Lägg till kort">
+      <h2>Lägg till kort <button type="button" class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" data-close="1" aria-label="Stäng">✕</button></h2>
+      <div class="tw-gal">${TODAY_WIDGETS.map(w => {
+        const c = twFind(w.id), ok = _today.tpl || w.can(d), shown = c?.on && ok;
+        return `<div class="tw-gal-item${ok ? '' : ' off'}"><div><strong>${esc(w.title)}</strong><p>${esc(w.desc || '')}</p>
+            ${ok ? '' : `<p class="muted tw-gal-need">För ${esc(w.need)}.</p>`}</div>
+          ${shown ? '<span class="tagchip ok">På startsidan</span>' : ok ? `<button type="button" class="btn" data-add="${w.id}">Lägg till</button>` : ''}</div>`;
+      }).join('')}</div>
+      <p class="hint">Korten läggs där det finns plats. Flytta dem och ändra storleken sedan; tryck Klar för att spara.</p></div></div>`;
+  };
+  draw();
+  root.onclick = e => {
+    if (e.target.dataset.close) { root.innerHTML = ''; return; }
+    const b = e.target.closest('[data-add]'); if (!b) return;
+    const c = twFind(b.dataset.add); c.on = true; delete c.x; delete c.y;
+    _today.layout = [..._today.layout.filter(x => x !== c), c];
+    drawTw(); draw();
+  };
 }
 
 function onTwGrid(e) {
@@ -711,4 +775,48 @@ function eduCard({ edu }, o = {}) {
   return todayCard('Nytt i utbildningsmaterialet', items.length
     ? `<ul class="today-list">${items.map(i => `<li><a href="#/utbildning/${esc(i.section.id)}">${esc(i.title)}</a><br><span class="muted" style="font-size:13px;min-width:0">${esc(i.section.title)} · ${esc(fmtDM(String(i.createdAt).slice(0, 10)))}</span></li>`).join('')}</ul>`
     : `<p class="muted" style="margin:0">${edu.loaded ? 'Inget material inlagt än.' : 'Ladda om sidan för att se det senaste.'}</p>`, ['#/utbildning', 'Utbildningsmaterial']);
+}
+
+// ST-läkarnas utbildningsplaner (studierektor, admin, handledare): per person kvar under innevarande ST-år och försenade krav
+// (obligatoriska krav från tidigare ST-år som inte är klara), ur måluppfyllelsen (/progress). Klick öppnar personens plan.
+function stGroupCard({ me, progress }, o = {}) {
+  if (!progress || !progress.people) return '';
+  const others = progress.people.filter(p => p.id !== me.userId && !(p.stEnd && String(p.stEnd).slice(0, 10) <= progress.today));
+  const open = (pid, r) => !['klart', 'tidigare', 'ej'].includes(progress.cells?.[pid]?.[r.id]?.status);
+  let rows = others.map(p => {
+    const year = p.stMonths == null ? null : Math.floor(p.stMonths / 12) + 1;
+    const now = year && year <= 5 ? progress.requirements.filter(r => r.stYear === year && open(p.id, r)).length : null;
+    const late = year ? progress.requirements.filter(r => r.stYear && r.stYear < Math.min(year, 6) && r.mandatory !== false && open(p.id, r)).length : 0;
+    return { p, year, now, late };
+  });
+  if (o.onlyLate) rows = rows.filter(x => x.late);
+  rows.sort((a, b) => o.sort === 'name' ? a.p.displayName.localeCompare(b.p.displayName, 'sv') : b.late - a.late || a.p.displayName.localeCompare(b.p.displayName, 'sv'));
+  const title = progress.canEditAll ? 'ST-läkarnas utbildningsplaner' : 'Mina adepters utbildningsplaner';
+  return todayCard(title, rows.length ? `<ul class="today-list stg-list">${rows.map(({ p, year, now, late }) => `<li><a href="#/plan/${esc(p.id)}">${esc(p.displayName)}</a>
+      <span class="muted">${year == null ? 'ST-start saknas' : year > 5 ? 'efter ST-år 5' : `ST-år ${year} · ${now} kvar i år`}</span>
+      ${late ? `<span class="pchip st-saknas">${late} försenade</span>` : ''}</li>`).join('')}</ul>`
+    : `<p class="muted" style="margin:0">${o.onlyLate ? 'Ingen har försenade krav.' : 'Inga ST-läkare.'}</p>`, ['#/oversikt', 'Måluppfyllelse']);
+}
+
+// DOPS-förfrågningar som väntar på mig (inte utförda eller inaktuella).
+function dopsInboxCard({ dopsReq }, o = {}) {
+  if (!dopsReq) return '';
+  const open = (dopsReq.inbox || []).filter(q => q.status !== 'done' && q.status !== 'expired');
+  return todayCard(`DOPS-förfrågningar${open.length ? ` (${open.length})` : ''}`, open.length
+    ? `<ul class="today-list">${open.slice(0, o.count || 5).map(q => `<li><strong>${esc(q.fromName || q.from)}</strong>${q.read ? '' : ' <span class="tagchip">Ny</span>'}<br>
+        <span class="muted" style="font-size:13px;min-width:0">${esc(q.formType || 'Valfritt formulär')}${q.dueDate ? ' · senast ' + esc(q.dueDate) : ''}</span></li>`).join('')}</ul>`
+    : '<p class="muted" style="margin:0">Inga förfrågningar väntar.</p>', ['#/dops/inkorg', 'Till inkorgen']);
+}
+
+// Snabblänkar: egna länkar ("namn | adress") under ⚙. Bara http(s)-adresser.
+function linksCard(d, o = {}) {
+  const links = [1, 2, 3, 4, 5, 6].map(n => String(o['l' + n] || '')).filter(Boolean).map(t => {
+    const i = t.lastIndexOf('|'), name = (i > 0 ? t.slice(0, i) : t).trim();
+    let url = (i > 0 ? t.slice(i + 1) : t).trim();
+    if (url && !/^[a-z][a-z0-9+.-]*:/i.test(url)) url = 'https://' + url;
+    return /^https?:\/\//i.test(url) ? { name: name || url, url } : null;
+  }).filter(Boolean);
+  return todayCard(o.title || 'Snabblänkar', links.length
+    ? `<ul class="today-list tw-links">${links.map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.name)}</a></li>`).join('')}</ul>`
+    : '<p class="muted" style="margin:0">Inga länkar än. Tryck ✎ Anpassa och ⚙ på kortet för att lägga in dem.</p>');
 }

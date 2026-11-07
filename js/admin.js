@@ -30,6 +30,7 @@ async function renderAdmin(root, mode = 'users') {
     if (!me.isAdmin || (['system', 'errors'].includes(mode) && !me.isGlobalAdmin)) { location.hash = '#/installningar/konto'; return; }
     _admin = { me, mode, draw: drawAdmin, open: new Set(), filter: 'alla', q: '', panel: null, notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
     if (mode === 'system' || (mode === 'clinic' && me.isGlobalAdmin)) _admin.clinics = (await api('/admin/clinics')).clinics;
+    if (mode === 'clinic') _admin.retention = await api('/admin/retention').catch(err => ({ error: err.message }));
     if (mode === 'system') _admin.dops = await api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message }));
     if (mode === 'errors') _admin.errors = await api('/error-reports').catch(() => null);
     if (mode === 'users' && (me.modules || []).includes('dops')) await loadDopsUsers();
@@ -141,7 +142,7 @@ function drawAdmin(root) {
 
   const mode = _admin.mode || 'users';
   if (mode === 'clinic') {
-    root.innerHTML = `<h1 class="page">Klinik</h1>${noticeCard()}${me.isGlobalAdmin && _admin.clinics ? clinicPickCard() : ''}${moduleCard()}${me.isGlobalAdmin && _admin.clinics ? importCard() : ''}`;
+    root.innerHTML = `<h1 class="page">Klinik</h1>${noticeCard()}${me.isGlobalAdmin && _admin.clinics ? clinicPickCard() : ''}${moduleCard()}${retentionCard()}${me.isGlobalAdmin && _admin.clinics ? importCard() : ''}`;
     return;
   }
   if (mode === 'system') {
@@ -369,6 +370,9 @@ function drawUserPanel() {
           .map(x => `<option value="${esc(x.id)}">${esc(x.displayName)} (${esc(x.username || '')})</option>`).join('')}</select>
           <button class="btn-ghost" onclick="el('up-merge').value && openUserPanel({ kind: 'merge', ids: ['${esc(u.id)}', el('up-merge').value], keep: '${esc(u.id)}' })">Slå ihop…</button></div>
         <p class="hint">Har personen två konton? Allt flyttas till ett av dem och det andra raderas — du väljer vilket som behålls.</p>
+        ${!u.active && !u.isGlobalAdmin && !isSelf ? `<h3>Avidentifiera</h3>
+        <button class="btn-ghost" onclick="anonymizeUser()">Avidentifiera…</button>
+        <p class="hint">Tar bort namn, användarnamn, kontaktuppgifter, PIN, roller och handledarrelationer. Pass, schema och ST-historik ligger kvar men visas som "Ingen användare". Görs också automatiskt enligt gallringen under Inställningar → Klinik.</p>` : ''}
         ${isSelf || u.isGlobalAdmin ? '<p class="hint">Du kan inte inaktivera, ta bort eller degradera dig själv.</p>' : `<h3>Radera</h3>
         <button class="btn-ghost" style="color:var(--danger);border-color:#e3b3ab" onclick="deleteUser()">Radera användare…</button>
         <p class="hint">Raderar kontot och personens bokningar permanent. Vill du behålla historiken: stäng av Aktiv i stället.</p>`}`
@@ -662,6 +666,76 @@ function onUserChange(e) {
     if (a === 'director') return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { isDirector: on } });
     return api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { active: on } });
   }, 'Sparat.');
+}
+
+// ── Inaktivering och gallring (klinikens admin) ──────────────────────────
+// Inställningarna per klinik (personuppgifter.md §5): inaktivera konton utan inloggning och gallra uppgifter efter ett antal månader.
+// Tomt = aldrig. "Nästa körning" visar vad gallringen skulle göra i dag; den körs automatiskt en gång per dygn.
+const RET_KEYS = ['anonymizeInactiveMonths', 'usageMonths', 'eduSuggestionsMonths', 'opjourMonths', 'scheduleMonths'];
+const RET_RESULT = { inactivated: 'inaktiverade', anonymized: 'avidentifierade', usage: 'användningshändelser', eduSuggestions: 'förslag',
+  claims: 'pass', interests: 'intresseanmälningar', draws: 'utlottningar', activities: 'aktiviteter', openSlots: 'otilldelade perioder' };
+const retSummary = r => Object.entries(r || {}).filter(([, n]) => n).map(([k, n]) => `${n} ${RET_RESULT[k] || k}`).join(', ') || 'inget';
+function retentionCard() {
+  const d = _admin.retention;
+  if (!d) return '';
+  if (d.error) return `<div class="card"><h2>Inaktivering och gallring</h2><p class="err">${esc(d.error)}</p></div>`;
+  const s = d.settings, p = d.preview || {};
+  const inp = (id, v) => `<input type="number" id="ret-${id}" min="1" max="240" value="${v ?? ''}" placeholder="aldrig" style="max-width:110px">`;
+  const next = k => ({ anonymizeInactiveMonths: p.anonymized, usageMonths: p.usage, eduSuggestionsMonths: p.eduSuggestions,
+    opjourMonths: (p.claims || 0) + (p.interests || 0) + (p.draws || 0), scheduleMonths: (p.activities || 0) + (p.openSlots || 0) }[k]);
+  return `<div class="card">
+      <h2>Inaktivering och gallring</h2>
+      <p class="hint" style="margin-top:0">Månader. Tomt = aldrig. Körs automatiskt en gång per dygn. Avidentifierade konton behåller sina pass, sitt schema och
+        sin historik men visas som <em>Ingen användare</em> (${d.anonymizedCount} i dag).</p>
+      <table class="ret-table">
+        <tr><th>Inaktivera konton som inte loggat in på</th><td>${inp('inactivationMonths', s.inactivationMonths)}</td>
+          <td class="muted">${p.inactivated ? `${p.inactivated} vid nästa körning` : ''}</td></tr>
+        ${RET_KEYS.map(k => `<tr><th>${esc(d.rules[k].label)}${k === 'anonymizeInactiveMonths' ? ' efter' : ' äldre än'}</th><td>${inp(k, s[k])}</td>
+          <td class="muted">${next(k) ? `${next(k)} vid nästa körning` : ''}</td></tr>`).join('')}
+      </table>
+      <p class="hint">Den som inaktiverats automatiskt blir aktiv igen av att logga in med rätt PIN; den som admin inaktiverat gör det inte.
+        Visningskonton och globala admins inaktiveras inte. ST-uppgifter (plan, signeringar) gallras inte här — de kan vara allmänna handlingar.
+        Felrapporter gallras för hela systemet (hanterade felanmälningar efter ${d.global.errorReportsMonths}, automatiska fel efter ${d.global.clientErrorsMonths} månader).</p>
+      <div class="row" style="gap:8px"><button class="btn" onclick="saveRetention()">Spara</button><button class="btn-ghost" onclick="runRetentionNow()">Kör gallringen nu…</button></div>
+      <div class="status" id="ret-status"></div>
+      ${d.runs.length ? `<details style="margin-top:10px"><summary style="cursor:pointer">Senaste körningar</summary><ul class="ret-runs">${d.runs.map(r =>
+        `<li>${esc(new Date(r.ranAt).toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' }))}${r.manual ? ' (för hand)' : ''}: ${esc(retSummary(r.result))}</li>`).join('')}</ul></details>` : ''}
+    </div>`;
+}
+async function saveRetention() {
+  const body = { inactivationMonths: el('ret-inactivationMonths').value };
+  for (const k of RET_KEYS) body[k] = el('ret-' + k).value;
+  try {
+    await api('/admin/retention', { method: 'PUT', body });
+    _admin.retention = await api('/admin/retention');
+    _admin.draw(el('view'));
+    showStatus(el('ret-status'), 'Sparat. Gäller från nästa körning.', true);
+  } catch (err) { showStatus(el('ret-status'), err.message, false); }
+}
+async function runRetentionNow() {
+  const p = _admin.retention.preview;
+  if (!confirm(`Kör gallringen nu enligt de sparade inställningarna?\n\nDet som görs: ${retSummary(p)}.\n\nRaderade uppgifter går inte att få tillbaka.`)) return;
+  try {
+    const { result } = await api('/admin/retention/run', { method: 'POST' });
+    _admin.retention = await api('/admin/retention');
+    _admin.me = await api('/me');
+    _admin.draw(el('view'));
+    showStatus(el('ret-status'), 'Klart: ' + retSummary(result) + '.', true);
+  } catch (err) { showStatus(el('ret-status'), err.message, false); }
+}
+
+function anonymizeUser() {
+  const u = (_admin.me.roster || []).find(x => x.id === _admin.panel.id);
+  const typed = prompt(`Avidentifiera ${u.displayName}?\n\nNamn, användarnamn, e-post, telefon, PIN, roller och handledarrelationer tas bort för gott. Pass, schema och ST-historik ligger kvar som "Ingen användare". Det går inte att ångra.\n\nSkriv personens namn för att bekräfta:`);
+  if (typed == null) return;
+  if (typed.trim() !== u.displayName) { alert('Namnet stämde inte. Inget ändrades.'); return; }
+  (async () => {
+    try {
+      await api('/admin/users/' + encodeURIComponent(u.id) + '/anonymize', { method: 'POST' });
+      _admin.panel = null; el('sheet-root')?.remove();
+      await reloadAdmin(); toast('Kontot är avidentifierat.');
+    } catch (err) { showStatus(el('up-status'), err.message, false); }
+  })();
 }
 
 // ── Moduler (klinikens admin) ────────────────────────────────────────────
@@ -973,7 +1047,7 @@ async function deleteClinic(id) {
 const IMPORT_PART_LABEL = [
   ['opjour', 'Opjour: jourbytestid'], ['moduler', 'Moduler'], ['typer', 'Aktivitetstyper (Planering)'], ['krav', 'Krav med kopplade delmål (ST-utbildning)'],
   ['bemanning', 'Minsta antal i tjänst'], ['veckor', 'Veckoschemats förvalda period (antal veckor)'], ['malbeskrivning', 'Förvald målbeskrivning'],
-  ['jobbimport', 'Översättning av jobbschemats koder'], ['mallar', 'Startsidans mallar per yrkesroll'], ['utbildning', 'Utbildningsmaterial (områden och poster)']
+  ['jobbimport', 'Översättning av jobbschemats koder'], ['mallar', 'Startsidans mallar per yrkesroll'], ['utbildning', 'Utbildningsmaterial (områden och poster)'], ['gallring', 'Inaktivering och gallring']
 ];
 function importCard() {
   const others = _admin.clinics.filter(c => c.id !== _admin.me.clinicId);

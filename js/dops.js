@@ -144,7 +144,7 @@ async function loadBedAi() {
   const box = el('bed-ai'); if (!box) return;
   const email = _bed.data.recipient.email, ft = bedAiType();
   let hist = null;
-  try { hist = await dopsApi('/progress/ai-summaries?' + new URLSearchParams({ recipientEmail: email, formType: ft })); } catch { hist = { items: [] }; }
+  try { hist = await dopsApi('/progress/ai-summaries/list', { method: 'POST', body: { recipientEmail: email, formType: ft } }); } catch { hist = { items: [] }; }
   const last = hist.items?.[0];
   box.innerHTML = `<h2 style="margin-top:0">AI-sammanställning <span class="muted" style="font-weight:normal;font-size:14px">${ft ? esc(ft) : 'alla formulär'}</span></h2>
     ${last ? `<p class="muted" style="margin:0 0 6px">Sparad ${esc(last.createdAt)} · ${last.assessmentCount} bedömningar${hist.newSinceLatest ? ` · <strong>${hist.newSinceLatest} nya sedan dess</strong>` : ''}</p>
