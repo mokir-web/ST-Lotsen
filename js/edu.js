@@ -2,7 +2,7 @@
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser(), fmtDM(), fmtDateLong(). Global entry: renderEdu(root, sub).
 // Klinikens länksamling i områden (undermenyerna). Ett levande dokument: admin lägger till, ändrar, flyttar och tar bort direkt;
 // alla andra föreslår ändringar som admin godkänner (gärna efter att ha justerat dem) eller avböjer med ett svar.
-// Videolänkar (YouTube, Vimeo, filer .mp4/.webm/.ogg) spelas upp direkt på sidan.
+// Videolänkar (YouTube med spellistor, Vimeo, filer .mp4/.webm/.ogg) spelas upp direkt på sidan.
 
 let _edu = null;
 
@@ -32,7 +32,8 @@ function drawEduNav() {
   markNav(location.hash);
 }
 
-// Video: YouTube (även youtu.be och shorts), Vimeo och videofiler. Returnerar { kind, src } eller null.
+// Video: YouTube (även youtu.be, shorts och spellistor), Vimeo (även showcase) och videofiler.
+// Returnerar { kind, src, list } eller null; list = true för en spellista.
 function eduVideo(url) {
   let u; try { u = new URL(url); } catch { return null; }
   const host = u.hostname.replace(/^www\.|^m\./, '');
@@ -41,11 +42,17 @@ function eduVideo(url) {
   else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
     id = u.searchParams.get('v') || (u.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]{6,})/) || [])[1];
   }
-  if (id && /^[\w-]{6,20}$/.test(id)) {
+  // Spellista: youtube.com/playlist?list=… eller en video i en spellista (watch?v=…&list=…), som då startar på den videon.
+  const list = (host === 'youtube.com' || host === 'youtube-nocookie.com' || host === 'youtu.be') && /^[\w-]{10,64}$/.test(u.searchParams.get('list') || '') ? u.searchParams.get('list') : null;
+  const okId = id && /^[\w-]{6,20}$/.test(id) && id !== 'videoseries';
+  if (okId || list) {
     const t = parseInt(u.searchParams.get('t') || u.searchParams.get('start') || '0', 10);
-    return { kind: 'frame', src: `https://www.youtube-nocookie.com/embed/${id}?rel=0${t ? '&start=' + t : ''}` };
+    const path = okId ? id : 'videoseries';
+    return { kind: 'frame', list: !!list, src: `https://www.youtube-nocookie.com/embed/${path}?rel=0${list ? '&list=' + list : ''}${t ? '&start=' + t : ''}` };
   }
   if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+    const sc = u.pathname.match(/^\/showcase\/(\d+)/);
+    if (sc) return { kind: 'frame', list: true, src: `https://vimeo.com/showcase/${sc[1]}/embed` };
     const m = u.pathname.match(/(?:\/video)?\/(\d+)(?:\/([\da-f]+))?/);
     if (m) return { kind: 'frame', src: `https://player.vimeo.com/video/${m[1]}${m[2] ? '?h=' + m[2] : ''}` };
   }
@@ -88,10 +95,10 @@ function eduSectionView(sec) {
     const v = it.url ? eduVideo(it.url) : null, open = playing.has(it.id);
     return `<li class="edu-item" id="edu-${it.id}">
       <div class="edu-main">
-        <div class="edu-title">${v ? '<span class="edu-kind" title="Video">▶</span>' : it.url ? '<span class="edu-kind" title="Länk">🔗</span>' : '<span class="edu-kind" title="Text">📝</span>'}
+        <div class="edu-title">${v ? `<span class="edu-kind" title="${v.list ? 'Spellista' : 'Video'}">${v.list ? '☰' : '▶'}</span>` : it.url ? '<span class="edu-kind" title="Länk">🔗</span>' : '<span class="edu-kind" title="Text">📝</span>'}
           ${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a> <span class="muted edu-host">${esc(eduHost(it.url))}</span>` : `<strong>${esc(it.title)}</strong>`}</div>
         ${it.note ? `<div class="edu-note">${eduText(it.note)}</div>` : ''}
-        ${v ? `<button class="btn-ghost edu-play" data-e="play" data-id="${it.id}" aria-expanded="${open}">${open ? '■ Stäng videon' : '▶ Spela upp här'}</button>` : ''}
+        ${v ? `<button class="btn-ghost edu-play" data-e="play" data-id="${it.id}" aria-expanded="${open}">${open ? (v.list ? '■ Stäng spellistan' : '■ Stäng videon') : v.list ? '▶ Spela spellistan här' : '▶ Spela upp här'}</button>` : ''}
         ${v && open ? `<div class="edu-video">${v.kind === 'file' ? `<video src="${esc(v.src)}" controls preload="metadata"></video>`
           : `<iframe src="${esc(v.src)}" title="${esc(it.title)}" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`}</div>` : ''}
         <div class="edu-meta muted">${it.byName ? `Tillagd av ${esc(it.byName)} · ` : ''}${esc(fmtDM(String(it.createdAt).slice(0, 10)))}${pendFor(it.id) && edit ? ` · <a href="#/utbildning/forslag">${pendFor(it.id)} förslag</a>` : ''}</div>
@@ -164,7 +171,7 @@ function eduForm({ kind, sec, it }) {
     : isItem ? `
       <label for="ef-title">Titel</label><input id="ef-title" maxlength="120" value="${esc(v.title || '')}" placeholder="Till exempel: Laparoskopisk appendektomi – steg för steg">
       <label for="ef-url">Länk <span class="muted">(valfri om du skriver en beskrivning)</span></label><input id="ef-url" type="url" inputmode="url" maxlength="500" value="${esc(v.url || '')}" placeholder="https://…">
-      <p class="hint" style="margin:2px 0 0">Länkar till YouTube, Vimeo och videofiler (.mp4) kan spelas upp direkt på sidan.</p>
+      <p class="hint" style="margin:2px 0 0">Länkar till YouTube (även spellistor), Vimeo och videofiler (.mp4) kan spelas upp direkt på sidan.</p>
       <label for="ef-note">Beskrivning</label><textarea id="ef-note" rows="4" maxlength="1000" placeholder="Vad är bra med materialet, vem passar det för, inloggning som behövs …">${esc(v.note || '')}</textarea>
       ${kind === 'edit_item' && _edu.data.sections.length > 1 ? `<label for="ef-sec">Område</label><select id="ef-sec">${_edu.data.sections.map(s => `<option value="${s.id}"${s.id === sec.id ? ' selected' : ''}>${esc(s.title)}</option>`).join('')}</select>` : ''}`
     : `

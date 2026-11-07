@@ -13,7 +13,8 @@ const HELP = [
     'Vill du börja på en annan sida när du öppnar ST-Lotsen: välj startsida under Inställningar → Mitt konto.']],
   ['#/utbildning', 'Utbildningsmaterial', [
     'Klinikens samling av bra utbildningsmaterial (artiklar, videor, kurser), ordnad i områden. Områdena finns i undermenyn.',
-    'Videor från YouTube, Vimeo och videofiler (.mp4) spelas upp direkt på sidan med <em>▶ Spela upp här</em>. Övriga länkar öppnas i en ny flik.',
+    'Videor och spellistor från YouTube, Vimeo och videofiler (.mp4) spelas upp direkt på sidan med <em>▶ Spela upp här</em>. En spellista (märkt ☰) spelas upp med listan i spelaren, där man hoppar mellan avsnitten. Klistra in länken till spellistan (youtube.com/playlist?list=…) eller till en video i den. Övriga länkar öppnas i en ny flik.',
+    'Åldersbegränsade videor (vanligt för operationsfilmer) och videor där ägaren stängt av inbäddning går inte att spela här. Spelaren visar då <em>Titta på YouTube</em>, och titeln är alltid en länk dit.',
     '<strong>Alla kan föreslå</strong> nytt material, ändringar (✎) och borttagning (✕), och nya områden. Förslaget går till klinikens admin, som godkänner det, justerar det först eller avböjer med ett svar. Dina förslag och svaren ser du under <em>Mina förslag</em>.',
     '<strong>Admin</strong> lägger till, ändrar, flyttar (↑↓) och tar bort direkt, och behandlar förslagen under <em>Förslag</em>. Väntande förslag syns också under Att göra på startsidan.']],
   ['#/kalender', 'Opjour · Kalender', [
