@@ -92,12 +92,13 @@ function eduSectionView(sec) {
   const { data, playing } = _edu, edit = data.canEdit;
   const pendFor = id => data.suggestions.filter(s => s.status === 'pending' && s.itemId === id).length;
   const item = (it, i) => {
-    const v = it.url ? eduVideo(it.url) : null, open = playing.has(it.id);
+    const v0 = it.url ? eduVideo(it.url) : null, v = it.embed === false ? null : v0, open = playing.has(it.id);
     return `<li class="edu-item" id="edu-${it.id}">
       <div class="edu-main">
-        <div class="edu-title">${v ? `<span class="edu-kind" title="${v.list ? 'Spellista' : 'Video'}">${v.list ? '☰' : '▶'}</span>` : it.url ? '<span class="edu-kind" title="Länk">🔗</span>' : '<span class="edu-kind" title="Text">📝</span>'}
+        <div class="edu-title">${v0 ? `<span class="edu-kind" title="${v0.list ? 'Spellista' : 'Video'}">${v0.list ? '☰' : '▶'}</span>` : it.url ? '<span class="edu-kind" title="Länk">🔗</span>' : '<span class="edu-kind" title="Text">📝</span>'}
           ${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a> <span class="muted edu-host">${esc(eduHost(it.url))}</span>` : `<strong>${esc(it.title)}</strong>`}</div>
         ${it.note ? `<div class="edu-note">${eduText(it.note)}</div>` : ''}
+        ${v0 && !v ? `<div class="edu-note muted">Spelas på ${esc(eduHost(it.url))} (går inte att spela här).</div>` : ''}
         ${v ? `<button class="btn-ghost edu-play" data-e="play" data-id="${it.id}" aria-expanded="${open}">${open ? (v.list ? '■ Stäng spellistan' : '■ Stäng videon') : v.list ? '▶ Spela spellistan här' : '▶ Spela upp här'}</button>` : ''}
         ${v && open ? `<div class="edu-video">${v.kind === 'file' ? `<video src="${esc(v.src)}" controls preload="metadata"></video>`
           : `<iframe src="${esc(v.src)}" title="${esc(it.title)}" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`}</div>` : ''}
@@ -172,6 +173,8 @@ function eduForm({ kind, sec, it }) {
       <label for="ef-title">Titel</label><input id="ef-title" maxlength="120" value="${esc(v.title || '')}" placeholder="Till exempel: Laparoskopisk appendektomi – steg för steg">
       <label for="ef-url">Länk <span class="muted">(valfri om du skriver en beskrivning)</span></label><input id="ef-url" type="url" inputmode="url" maxlength="500" value="${esc(v.url || '')}" placeholder="https://…">
       <p class="hint" style="margin:2px 0 0">Länkar till YouTube (även spellistor), Vimeo och videofiler (.mp4) kan spelas upp direkt på sidan.</p>
+      <label class="row${v.url && eduVideo(v.url) ? '' : ' hidden'}" id="ef-embed-l" style="gap:8px;font-weight:normal;margin-top:6px"><input type="checkbox" id="ef-embed"${v.embed === false ? '' : ' checked'}> Spela upp här på sidan
+        <span class="muted" style="font-size:13px">— stäng av för åldersbegränsade videor, som bara går att se på YouTube</span></label>
       <label for="ef-note">Beskrivning</label><textarea id="ef-note" rows="4" maxlength="1000" placeholder="Vad är bra med materialet, vem passar det för, inloggning som behövs …">${esc(v.note || '')}</textarea>
       ${kind === 'edit_item' && _edu.data.sections.length > 1 ? `<label for="ef-sec">Område</label><select id="ef-sec">${_edu.data.sections.map(s => `<option value="${s.id}"${s.id === sec.id ? ' selected' : ''}>${esc(s.title)}</option>`).join('')}</select>` : ''}`
     : `
@@ -192,12 +195,16 @@ function eduForm({ kind, sec, it }) {
     </div>`;
   root.querySelector('.overlay').addEventListener('click', e => { if (e.target.dataset.close) root.innerHTML = ''; });
   el('ef-title')?.focus();
+  el('ef-url')?.addEventListener('input', () => el('ef-embed-l').classList.toggle('hidden', !eduVideo(el('ef-url').value.trim().replace(/^(?![a-z]+:)/i, 'https://'))));
   el('ef').addEventListener('submit', async e => {
     e.preventDefault();
     const val = id => el(id)?.value ?? undefined;
-    const payload = kind === 'delete_item' ? {} : isItem ? { title: val('ef-title'), url: val('ef-url'), note: val('ef-note') } : { title: val('ef-title'), intro: val('ef-intro') };
+    const payload = kind === 'delete_item' ? {} : isItem ? { title: val('ef-title'), url: val('ef-url'), note: val('ef-note'), embed: el('ef-embed').checked } : { title: val('ef-title'), intro: val('ef-intro') };
     // Ändring: skicka bara det som ändrats.
-    if (kind === 'edit_item') for (const k of ['title', 'url', 'note']) if ((payload[k] || '').trim() === (it[k] || '')) delete payload[k];
+    if (kind === 'edit_item') {
+      for (const k of ['title', 'url', 'note']) if ((payload[k] || '').trim() === (it[k] || '')) delete payload[k];
+      if (payload.embed === (it.embed !== false)) delete payload.embed;
+    }
     if (kind === 'edit_section') for (const k of ['title', 'intro']) if ((payload[k] || '').trim() === (sec[k] || '')) delete payload[k];
     const moveTo = kind === 'edit_item' && val('ef-sec') && val('ef-sec') !== sec.id ? val('ef-sec') : undefined;
     const btn = e.submitter || el('ef').querySelector('[type=submit]');
@@ -220,7 +227,8 @@ function eduForm({ kind, sec, it }) {
 
 // ── Förslag ───────────────────────────────────────────────────────────────
 const EDU_KIND_LABEL = { add_item: 'Nytt material', edit_item: 'Ändring', delete_item: 'Ta bort', add_section: 'Nytt område', edit_section: 'Ändra område', delete_section: 'Ta bort område' };
-const EDU_FIELD = { title: 'Titel', url: 'Länk', note: 'Beskrivning', intro: 'Inledning' };
+const EDU_FIELD = { title: 'Titel', url: 'Länk', note: 'Beskrivning', intro: 'Inledning', embed: 'Spela upp här' };
+const eduShow = (k, v) => k === 'embed' ? (v === false ? 'Nej' : 'Ja') : v || '–';
 
 function drawEduSuggestions(root) {
   const { data } = _edu, admin = data.canEdit;
@@ -228,9 +236,9 @@ function drawEduSuggestions(root) {
   const secName = id => data.sections.find(s => s.id === id)?.title;
   const cur = s => s.itemId ? eduFindItem(s.itemId).it : s.sectionId && s.kind.endsWith('section') ? data.sections.find(x => x.id === s.sectionId) : null;
   const diff = s => {
-    const now = cur(s), keys = ['title', 'url', 'note', 'intro'].filter(k => k in (s.payload || {}));
+    const now = cur(s), keys = ['title', 'url', 'note', 'intro', 'embed'].filter(k => k in (s.payload || {}));
     if (s.kind.startsWith('delete')) return now ? `<p style="margin:4px 0">${esc(now.title)}${now.url ? ` · <a href="${esc(now.url)}" target="_blank" rel="noopener noreferrer">${esc(eduHost(now.url))}</a>` : ''}</p>` : '';
-    return `<table class="edu-diff">${keys.map(k => `<tr><th>${EDU_FIELD[k] || k}</th><td>${s.kind.startsWith('edit') && now ? `<del>${esc(now[k] || '–')}</del><br>` : ''}<ins>${k === 'url' && s.payload[k] ? `<a href="${esc(s.payload[k])}" target="_blank" rel="noopener noreferrer">${esc(s.payload[k])}</a>` : esc(s.payload[k] || '–')}</ins></td></tr>`).join('')}
+    return `<table class="edu-diff">${keys.map(k => `<tr><th>${EDU_FIELD[k] || k}</th><td>${s.kind.startsWith('edit') && now ? `<del>${esc(eduShow(k, now[k]))}</del><br>` : ''}<ins>${k === 'url' && s.payload[k] ? `<a href="${esc(s.payload[k])}" target="_blank" rel="noopener noreferrer">${esc(s.payload[k])}</a>` : esc(eduShow(k, s.payload[k]))}</ins></td></tr>`).join('')}
       ${s.kind === 'edit_item' && s.sectionId && now && eduFindItem(s.itemId).sec?.id !== s.sectionId ? `<tr><th>Område</th><td><del>${esc(eduFindItem(s.itemId).sec?.title || '')}</del><br><ins>${esc(secName(s.sectionId) || '')}</ins></td></tr>` : ''}</table>`;
   };
   const status = s => s.status === 'pending' ? '<span class="tagchip">Väntar</span>' : s.status === 'accepted' ? '<span class="tagchip ok">Godkänt</span>' : '<span class="tagchip no">Avböjt</span>';
@@ -283,6 +291,7 @@ function eduAdjust(s) {
       <form class="sheet" role="dialog" aria-label="Justera förslaget" id="ea">
         <h2>Justera och godkänn <button type="button" class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" data-close="1" aria-label="Stäng">✕</button></h2>
         ${keys.map(k => `<label for="ea-${k}">${EDU_FIELD[k]}</label>${k === 'note' || k === 'intro' ? `<textarea id="ea-${k}" rows="4" maxlength="1000">${esc(v[k])}</textarea>` : `<input id="ea-${k}" maxlength="${k === 'url' ? 500 : 120}" value="${esc(v[k])}">`}`).join('')}
+        ${isItem ? `<label class="row" style="gap:8px;font-weight:normal;margin-top:8px"><input type="checkbox" id="ea-embed"${('embed' in (s.payload || {}) ? s.payload.embed : now?.embed) === false ? '' : ' checked'}> Spela upp här på sidan (videor och spellistor)</label>` : ''}
         <label for="ea-reply">Svar till den som föreslog <span class="muted">(valfritt)</span></label><input id="ea-reply" maxlength="1000">
         <div class="row" style="margin-top:14px"><button class="btn" type="submit">Godkänn</button><button class="btn-ghost" type="button" data-close="1">Avbryt</button></div>
         <div class="status err" id="ea-err"></div>
@@ -292,7 +301,11 @@ function eduAdjust(s) {
   el('ea').addEventListener('submit', async e => {
     e.preventDefault();
     const payload = Object.fromEntries(keys.map(k => [k, el('ea-' + k).value]));
-    if (s.kind.startsWith('edit')) for (const k of keys) if (payload[k].trim() === (now?.[k] || '')) delete payload[k];
+    if (isItem) payload.embed = el('ea-embed').checked;
+    if (s.kind.startsWith('edit')) {
+      for (const k of keys) if (payload[k].trim() === (now?.[k] || '')) delete payload[k];
+      if (isItem && payload.embed === (now?.embed !== false)) delete payload.embed;
+    }
     try {
       await api(`/edu/suggestions/${s.id}/accept`, { method: 'POST', body: { payload, reply: el('ea-reply').value } });
       root.innerHTML = ''; eduReload();

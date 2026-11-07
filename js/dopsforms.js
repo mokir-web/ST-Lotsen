@@ -76,7 +76,7 @@ function dregInput(q, i) {
     input = `<div class="seg dreg-scale">${Array.from({ length: hi - lo + 1 }, (_, k) => lo + k).map(n =>
       `<label><input type="radio" name="${name}" value="${n}"${String(n) === v ? ' checked' : ''}><span>${n}</span></label>`).join('')}</div>
       ${steps.length ? `<div class="muted bed-steps">${steps.map(esc).join(' · ')}</div>` : q.description ? `<div class="muted bed-steps">${esc(q.description)}</div>` : ''}`;
-  } else input = `<textarea name="${name}" rows="3">${esc(v)}</textarea>`;
+  } else input = `<textarea name="${name}" rows="6" class="dreg-text">${esc(v)}</textarea>`;
   return `<div class="dreg-q" data-i="${i}"><div class="dreg-label">${esc(q.question)}${q.prio ? ' <span class="chip" style="font-size:11px;padding:0 6px">prio</span>' : ''}</div>
     ${q.description && !['skala', 'rubrik'].includes(q.type) ? `<div class="hint" style="margin:2px 0 4px">${esc(q.description).replace(/ \| /g, '<br>')}</div>` : ''}${input}</div>`;
 }
@@ -140,6 +140,8 @@ function drawDregSection(root) {
   root.querySelector('#dreg-card').addEventListener('focusin', e => { const q = e.target.closest('.dreg-q'); if (q) dregKbMark(q); });
   root.querySelector('#dreg-card').addEventListener('mousedown', () => dregKbMark(null));
   setTimeout(() => dregKbFocus(0), 30);
+  // Fritextrutorna växer med texten (minst sex rader).
+  root.querySelectorAll('textarea.dreg-text').forEach(t => { const fit = () => { t.style.height = 'auto'; t.style.height = Math.max(t.scrollHeight + 2, 140) + 'px'; }; t.addEventListener('input', fit); fit(); });
   if (el('dreg-send')) el('dreg-send').onclick = async () => {
     dregCollect(root);
     const answers = d.questions.filter(q => q.type !== 'rubrik' && d.answers[dregKey(q)] != null)

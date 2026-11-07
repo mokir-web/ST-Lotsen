@@ -16,7 +16,7 @@ async function renderToday(root) {
     const mods = me.modules || ['opjour'], today = todayStockholm(), monday = mondayOfISO(today);
     const soft = p => p ? p.catch(() => null) : Promise.resolve(null);
     const dopsOn = mods.includes('dops') && me.dopsUser;
-    const layout = twLayout(me.todayLayout, me.todayTemplate), on = id => layout.find(c => c.id === id)?.on;
+    const layout = twLayout(me.todayLayout, me.todayTemplate).cards, on = id => layout.find(c => c.id === id)?.on;
     const weeks = twWeeksNeeded(layout);
     const [cal, sch, plan, todo, dops, dopsRec, dopsSent, edu] = await Promise.all([
       soft(mods.includes('opjour') ? api(`/calendar?start=${monday}&weeks=1`) : null),
@@ -48,14 +48,17 @@ function greeting() {
 }
 
 // ── Rutnät med kort (widgets) ──────────────────────────────────────────
-// Rutnätet har tre kolumner och rader på 215 px. Varje kort har en plats (x, y) och en storlek i rutor: bredd 1–3 och höjd 1–8.
+// Rutnätet har 1–10 kolumner (var och en väljer upplösningen i redigeringsläget, förval 3; mallarna har sin egen) och rader vars höjd
+// följer kolumnbredden (215 px vid tre kolumner på en bred skärm). Varje kort har en plats (x, y) och en storlek i rutor: bredd
+// 1–kolumnerna och höjd 1–30. Byts upplösningen skalas korten om så att layouten ser ungefär likadan ut.
 // "Anpassa" slår på redigeringsläget: dra i ⠿ och släpp kortet på valfri ruta, även en tom. Övriga kort ligger kvar; får kortet
 // inte plats i sin storlek fälls det ihop (största storlek som får plats) och går inte ens 1×1 ligger det kvar. Storleken ändras
 // genom att dra i hörnet ◢ (eller under ⚙). ⚙ ställer in innehållet, ✕ döljer. Dolda kort ligger under rutnätet.
 // Under 720 px: en kolumn i läsordning (rad för rad), korten högst så höga som sin höjd i rutor; där flyttas de i ordning och
 // rutnätet packas om. Layouten sparas på kontot (PUT /profile/today-layout); null = klinikens mall eller standarden.
 // Kort som inte gäller personen (t.ex. DOPS utan kopplat konto) syns varken i rutnätet eller bland de dolda.
-const TW_COLS = 3, TW_MAXH = 8, TW_ROW = 215, TW_GAP = 16, TW_PLACED_MIN = 720;
+let TW_COLS = 3, TW_ROW = 215;   // aktuellt rutnät (kolumner) och radhöjd i px (räknas ut i drawTw)
+const TW_MAXH = 30, TW_MAXCOLS = 10, TW_GAP = 16, TW_PLACED_MIN = 720;
 const TW_LEGACY = { s: [1, 1], w: [2, 1], t: [1, 2], l: [2, 2] };   // storlekar före 0.43.0
 const TW_COMPACT = { k: 'compact', label: 'Kompakt läge (mindre text och luft)', def: false };
 const TW_PERIOD = [['months', 'Ett antal månader framåt'], ['year', 'Resten av innevarande ST-år']];
@@ -94,21 +97,40 @@ let _today = null;
 // Layout ur sparad (eller mall, eller standard) + kort som tillkommit sedan den sparades (sist; nya korttyper kan vara dolda).
 // Äldre format: size (s/w/t/l) blir bredd × höjd; "Kvar under ST-året" blev Min utbildningsplan; Mina aktiviteter ingår i Min vecka.
 function twLayout(saved, template) {
+  const src = saved ?? template;
+  const cols = src && !Array.isArray(src) && Number.isInteger(src.cols) ? Math.min(TW_MAXCOLS, Math.max(1, src.cols)) : 3;
+  const list = src ? (Array.isArray(src) ? src : src.cards || []) : [];
+  const f = cols / 3, sc = (v, min = 1) => Math.max(min, Math.round(v * f));   // standardstorlekarna gäller tre kolumner
   const out = [];
-  for (const c of saved || template || []) {
+  for (const c of list) {
     const id = c.id === 'styear' ? 'plan' : c.id, w = twDef(id);
     if (!w || out.some(x => x.id === id)) continue;
     const [lw, lh] = TW_LEGACY[c.size] || [];
     const opts = { ...(c.opts || {}) };
     if (c.id === 'styear') opts.period = 'year';
-    out.push({ id, on: c.on !== false, w: Math.min(TW_COLS, Math.max(1, c.w || lw || w.w)), h: Math.min(TW_MAXH, Math.max(1, c.h || lh || w.h)),
-      ...(Number.isInteger(c.x) && Number.isInteger(c.y) ? { x: c.x, y: c.y } : {}), opts });
+    out.push({ id, on: c.on !== false, w: Math.min(cols, Math.max(1, c.w || lw || sc(w.w))), h: Math.min(TW_MAXH, Math.max(1, c.h || lh || sc(w.h))),
+      ...(Number.isInteger(c.x) && Number.isInteger(c.y) && c.x < cols ? { x: c.x, y: c.y } : {}), opts });
   }
-  for (const w of TODAY_WIDGETS) if (!out.some(c => c.id === w.id)) out.push({ id: w.id, on: w.on !== false, w: w.w, h: w.h, opts: {} });
-  return out;
+  for (const w of TODAY_WIDGETS) if (!out.some(c => c.id === w.id)) out.push({ id: w.id, on: w.on !== false, w: Math.min(cols, sc(w.w)), h: sc(w.h), opts: {} });
+  return { cols, cards: out };
 }
 const twBase = () => twLayout(null, _today.d.me.todayTemplate);
-const twStrip = L => JSON.stringify(L.map(({ x, y, ...c }) => c));
+const twSnap = () => JSON.stringify({ cols: TW_COLS, cards: _today.layout });
+function twUse(L) { _today.layout = L.cards; TW_COLS = L.cols; }
+const twSave = () => ({ cols: TW_COLS, cards: _today.layout });
+// Ny upplösning: platser och storlekar skalas med kvoten och krockar läggs om där korten först får plats.
+function twRescale(cols) {
+  cols = Math.min(TW_MAXCOLS, Math.max(1, Math.round(cols) || 3));
+  if (cols === TW_COLS) return;
+  const f = cols / TW_COLS;
+  for (const c of _today.layout) {
+    c.w = Math.min(cols, Math.max(1, Math.round(c.w * f))); c.h = Math.min(TW_MAXH, Math.max(1, Math.round(c.h * f)));
+    if (c.x != null) { c.x = Math.min(cols - c.w, Math.floor(c.x * f)); c.y = Math.round(c.y * f); }
+  }
+  TW_COLS = cols;
+  drawTw();
+}
+const twStrip = (cols, L) => JSON.stringify([cols, L.map(({ x, y, ...c }) => c)]);
 
 // Upptagna rutor (utom kortet skip) och om ett kort på w × h rutor får plats på (x, y).
 function twOccupied(cards, skip) {
@@ -148,11 +170,11 @@ function twRepack(order) {
   twPlace(order);
 }
 const twReading = cards => [...cards].sort((a, b) => a.y - b.y || a.x - b.x);
-const twPx = h => h * TW_ROW + (h - 1) * TW_GAP;
+const twPx = h => Math.round(h * (645 / TW_COLS) + (h - 1) * TW_GAP);   // smal skärm: kortets största höjd
 
 function drawToday(root, d) {
   _today = { d, edit: false, open: null };
-  _today.layout = twLayout(d.me.todayLayout, d.me.todayTemplate);
+  twUse(twLayout(d.me.todayLayout, d.me.todayTemplate));
   const first = (d.me.displayName || '').split(' ')[0];
   root.innerHTML = `
     <div class="tw-head">
@@ -192,7 +214,7 @@ function drawTw() {
   const { layout, edit, open } = _today, me = _today.d.me;
   const placed = _today.placed = twPlacedMode();
   el('tw-actions').innerHTML = edit
-    ? `${me.isAdmin ? `<select id="tw-target" title="Vilken startsida du redigerar"><option value="">Min startsida</option>${TW_ROLES.map(([k, l]) => `<option value="${k}"${_today.tpl === k ? ' selected' : ''}>Mall: ${esc(l)}${(me.todayTemplateRoles || []).includes(k) ? '' : ' (ingen än)'}</option>`).join('')}</select>` : ''}${me.isAdmin && !_today.tpl ? '<button type="button" class="btn-ghost" data-act="template" title="Gör den här layouten till utgångsläge för en yrkesroll">Spara som mall…</button>' : ''}<button type="button" class="btn-ghost" data-act="reset">Återställ</button><button type="button" class="btn-ghost" data-act="cancel">Avbryt</button><button type="button" class="btn" data-act="save">Klar</button>`
+    ? `${me.isAdmin ? `<select id="tw-target" title="Vilken startsida du redigerar"><option value="">Min startsida</option>${TW_ROLES.map(([k, l]) => `<option value="${k}"${_today.tpl === k ? ' selected' : ''}>Mall: ${esc(l)}${(me.todayTemplateRoles || []).includes(k) ? '' : ' (ingen än)'}</option>`).join('')}</select>` : ''}${me.isAdmin && !_today.tpl ? '<button type="button" class="btn-ghost" data-act="template" title="Gör den här layouten till utgångsläge för en yrkesroll">Spara som mall…</button>' : ''}<label class="tw-colsl" title="Rutnätets upplösning: fler kolumner ger mindre rutor">Rutnät <input type="number" id="tw-cols" min="1" max="${TW_MAXCOLS}" value="${TW_COLS}"> kolumner</label><button type="button" class="btn-ghost" data-act="reset">Återställ</button><button type="button" class="btn-ghost" data-act="cancel">Avbryt</button><button type="button" class="btn" data-act="save">Klar</button>`
     : '<button type="button" class="btn-ghost tw-edit" data-act="edit" title="Flytta, ändra storlek, dölj och ställ in korten">✎ Anpassa</button>';
   const hint = el('tw-hint');
   hint.classList.toggle('hidden', !edit);
@@ -206,6 +228,12 @@ function drawTw() {
   const grid = el('tw-grid');
   grid.classList.toggle('editing', edit);
   grid.classList.toggle('placed', placed);
+  grid.dataset.cols = TW_COLS;
+  if (placed) {
+    const colW = (grid.clientWidth - TW_GAP * (TW_COLS - 1)) / TW_COLS;
+    TW_ROW = Math.max(56, Math.round(colW * (TW_COLS <= 3 ? 0.48 : 0.6)));   // tre kolumner: 215 px på en bred skärm
+    grid.style.gridTemplateColumns = `repeat(${TW_COLS}, minmax(0, 1fr))`; grid.style.gridAutoRows = TW_ROW + 'px';
+  } else { grid.style.gridTemplateColumns = ''; grid.style.gridAutoRows = ''; }
   const occ = twOccupied(shown.map(([c]) => c));
   const bottom = Math.max(0, ...shown.map(([c]) => c.y + c.h));
   const rows = edit ? bottom + 2 : bottom;
@@ -240,7 +268,7 @@ function twOptsForm(w, c) {
       <label class="tw-opt">Höjd <span class="muted">(1–${TW_MAXH})</span><input type="number" min="1" max="${TW_MAXH}" value="${c.h}" data-dim="h" data-id="${c.id}"></label></div>
     <p class="hint" id="tw-dim-msg" style="margin:0"></p>
     ${w.opts.map(opt).join('')}
-    <p style="margin:10px 0 0"><button type="button" class="btn-ghost" data-opts="${c.id}">Visa kortet</button></p></div>`;
+    <p class="row" style="margin:10px 0 0;gap:8px"><button type="button" class="btn-ghost" data-opts="${c.id}">Visa kortet</button><button type="button" class="btn-ghost" data-hide="${c.id}">Dölj kortet</button></p></div>`;
 }
 
 const twFind = id => _today.layout.find(c => c.id === id);
@@ -248,30 +276,30 @@ const twFind = id => _today.layout.find(c => c.id === id);
 async function onTwAction(e) {
   const b = e.target.closest('button[data-act]'); if (!b) return;
   const act = b.dataset.act;
-  if (act === 'edit') { _today.before = JSON.stringify(_today.layout); _today.edit = true; }
-  else if (act === 'cancel') { _today.layout = JSON.parse(_today.tpl ? _today.own : _today.before); _today.tpl = null; _today.edit = false; _today.open = null; }
+  if (act === 'edit') { _today.before = twSnap(); _today.edit = true; }
+  else if (act === 'cancel') { twUse(JSON.parse(_today.tpl ? _today.own : _today.before)); _today.tpl = null; _today.edit = false; _today.open = null; }
   else if (act === 'template') return twTemplateDialog();
   else if (act === 'reset') {
     if (_today.tpl) {
       if (!confirm('Återställa mallen till den inbyggda standarden?')) return;
-      _today.layout = twLayout(null, null); _today.open = null; drawTw(); return;
+      twUse(twLayout(null, null)); _today.open = null; drawTw(); return;
     }
     const msg = _today.d.me.todayTemplate ? 'Återställa startsidan till klinikens mall för din yrkesroll?' : 'Återställa startsidan till standardlayouten?';
     if (!confirm(msg + ' Placering, storlekar och inställningar för korten försvinner.')) return;
-    _today.layout = twBase(); _today.reset = true; _today.open = null;
+    twUse(twBase()); _today.reset = true; _today.open = null;
   } else if (act === 'save' && _today.tpl) {
     b.disabled = true;
     try {
-      const r = await api('/admin/today-templates', { method: 'PUT', body: { roles: [_today.tpl], layout: _today.layout } });
+      const r = await api('/admin/today-templates', { method: 'PUT', body: { roles: [_today.tpl], layout: twSave() } });
       _today.d.me.todayTemplateRoles = r.roles;
       toast(`Mallen för ${TW_ROLES.find(x => x[0] === _today.tpl)[1]} är sparad.`);
-      _today.layout = JSON.parse(_today.own); _today.tpl = null; _today.edit = false; _today.open = null;
+      twUse(JSON.parse(_today.own)); _today.tpl = null; _today.edit = false; _today.open = null;
     } catch (err) { b.disabled = false; alert(err.message); return; }
   } else if (act === 'save') {
     b.disabled = true;
     try {
-      const plain = twStrip(_today.layout) === twStrip(twBase());
-      const r = await api('/profile/today-layout', { method: 'PUT', body: { layout: _today.reset && plain ? null : _today.layout } });
+      const base = twBase(), plain = twStrip(TW_COLS, _today.layout) === twStrip(base.cols, base.cards);
+      const r = await api('/profile/today-layout', { method: 'PUT', body: { layout: _today.reset && plain ? null : twSave() } });
       _today.d.me.todayLayout = r.layout;
       _today.edit = false; _today.open = null; _today.reset = false;
       // Ett kort som behöver mer data (fler veckor i schemat, utbildningsmaterialet) hämtar den vid nästa laddning.
@@ -289,17 +317,18 @@ function twNeedsReload() {
 // Admin väljer i redigeringsläget vilken startsida som redigeras: sin egen eller klinikens mall för en yrkesroll. Mallen öppnas
 // (eller den inbyggda standarden om rollen saknar mall) och Klar sparar den; den egna layouten väntar under tiden.
 async function onTwTarget(e) {
+  if (e.target.id === 'tw-cols') { twRescale(Number(e.target.value)); return; }
   if (e.target.id !== 'tw-target') return;
   const role = e.target.value || null;
-  const dirty = JSON.stringify(_today.layout) !== (_today.tpl ? _today.tplBefore : _today.before);
+  const dirty = twSnap() !== (_today.tpl ? _today.tplBefore : _today.before);
   if (dirty && !confirm('Lämna det du ändrat här utan att spara?')) { e.target.value = _today.tpl || ''; return; }
   try {
     if (!_today.tpl) _today.own = _today.before;   // den egna layouten som den var före redigeringen
     if (role) {
       const { templates } = await api('/admin/today-templates');
-      _today.layout = twLayout(templates[role] || null, null);
-      _today.tplBefore = JSON.stringify(_today.layout);
-    } else _today.layout = JSON.parse(_today.own);
+      twUse(twLayout(templates[role] || null, null));
+      _today.tplBefore = twSnap();
+    } else twUse(JSON.parse(_today.own));
     _today.tpl = role; _today.open = null;
     if (!role) _today.before = _today.own;
     drawTw();
@@ -340,7 +369,7 @@ function twTemplateDialog() {
     const roles = [...el('twt').querySelectorAll('input:checked')].map(i => i.value);
     if (!roles.length) { st.textContent = 'Välj minst en yrkesroll.'; st.className = 'status err'; return; }
     try {
-      await api('/admin/today-templates', { method: 'PUT', body: { roles, layout: _today.layout } });
+      await api('/admin/today-templates', { method: 'PUT', body: { roles, layout: twSave() } });
       _today.d.me.todayTemplateRoles = [...new Set([...(_today.d.me.todayTemplateRoles || []), ...roles])];
       twTemplateDialog();
       showStatus(el('twt-st'), `Mallen är sparad för ${roles.length} ${roles.length === 1 ? 'yrkesroll' : 'yrkesroller'}.`, true);
@@ -554,13 +583,18 @@ function progressCard({ plan }, o = {}) {
 // Min utbildningsplan (ST-läkare): krav som inte är klara under innevarande ST-år, eller under de ST-år som berörs av ett antal
 // månader framåt, enligt den individuella utbildningsplanen. Krav från tidigare ST-år som inte är klara visas som försenade, och
 // valfritt delmål som inte är uppfyllda. ST-årens slut räknas bakåt från beräknat ST-slut (som tar hänsyn till förlängande ledighet).
+// Saknas ST-start, eller har ST-tiden passerat fem år, visas alla krav som inte är klara (per ST-år) med en förklaring.
 function planCard({ plan, today }, o = {}) {
-  if (!plan || plan.person.stMonths == null || plan.person.stEnd) return '';
-  const p = plan.person, year = Math.floor(p.stMonths / 12) + 1;
-  if (year > 5) return '';
+  if (!plan || plan.person.stEnd) return '';
+  const p = plan.person, year = p.stMonths == null ? null : Math.floor(p.stMonths / 12) + 1;
   const yearEnd = k => p.expectedEnd ? addMonthsISO(p.expectedEnd, -12 * (5 - k)) : null;
-  let years = [year], title = `Min utbildningsplan · ST-år ${year}`;
-  if (o.period === 'months') {
+  let years = [year], title = `Min utbildningsplan · ST-år ${year}`, note = '';
+  if (year == null || year > 5) {
+    years = [1, 2, 3, 4, 5];
+    title = 'Min utbildningsplan · kvar';
+    note = year == null ? 'Din ST-start saknas, så ST-året kan inte räknas ut — här visas allt som inte är klart. Studierektor eller admin anger ST-start under Inställningar → Användare.'
+      : 'Du har passerat fem års ST-tid — här visas allt som inte är klart.';
+  } else if (o.period === 'months') {
     const end = addMonthsISO(today, o.months || 12);
     years = [1, 2, 3, 4, 5].filter(k => k === year || (k > year && yearEnd(k - 1) && yearEnd(k - 1) < end));
     title = `Min utbildningsplan · ${o.months || 12} mån framåt`;
@@ -568,7 +602,7 @@ function planCard({ plan, today }, o = {}) {
   const st = r => plan.cells[r.id] || {};
   const open = r => !['klart', 'tidigare', 'ej'].includes(st(r).status);
   const want = r => o.optional !== false || r.mandatory !== false;
-  const late = plan.requirements.filter(r => r.stYear && r.stYear < year && r.mandatory !== false && open(r));
+  const late = year == null || year > 5 ? [] : plan.requirements.filter(r => r.stYear && r.stYear < year && r.mandatory !== false && open(r));
   const shown = r => st(r).status === 'saknas' ? 'ejgjort' : st(r).status;   // innevarande och kommande år: inte gjort än, inte försenat
   const row = r => `<li><span class="pchip st-${shown(r) || 'ejgjort'}">${esc(OV_LABEL[shown(r)] || 'Ej gjort')}</span> ${esc(r.name)}<span class="muted" style="font-size:13px">${r.mandatory === false ? ' · valfritt' : ''}${
     ['bokad', 'pagaende', 'forslag'].includes(st(r).status) ? ' · ' + esc(ovCellText(st(r))) : ''}</span></li>`;
@@ -576,12 +610,14 @@ function planCard({ plan, today }, o = {}) {
   const blocks = years.map(k => {
     const all = plan.requirements.filter(r => r.stYear === k && want(r)), left = all.filter(open);
     left.forEach(r => listed.add(r.id));
+    if (note && !plan.requirements.some(r => r.stYear === k && want(r) && open(r))) return '';
     const head = years.length > 1 || o.period === 'months' ? `<h3 class="today-sub">ST-år ${k}${yearEnd(k) ? ` · slutar ca ${esc(fmtMonth(yearEnd(k)))}` : ''}</h3>` : '';
     return head + (years.length === 1 && o.period !== 'months' ? `<p class="muted" style="margin:0 0 6px">${all.length - left.length} av ${all.length} krav klara${yearEnd(k) ? ` · ST-året slutar ca ${esc(fmtMonth(yearEnd(k)))}` : ''}</p>` : '')
       + (left.length ? `<ul class="today-list yr-list">${left.map(row).join('')}</ul>` : `<p style="margin:0">${all.length ? '✓ Allt för ST-år ' + k + ' är klart.' : 'Inga krav inlagda för ST-år ' + k + '.'}</p>`);
   }).join('');
   const goals = o.goals ? (plan.goals || []).filter(g => g.total && g.done < g.total && g.requirements.some(r => listed.has(r.id))) : [];
   return todayCard(title, `
+    ${note ? `<p class="hint" style="margin:0 0 6px">${esc(note)}</p>` : ''}
     ${late.length && o.late !== false ? `<p class="yr-late"><strong>${late.length} krav från tidigare ST-år är inte klara:</strong> ${esc(late.slice(0, 6).map(r => r.name).join(', '))}${late.length > 6 ? ` och ${late.length - 6} till` : ''}.</p>` : ''}
     ${blocks}
     ${goals.length ? `<h3 class="today-sub">Delmål som inte är uppfyllda</h3><ul class="today-list">${goals.map(g => `<li><strong>${esc(g.code)}</strong> ${esc(g.text)} <span class="muted" style="font-size:13px;min-width:0">${g.done} av ${g.total} krav</span></li>`).join('')}</ul>` : ''}`,

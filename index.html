@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <!-- CSP (granskning S4): skript och stil bara härifrån (inline krävs för onclick=), anrop bara till API:t (och lokal backend vid utveckling). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://opjour-backend-110110585004.europe-north1.run.app http://localhost:8080 http://127.0.0.1:8080; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://vimeo.com; media-src https:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://opjour-backend-110110585004.europe-north1.run.app http://localhost:8080 http://127.0.0.1:8080 http://localhost:8181; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://vimeo.com; media-src https:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>ST-Lotsen</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1c2b36">
@@ -371,6 +371,11 @@
     .tw { position: relative; }
     .tw-resize { position: absolute; right: 2px; bottom: 0; z-index: 3; width: 26px; height: 26px; display: flex; align-items: flex-end; justify-content: flex-end;
       padding: 0 4px 2px 0; font-size: 16px; line-height: 1; color: var(--accent); cursor: nwse-resize; touch-action: none; user-select: none; }
+    .tw { container-type: inline-size; }
+    .tw-bar { flex-wrap: wrap; }
+    @container (max-width: 170px) { .tw-dim { display: none; } .tw-bar [data-hide] { display: none; } .tw-bar { gap: 3px; } .tw-handle { padding: 4px 7px; } }
+    .tw-colsl { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-soft); margin: 0 4px; }
+    .tw-colsl input { width: 58px; padding: 6px; }
     .tw-dim { margin-right: auto; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
     .tw-dims { display: flex; gap: 14px; }
     .tw-dims .tw-opt input { width: 70px; }
@@ -677,6 +682,7 @@
     .dcp-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
     .dsel { margin: 0 4px 0 0; vertical-align: -2px; }
     .dreg-q { padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .dreg-text { width: 100%; min-height: 140px; font-size: 16px; line-height: 1.45; resize: vertical; box-sizing: border-box; }
     .dreg-q.kb-focused { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); padding-left: 10px; margin-left: -10px; border-radius: 4px; }
     .dreg-prio-info { background: #eef1f3; border: 1.5px solid #c7d1d7; border-radius: 8px; padding: 12px 14px; color: #2e4a5f; font-size: 14px; margin: 0 0 6px; }
     .dreg-kbhint { margin: 10px 0 0; font-size: 12px; }
@@ -937,11 +943,12 @@
   </div>
 
   <script>
+    // Lokalt: backend på 8080, eller den som webbläsartesterna (e2e/) anger i localStorage (bara localhost-adresser godtas).
     const API_BASE = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-      ? 'http://localhost:8080'
+      ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.43.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.44.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
