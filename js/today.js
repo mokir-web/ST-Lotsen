@@ -868,7 +868,7 @@ function talksCard({ me, talks, talkDone }, o = {}) {
         <span class="muted">${p.lastHeld ? `senast ${esc(fmtDM(String(p.lastHeld).slice(0, 10)))} · ` : ''}${esc(when(p))}</span></span>
       ${talkDone[p.id] ? `<span class="talk-done">✓ Gjort i dag <button type="button" class="link-btn" data-talk-undo="${esc(talkDone[p.id])}" data-pid="${esc(p.id)}">Ångra</button></span>`
         : `<button type="button" class="btn-ghost talk-btn" data-talk="${esc(p.id)}" title="Markera att samtalet hållits i dag">Gjort</button>`}</li>`).join('')}</ul>`
-    : `<p class="muted" style="margin:0">${o.onlyDue ? 'Inga samtal är nära.' : 'Inga ST-läkare.'}</p>`);
+    : `<p class="muted" style="margin:0">${o.onlyDue ? 'Inga samtal är nära.' : 'Inga ST-läkare.'}</p>`, (_today.d.mods || []).includes('handledning') ? ['#/handledning', 'Handledning och anteckningar'] : null);
 }
 async function talkAction(b) {
   b.disabled = true;

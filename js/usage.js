@@ -9,7 +9,7 @@ const USE_PANEL = {
   '#/': 'Startsida', '#/opjour': 'Opjour', '#/kalender': 'Opjour', '#/stats': 'Opjour – statistik', '#/schema': 'Planering – veckoschema',
   '#/oversikt': 'Måluppfyllelse', '#/plan': 'Min utbildningsplan', '#/plan/:id': 'Utbildningsplan (annan)', '#/dops': 'DOPS – översikt',
   '#/dops/registrera': 'DOPS – registrera', '#/dops/inkorg': 'DOPS – inkorg', '#/dops/mina': 'DOPS – mina', '#/dops/progress': 'DOPS – progress',
-  '#/dops/kliniken': 'DOPS – kliniken', '#/dops/statistik': 'DOPS – statistik', '#/dops/tavling': 'DOPS – tävling', '#/dops/dokument': 'DOPS – dokument'
+  '#/dops/kliniken': 'DOPS – kliniken', '#/dops/statistik': 'DOPS – statistik', '#/dops/tavling': 'DOPS – tävling', '#/dops/dokument': 'DOPS – dokument', '#/handledning': 'Handledning', '#/handledning/:id': 'Handledning – person', '#/handledning/kollegium': 'Handledning – specialistkollegium'
 };
 const USE_SET = { konto: 'Mitt konto', anvandare: 'Användare', klinik: 'Klinik', opjour: 'Opjour', planering: 'Planering', st: 'ST-utbildning', dops: 'DOPS',
   system: 'System', anvandning: 'Användning', felanmalan: 'Felanmälan' };

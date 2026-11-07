@@ -16,6 +16,14 @@ const HELP = [
     'Ett kort rullar bara om innehållet inte får plats; annars, och när du nått slutet, rullar hela sidan.',
     'På telefon och smala skärmar ligger korten i läsordning, och höjden styr hur högt ett kort högst får bli. Där flyttar du dem i ordning; fri placering gör du på en större skärm.',
     'Vill du börja på en annan sida när du öppnar ST-Lotsen: välj startsida under Inställningar → Mitt konto.']],
+  ['#/handledning/kollegium', 'Handledning · Specialistkollegium', [
+    'Senaste <em>Självskattning inför specialistkollegium</em> och <em>Rapport från specialistkollegium</em> per ST-läkare, hämtade ur DOPS-appen. Röd = rapporten är äldre än tre månader eller saknas.',
+    'Specialister och handledare kan fylla i en ny rapport när den senaste är äldre än tre månader, och studierektorn kan be ST-läkare om självskattning. Båda öppnas när ST-Lotsen får skriva i DOPS-appens databas — fyll i formulären i DOPS-appen så länge.']],
+  ['#/handledning', 'Handledning', [
+    'ST-läkarnas handledningstillfällen. ST-läkaren ser sina egna, handledaren sina adepter (med måluppfyllelse i korthet) och studierektorn alla.',
+    'Status mot klinikens intervall (Inställningar → Utbildningsplan): gul = mer än intervallet sedan senaste handledning, röd = mer än en och en halv gång intervallet.',
+    '<strong>Handledning utförd…</strong> registrerar datum och anteckningar: en <em>gemensam</em> som ST-läkaren och handledaren ser, och en <em>egen</em> som bara den som skrev den kan läsa. Studierektorn ser datum men inga anteckningar. Anteckningarna kan ändras efteråt.',
+    'Samtalsstödet bredvid är ämnena ur strukturerad ST-handledning (varje gång, var 3:e, 6:e och 12:e månad) — som vägledning, inget fylls i per ämne.']],
   ['#/utbildning', 'Utbildningsmaterial', [
     'Klinikens samling av bra utbildningsmaterial (artiklar, videor, kurser), ordnad i områden. Områdena finns i undermenyn.',
     'Videor och spellistor från YouTube, Vimeo och videofiler (.mp4) spelas upp direkt på sidan med <em>▶ Spela upp här</em>. En spellista (märkt ☰) spelas upp med listan i spelaren, där man hoppar mellan avsnitten. Klistra in länken till spellistan (youtube.com/playlist?list=…) eller till en video i den. Övriga länkar öppnas i en ny flik.',

@@ -438,6 +438,26 @@
     .u-sel { flex: none; width: 18px; height: 18px; margin: 12px 4px 0 6px; }
     .u-selall { display: flex; gap: 8px; align-items: center; font-weight: normal; font-size: 14px; color: var(--ink-soft); padding: 4px 6px 8px; margin: 0; }
     .u-bulk { position: sticky; top: 0; z-index: 4; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
+    .hl-rows { display: flex; flex-direction: column; }
+    .hl-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.2fr) auto minmax(0, 1.3fr); gap: 6px 14px; align-items: center; padding: 10px 6px;
+      border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+    .hl-row:first-child { border-top: none; } .hl-row:hover { background: var(--accent-soft); }
+    .hl-name, .hl-when { display: flex; flex-direction: column; min-width: 0; } .hl-name small, .hl-when small { font-size: 12px; }
+    .hl-prog { font-size: 13px; } .hl-prog .pchip { font-size: 11px; padding: 0 6px; }
+    @media (max-width: 760px) { .hl-row { grid-template-columns: 1fr auto; } .hl-when, .hl-prog { grid-column: 1 / -1; } }
+    .hl-st { display: inline-block; font-size: 12px; font-weight: bold; padding: 2px 9px; border-radius: 10px; vertical-align: middle; }
+    .hl-st.ok { background: #d7ecdf; color: #1f5a3a; } .hl-st.yellow { background: #fbf0d9; color: #8a5a00; } .hl-st.red { background: #f6e3df; color: var(--danger); }
+    .hl-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+    .hl-layout .card { margin-top: 0; }
+    @media (max-width: 900px) { .hl-layout { grid-template-columns: 1fr; } }
+    .hl-guide-side { font-size: 13px; } .hl-guide-side h4, .hl-guide h4 { margin: 10px 0 2px; font-size: 13px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .3px; }
+    .hl-guide-side ul, .hl-guide ul { margin: 0; padding-left: 18px; } .hl-guide-side li, .hl-guide li { margin: 2px 0; }
+    .hl-guide summary { cursor: pointer; }
+    .hl-talk textarea { width: 100%; box-sizing: border-box; }
+    .hl-dialog { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 18px; }
+    .hl-dialog textarea { width: 100%; box-sizing: border-box; }
+    @media (max-width: 760px) { .hl-dialog { grid-template-columns: 1fr; } }
+    .hl-kol td.hl-old { color: var(--danger); font-weight: 600; }
     .talk-list li { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
     .talk-list .talk-who { min-width: 0; }
     .talk-list .talk-who .muted { min-width: 0; font-size: 13px; }
@@ -884,6 +904,7 @@
         <a href="#/opjour" id="world-op" class="hidden">Opjour</a>
         <a href="#/schema" id="world-plan" class="hidden">Planering</a>
         <a href="#/oversikt" id="world-st" class="hidden">ST-utbildning</a>
+        <a href="#/handledning" id="world-hl" class="hidden">Handledning</a>
         <a href="#/dops" id="world-dops" class="hidden">DOPS</a>
         <a href="#/utbildning" id="world-edu" class="hidden">Utbildningsmaterial</a>
       </nav>
@@ -943,6 +964,11 @@
           <a href="#/dops/tavling" data-route="#/dops/tavling">Tävling</a>
           <a href="#/dops/dokument" data-route="#/dops/dokument" id="nav-dops-dokument" class="hidden">Dokument</a>
         </div>
+        <div data-world="hl" class="hidden">
+          <div class="sn-title">Handledning</div>
+          <a href="#/handledning" data-route="#/handledning">Handledning</a>
+          <a href="#/handledning/kollegium" data-route="#/handledning/kollegium" id="nav-hl-kollegium" class="hidden">Specialistkollegium</a>
+        </div>
         <div data-world="edu" class="hidden" id="sn-edu">
           <div class="sn-title">Utbildningsmaterial</div>
           <a href="#/utbildning" data-route="#/utbildning">Alla områden</a>
@@ -972,7 +998,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.46.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.47.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1251,6 +1277,7 @@
       else if (h === '#/dops/dokument') renderDopsDocuments(root);
       else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
       else if (h === '#/utbildning' || h.startsWith('#/utbildning/')) renderEdu(root, h.slice('#/utbildning/'.length) || '');
+      else if (h === '#/handledning' || h.startsWith('#/handledning/')) renderHandledning(root, h.slice('#/handledning/'.length) || '');
       else renderToday(root);
       window.scrollTo(0, 0);
     }
@@ -1274,18 +1301,20 @@
       if (h === '#/dops' || h.startsWith('#/dops/')) return 'dops';
       if (['#/opjour', '#/stats'].includes(h)) return 'op';
       if (h === '#/utbildning' || h.startsWith('#/utbildning/')) return 'edu';
+      if (h === '#/handledning' || h.startsWith('#/handledning/')) return 'hl';
       return 'today';
     }
     function markNav(h) {
       const world = worldOf(h), key = !h || h === '#' ? '#/' : h.startsWith('#/plan') ? '#/plan'
         : h.startsWith('#/installningar/dops') ? '#/installningar/dops'
-        : h.startsWith('#/utbildning/forslag') ? '#/utbildning/forslag' : h;
+        : h.startsWith('#/utbildning/forslag') ? '#/utbildning/forslag' : h === '#/handledning/kollegium' ? h : h.startsWith('#/handledning') ? '#/handledning' : h;
       el('world-op').classList.toggle('active', world === 'op');
       el('subnav').classList.toggle('hidden', state.scope !== 'user' || world === 'today');   // Idag har inga undersidor
       el('world-plan').classList.toggle('active', world === 'plan');
       el('world-st').classList.toggle('active', world === 'st');
       el('world-dops').classList.toggle('active', world === 'dops');
       el('world-edu').classList.toggle('active', world === 'edu');
+      el('world-hl').classList.toggle('active', world === 'hl');
       el('world-home').classList.toggle('active', world === 'today');
       el('tool-admin').classList.toggle('active', world === 'set');
       el('subnav').querySelectorAll('[data-world]').forEach(g => g.classList.toggle('hidden', g.dataset.world !== world));
@@ -1303,7 +1332,7 @@
     // Trädmenyn på telefon: Startsida, modulerna (samma flikar som på dator) och Inställningar. En modul med flera undersidor
     // fälls ut när man trycker på den; den aktuella modulen är utfälld från början. Byggs ur flikarna och sidomenyn när den öppnas,
     // så den visar alltid samma val som datorns menyer.
-    const NAV_MODS = [['world-op', 'op'], ['world-plan', 'plan'], ['world-st', 'st'], ['world-dops', 'dops'], ['world-edu', 'edu'], ['tool-admin', 'set', 'Inställningar']];
+    const NAV_MODS = [['world-op', 'op'], ['world-plan', 'plan'], ['world-st', 'st'], ['world-hl', 'hl'], ['world-dops', 'dops'], ['world-edu', 'edu'], ['tool-admin', 'set', 'Inställningar']];
     function drawNavTree() {
       const world = worldOf(location.hash);
       const link = a => `<a href="${esc(a.getAttribute('href'))}" class="${a.classList.contains('active') ? 'active' : ''}">${esc(a.textContent.trim())}</a>`;
@@ -1365,7 +1394,7 @@
       ['#/plan', 'ST-utbildning – min utbildningsplan', m => m.includes('mal')], ['#/dops', 'DOPS – översikt', m => m.includes('dops')],
       ['#/dops/registrera', 'DOPS – registrera bedömning', m => m.includes('dops')], ['#/dops/inkorg', 'DOPS – inkorg', m => m.includes('dops')],
       ['#/dops/mina', 'DOPS – mina bedömningar', m => m.includes('dops')], ['#/dops/progress', 'DOPS – progress', m => m.includes('dops')],
-      ['#/utbildning', 'Utbildningsmaterial', m => m.includes('utbildning')]];
+      ['#/utbildning', 'Utbildningsmaterial', m => m.includes('utbildning')], ['#/handledning', 'Handledning', m => m.includes('handledning')]];
     function startPageOptions(me, current) {
       const mods = me.modules || ['opjour'];
       return START_PAGES.filter(([v, , ok]) => ok(mods) || v === (current || ''))
@@ -1384,6 +1413,11 @@
       show('nav-plan', mal && me.isSt);
       show('world-dops', mods.includes('dops') && me.dopsUser);   // DOPS: modulen påslagen och eget konto kopplat
       show('world-edu', mods.includes('utbildning'));
+      // Handledning: ST-läkare, handledare, studierektor/admin och specialister (specialistkollegium).
+      const hl = mods.includes('handledning'), spec = me.jobRole === 'Spec';
+      show('world-hl', hl && (me.isSt || me.isSupervisor || me.isDirector || me.isAdmin || spec));
+      show('nav-hl-kollegium', hl && (me.isDirector || me.isAdmin || me.isSupervisor || spec));
+      if (hl && !(me.isSt || me.isSupervisor || me.isDirector || me.isAdmin)) el('world-hl').href = '#/handledning/kollegium';
       const firstSt = ['nav-oversikt', 'nav-plan'].map(el).find(a => !a.classList.contains('hidden'));
       show('world-st', !!firstSt);
       if (firstSt) el('world-st').href = firstSt.getAttribute('href');
@@ -1552,6 +1586,7 @@
   <script src="js/today.js"></script>
   <script src="js/usage.js"></script>
   <script src="js/edu.js"></script>
+  <script src="js/handledning.js"></script>
   <script src="js/help.js"></script>
 </body>
 </html>
