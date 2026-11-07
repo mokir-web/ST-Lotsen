@@ -122,6 +122,16 @@ function stsReqTab() {
   };
   return `
     <div class="card">
+      <h2>Handledarsamtal</h2>
+      <p class="hint" style="margin-top:0">Hur ofta ST-läkarna ska ha handledarsamtal. Startsidan visar när nästa samtal är dags (kortet Handledarsamtal och Att göra)
+        för ST-läkaren, handledaren och studierektorn; den som hållit samtalet trycker <em>Gjort</em>. Nästa samtal räknas från det senaste (eller från ST-start). Tomt = följs inte upp.</p>
+      <div class="row" style="gap:8px;align-items:flex-end">
+        <div><label for="st-talks" style="margin-top:0">Var … månad (1–24)</label><input type="number" id="st-talks" min="1" max="24" value="${_sts.cfg.supervisionMonths ?? ''}" placeholder="av" style="max-width:120px"></div>
+        <button class="btn" onclick="saveSupervisionMonths()">Spara</button>
+      </div>
+      <div class="status" id="st-talks-status"></div>
+    </div>
+    <div class="card">
       <div class="row" style="justify-content:space-between;align-items:flex-start">
         <p class="hint" style="margin:0;flex:1 1 300px">Klinikens mall: det som ska uppnås, per ST-år. ST-läkarna ser samma vy i sin utbildningsplan, med status.
           <strong>Dra</strong> ett krav till ett annat år, <strong>klicka</strong> för att ändra det (delmål, randning, längd, i tjänst). * = valfritt.</p>
@@ -367,6 +377,13 @@ async function onStPeopleClick(e) {
     await reloadStSettings();
     toast(`Sparat: ${who.displayName}.`);
   } catch (err) { const b = row.querySelector('[data-s]'); b.textContent = err.message; b.className = 'status err'; }
+}
+
+async function saveSupervisionMonths() {
+  try {
+    await api('/admin/st/clinic', { method: 'PUT', body: { supervisionMonths: el('st-talks').value } });
+    await reloadStSettings({ box: 'st-talks-status', text: 'Sparat.' });
+  } catch (err) { const b = el('st-talks-status'); b.textContent = err.message; b.className = 'status err'; }
 }
 
 async function saveSchemaWeeks() {

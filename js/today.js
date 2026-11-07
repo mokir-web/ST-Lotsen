@@ -19,7 +19,8 @@ async function renderToday(root) {
     const layout = twLayout(me.todayLayout, me.todayTemplate).cards, on = id => layout.find(c => c.id === id)?.on;
     const weeks = twWeeksNeeded(layout);
     const lead = me.isDirector || me.isAdmin;
-    const [cal, sch, plan, todo, dops, dopsRec, dopsSent, edu, progress, dopsReq] = await Promise.all([
+    const talkOk = mods.includes('mal') && (me.isSt || lead || me.isSupervisor);
+    const [cal, sch, plan, todo, dops, dopsRec, dopsSent, edu, progress, dopsReq, talks] = await Promise.all([
       soft(mods.includes('opjour') ? api(`/calendar?start=${monday}&weeks=1`) : null),
       soft(mods.includes('schema') && (me.isSt || me.isDirector || me.isAdmin) ? api(`/schema?from=${monday}&weeks=${weeks}`) : null),
       soft(mods.includes('mal') && me.isSt ? api('/plan/me') : null),
@@ -29,11 +30,12 @@ async function renderToday(root) {
       soft(dopsOn ? api('/dops/app/assessments/mine?role=sent') : null),
       soft(mods.includes('utbildning') && on('utbildning') ? api('/edu') : null),
       soft(mods.includes('mal') && (lead || me.isSupervisor) && on('stgrupp') ? api('/progress') : null),
-      soft(dopsOn && on('dopsinbox') ? api('/dops/app/requests') : null)
+      soft(dopsOn && on('dopsinbox') ? api('/dops/app/requests') : null),
+      soft(talkOk && on('samtal') ? api('/talks') : null)
     ]);
     // undefined = inte hämtat (kortet är inte på startsidan); hämtas när kortet läggs till (twNeedsReload).
     drawToday(root, { me, mods, today, cal, sch, plan, todo, dops, dopsRec, dopsSent, edu: edu ? { ...edu, loaded: true } : mods.includes('utbildning') ? { sections: [], loaded: false } : null,
-      progress: on('stgrupp') ? progress : undefined, dopsReq: on('dopsinbox') ? dopsReq : undefined });
+      progress: on('stgrupp') ? progress : undefined, dopsReq: on('dopsinbox') ? dopsReq : undefined, talks: on('samtal') ? talks : undefined, talkDone: {} });
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
   }
@@ -42,8 +44,10 @@ async function renderToday(root) {
 // Veckoschemat hämtas så långt fram som korten behöver (minst 12 veckor, högst 104): Min vecka visar kommande aktiviteter
 // ett antal månader framåt eller resten av ST-året (högst ett år).
 function twWeeksNeeded(layout) {
-  const c = layout.find(x => x.id === 'vecka'), o = twOpts(twDef('vecka'), c);
-  const need = c?.on && o.later !== false ? (o.period === 'year' ? 53 : Math.ceil(o.months * 4.35) + 1) : 0;
+  const get = id => { const c = layout.find(x => x.id === id); return c?.on ? twOpts(twDef(id), c) : null; };
+  const v = get('vecka'), k = get('kurser'), o = get('otilldelat'), f = get('franvaro');
+  const need = Math.max(v && v.later !== false ? (v.period === 'year' ? 53 : Math.ceil(v.months * 4.35) + 1) : 0,
+    k ? Math.ceil(k.months * 4.35) + 1 : 0, o ? o.weeks + 1 : 0, f ? f.weeks : 0);
   return Math.min(104, Math.max(12, need));
 }
 
@@ -76,7 +80,8 @@ const TODAY_WIDGETS = [
   { id: 'opjour', title: 'Opjour', w: 1, h: 1, fn: opjourCard, desc: 'Vem som har opjour i dag och i morgon, och dina kommande pass.',
     can: d => TW_MOD(d, 'opjour'), need: 'modulen Opjour', opts: [
     { k: 'tomorrow', label: 'Visa vem som har i morgon', def: true }, { k: 'mine', label: 'Visa mina kommande pass', def: true },
-    { k: 'mineCount', label: 'Antal pass', def: 4, min: 1, max: 20 }, TW_COMPACT] },
+    { k: 'mineCount', label: 'Antal pass', def: 4, min: 1, max: 20 },
+    { k: 'view', label: 'Visa', def: 'today', choices: [['today', 'I dag och i morgon'], ['week', 'Hela veckan']] }, TW_COMPACT] },
   { id: 'vecka', title: 'Min vecka', w: 1, h: 2, fn: myWeekCard, desc: 'Det du har inlagt i veckoschemat den här veckan och dina kommande aktiviteter.',
     can: d => TW_MOD(d, 'schema') && d.me.isSt, need: 'ST-läkare (modulen Planering)', opts: [
     { k: 'later', label: 'Visa kommande aktiviteter', def: true }, { k: 'period', label: 'Kommande', def: 'months', choices: TW_PERIOD },
@@ -106,6 +111,20 @@ const TODAY_WIDGETS = [
   { id: 'dopsinbox', title: 'DOPS-förfrågningar', w: 1, h: 1, on: false, fn: dopsInboxCard, desc: 'Förfrågningar om bedömning som väntar på dig.',
     can: d => TW_MOD(d, 'dops') && d.me.dopsUser, need: 'modulen DOPS och ett kopplat DOPS-konto', opts: [
     { k: 'count', label: 'Antal förfrågningar', def: 5, min: 1, max: 20 }, TW_COMPACT] },
+  { id: 'samtal', title: 'Handledarsamtal', w: 1, h: 2, fn: talksCard, desc: 'När nästa handledarsamtal ska hållas enligt klinikens intervall. Tryck Gjort när samtalet är hållet.',
+    can: d => TW_MOD(d, 'mal') && (d.me.isSt || TW_LEAD(d) || d.me.isSupervisor), need: 'ST-läkare, handledare, studierektor eller admin (modulen ST-utbildning)', opts: [
+    { k: 'onlyDue', label: 'Bara de som snart ska ha samtal eller är sena', def: false }, { k: 'soonDays', label: 'Snart = inom antal dagar', def: 30, min: 7, max: 90 }, TW_COMPACT] },
+  { id: 'franvaro', title: 'Frånvaro och ledigheter', w: 1, h: 2, on: false, fn: absenceCard, desc: 'Vilka ST-läkare som är borta de närmaste veckorna och varför.',
+    can: d => TW_MOD(d, 'schema') && (TW_LEAD(d) || d.me.isSt), need: 'ST-läkare, studierektor eller admin (modulen Planering)', opts: [
+    { k: 'weeks', label: 'Antal veckor', def: 2, min: 1, max: 8 },
+    { k: 'kind', label: 'Visa', def: 'leave', choices: [['leave', 'Ledighet och frånvaro'], ['all', 'Alla som inte är i tjänst (även randning och kurs)']] }, TW_COMPACT] },
+  { id: 'kurser', title: 'Kommande kurser och randningar', w: 1, h: 2, on: false, fn: coursesCard, desc: 'Hela gruppens kurser och randningar som börjar de närmaste månaderna, och vem som går.',
+    can: d => TW_MOD(d, 'schema') && (TW_LEAD(d) || d.me.isSt), need: 'ST-läkare, studierektor eller admin (modulen Planering)', opts: [
+    { k: 'months', label: 'Antal månader framåt', def: 3, min: 1, max: 12 },
+    { k: 'kind', label: 'Visa', def: 'all', choices: [['all', 'Kurser och randningar'], ['rand', 'Bara randningar'], ['kurs', 'Bara kurser och övrigt']] }, TW_COMPACT] },
+  { id: 'otilldelat', title: 'Ej tilldelade perioder', w: 1, h: 1, on: false, fn: openSlotsCard, desc: 'Randningar och kurser som snart börjar men ännu saknar person.',
+    can: d => TW_MOD(d, 'schema') && TW_LEAD(d), need: 'studierektor eller admin (modulen Planering)', opts: [
+    { k: 'weeks', label: 'Antal veckor framåt', def: 12, min: 1, max: 52 }, { k: 'warn', label: 'Markera som bråttom inom antal veckor', def: 4, min: 1, max: 26 }, TW_COMPACT] },
   { id: 'schema', title: 'Veckoschemat', w: 2, h: 3, on: false, fn: schemaCard, desc: 'Hela ST-gruppens schema de närmaste veckorna.',
     can: d => TW_MOD(d, 'schema') && (d.me.isSt || TW_LEAD(d)), need: 'ST-läkare, studierektor eller admin (modulen Planering)', opts: [
     { k: 'weeks', label: 'Antal veckor', def: 4, min: 1, max: 12 }, { k: 'service', label: 'Visa raden I tjänst', def: true }, TW_COMPACT] },
@@ -242,7 +261,8 @@ function twRender(c) {
   return null;
 }
 // Kort vars data inte hämtas förrän kortet finns på startsidan.
-const twMissing = id => ({ stgrupp: _today.d.progress === undefined, dopsinbox: _today.d.dopsReq === undefined, utbildning: !!_today.d.edu && !_today.d.edu.loaded })[id] || false;
+const twMissing = id => ({ stgrupp: _today.d.progress === undefined, dopsinbox: _today.d.dopsReq === undefined, samtal: _today.d.talks === undefined,
+  utbildning: !!_today.d.edu && !_today.d.edu.loaded })[id] || false;
 
 function drawTw() {
   const { layout, edit, open } = _today, me = _today.d.me;
@@ -347,7 +367,7 @@ async function onTwAction(e) {
 }
 function twNeedsReload() {
   const d = _today.d;
-  if (['utbildning', 'stgrupp', 'dopsinbox'].some(id => twFind(id)?.on && twDef(id).can(d) && twMissing(id))) return true;
+  if (['utbildning', 'stgrupp', 'dopsinbox', 'samtal'].some(id => twFind(id)?.on && twDef(id).can(d) && twMissing(id))) return true;
   return !!d.sch && twWeeksNeeded(_today.layout) > d.sch.window.weeks.length;
 }
 
@@ -444,6 +464,8 @@ function twGallery() {
 function onTwGrid(e) {
   const dopsBtn = !_today.edit && e.target.closest('[data-dops]');
   if (dopsBtn) { openTodayDops(Number(dopsBtn.dataset.dops)); return; }
+  const talk = !_today.edit && e.target.closest('[data-talk], [data-talk-undo]');
+  if (talk) { talkAction(talk); return; }
   const t = e.target.closest('button'); if (!t || !_today.edit) return;
   if (t.dataset.opts) { _today.open = _today.open === t.dataset.opts ? null : t.dataset.opts; }
   else if (t.dataset.hide) { twFind(t.dataset.hide).on = false; if (_today.open === t.dataset.hide) _today.open = null; }
@@ -586,6 +608,14 @@ function opjourCard({ me, cal }, o = {}) {
     : '<div class="big-name muted">Ingen bokad</div>';
   const next = cal.nextShift && o.tomorrow !== false ? `<p style="margin:8px 0 0">I morgon: ${cal.nextShift.displayName ? `<strong>${esc(cal.nextShift.displayName)}</strong>` : '<span class="muted">ledigt</span>'}</p>` : '';
   const up = (me.upcoming || []).slice(0, o.mineCount || 4);
+  if (o.view === 'week') {
+    const days = []; for (let dd = cal.window?.fromISO || cal.todayISO; days.length < 7; dd = addDaysISO(dd, 1)) days.push(dd);
+    const who = dd => cal.claims.find(c => c.serviceDate === dd);
+    const weekList = `<ul class="today-list tw-opweek">${days.map(dd => { const c = who(dd);
+      return `<li class="${dd === cal.shiftISO ? 'cur' : ''}"><span class="muted">${esc(['sön', 'mån', 'tis', 'ons', 'tor', 'fre', 'lör'][new Date(dd + 'T12:00:00Z').getUTCDay()])} ${esc(fmtDM(dd))}</span>
+        ${c ? `<strong>${esc(c.displayName)}</strong>${c.userId === me.userId ? ' <span class="tagchip admin">Du</span>' : ''}` : '<span class="muted">ingen bokad</span>'}</li>`; }).join('')}</ul>`;
+    return todayCard('Opjour den här veckan', weekList, ['#/opjour', 'Till Opjour']);
+  }
   const mineList = o.mine === false ? '' : `<p style="margin:8px 0 0">Dina pass: ${up.length ? up.map(u => esc(fmtDateLong(u.serviceDate))).join(', ') : '<span class="muted">inga bokade</span>'}</p>`;
   return todayCard(`Opjour ${cal.shiftISO && cal.shiftISO !== cal.todayISO ? '(pågående pass)' : 'idag'}`, who + next + mineList, ['#/opjour', 'Till Opjour']);
 }
@@ -819,4 +849,86 @@ function linksCard(d, o = {}) {
   return todayCard(o.title || 'Snabblänkar', links.length
     ? `<ul class="today-list tw-links">${links.map(l => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">${esc(l.name)}</a></li>`).join('')}</ul>`
     : '<p class="muted" style="margin:0">Inga länkar än. Tryck ✎ Anpassa och ⚙ på kortet för att lägga in dem.</p>');
+}
+
+// ── Handledarsamtal ──────────────────────────────────────────────────────
+// Per person: senaste samtal, nästa enligt klinikens intervall och status. Gjort markerar ett samtal i dag (kan ångras direkt).
+function talksCard({ me, talks, talkDone }, o = {}) {
+  if (!talks) return '';
+  if (!talks.months) return todayCard('Handledarsamtal', `<p class="muted" style="margin:0">Kliniken följer inte upp handledarsamtal än.${me.isDirector || me.isAdmin
+    ? ' Ställ in hur ofta under <a href="#/installningar/utbildningsplan">Inställningar → Utbildningsplan</a>.' : ''}</p>`);
+  const soon = o.soonDays || 30;
+  let rows = talks.people.map(p => ({ ...p, st: p.daysLeft == null ? null : p.daysLeft < 0 ? 'overdue' : p.daysLeft <= soon ? 'soon' : 'ok' }));
+  if (o.onlyDue) rows = rows.filter(p => p.st === 'overdue' || p.st === 'soon' || talkDone[p.id]);
+  rows.sort((a, b) => (a.nextDue || '9999').localeCompare(b.nextDue || '9999'));
+  const self = rows.length === 1 && rows[0].id === me.userId;
+  const when = p => p.nextDue == null ? 'ST-start saknas' : p.st === 'overdue' ? `skulle hållits ${fmtDM(p.nextDue)}` : `nästa ${fmtDM(p.nextDue)}${p.st === 'soon' ? ` (om ${p.daysLeft} d)` : ''}`;
+  return todayCard(self ? 'Mitt handledarsamtal' : 'Handledarsamtal', rows.length ? `<p class="muted" style="margin:0 0 6px;font-size:13px">Var ${talks.months}:e månad</p>
+    <ul class="today-list talk-list">${rows.map(p => `<li class="talk-${p.st || 'na'}"><span class="talk-who">${self ? '' : `<strong>${esc(p.displayName)}</strong><br>`}
+        <span class="muted">${p.lastHeld ? `senast ${esc(fmtDM(String(p.lastHeld).slice(0, 10)))} · ` : ''}${esc(when(p))}</span></span>
+      ${talkDone[p.id] ? `<span class="talk-done">✓ Gjort i dag <button type="button" class="link-btn" data-talk-undo="${esc(talkDone[p.id])}" data-pid="${esc(p.id)}">Ångra</button></span>`
+        : `<button type="button" class="btn-ghost talk-btn" data-talk="${esc(p.id)}" title="Markera att samtalet hållits i dag">Gjort</button>`}</li>`).join('')}</ul>`
+    : `<p class="muted" style="margin:0">${o.onlyDue ? 'Inga samtal är nära.' : 'Inga ST-läkare.'}</p>`);
+}
+async function talkAction(b) {
+  b.disabled = true;
+  try {
+    if (b.dataset.talk) {
+      const r = await api('/talks', { method: 'POST', body: { traineeId: b.dataset.talk } });
+      _today.d.talkDone[b.dataset.talk] = r.id;
+    } else {
+      await api('/talks/' + encodeURIComponent(b.dataset.talkUndo), { method: 'DELETE' });
+      delete _today.d.talkDone[b.dataset.pid];
+    }
+    _today.d.talks = await api('/talks');
+    drawTw();
+  } catch (err) { b.disabled = false; alert(err.message); }
+}
+
+// Frånvaro och ledigheter de närmaste veckorna: per vecka vilka som inte är i tjänst. "Ledighet och frånvaro" = typer som inte ger
+// måluppfyllelse (t.ex. Frv, FL); "Alla" tar även med randning och kurs.
+function absenceCard({ sch }, o = {}) {
+  if (!sch) return '';
+  const weeks = sch.window.weeks.filter(w => w >= sch.thisMonday).slice(0, o.weeks || 2);
+  const type = id => sch.types.find(t => t.id === id), req = id => sch.requirements.find(r => r.id === id);
+  const leave = a => { const t = type(a.typeId); return t && !t.givesProgress && t.serviceEffect === 'ej_i_tjanst'; };
+  const label = a => { const t = type(a.typeId), r = a.requirementId ? req(a.requirementId) : null; return (r ? `${t?.code || ''}: ${r.name}` : t?.label || t?.code || '?') + (a.detail ? ` · ${a.detail}` : ''); };
+  const blocks = weeks.map(w => {
+    const out = sch.people.map(p => {
+      if (sch.inServiceByPerson?.[p.id]?.[w] !== false) return null;
+      const acts = sch.activities.filter(a => a.userId === p.id && a.weekFrom <= w && a.weekTo >= w && (o.kind === 'all' || leave(a)));
+      return acts.length ? { p, acts } : null;
+    }).filter(Boolean);
+    return `<h3 class="today-sub">v${isoWeek(w)}${w === sch.thisMonday ? ' (den här veckan)' : ''} · ${out.length} borta</h3>
+      ${out.length ? `<ul class="today-list">${out.map(({ p, acts }) => `<li><strong>${esc(p.displayName)}</strong> <span class="muted" style="min-width:0">${acts.map(a => esc(label(a))).join(', ')}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Ingen.</p>'}`;
+  }).join('');
+  return todayCard('Frånvaro och ledigheter', blocks, ['#/schema', 'Veckoschemat']);
+}
+
+// Kommande kurser och randningar i hela gruppen (poster kopplade till krav) som börjar från den här veckan och ett antal månader framåt.
+function coursesCard({ sch, today }, o = {}) {
+  if (!sch) return '';
+  const end = addMonthsISO(today, o.months || 3);
+  const type = id => sch.types.find(t => t.id === id), req = id => sch.requirements.find(r => r.id === id);
+  const who = id => sch.people.find(p => p.id === id)?.displayName || '';
+  const list = sch.activities.filter(a => a.requirementId && a.weekFrom >= sch.thisMonday && a.weekFrom < end)
+    .filter(a => o.kind === 'rand' ? req(a.requirementId)?.away : o.kind === 'kurs' ? !req(a.requirementId)?.away : true)
+    .sort((a, b) => a.weekFrom.localeCompare(b.weekFrom) || who(a.userId).localeCompare(who(b.userId), 'sv'));
+  const wk = a => a.weekFrom === a.weekTo ? `v${isoWeek(a.weekFrom)}` : `v${isoWeek(a.weekFrom)}–${isoWeek(a.weekTo)}`;
+  return todayCard('Kommande kurser och randningar', list.length ? `<ul class="today-list">${list.map(a => `<li><span class="muted">${wk(a)}</span>
+      <span class="sact${a.status === 'ev' ? ' ev' : ''}" style="--c:${esc(type(a.typeId)?.color || '#9aa5ad')}">${esc(req(a.requirementId)?.name || '?')}</span> ${esc(who(a.userId))}</li>`).join('')}</ul>`
+    : `<p class="muted" style="margin:0">Inget planerat de närmaste ${o.months || 3} månaderna.</p>`, ['#/schema', 'Veckoschemat']);
+}
+
+// Ej tilldelade perioder som börjar inom ett antal veckor; de som börjar snart (warn) markeras.
+function openSlotsCard({ sch }, o = {}) {
+  if (!sch || !sch.openSlots) return '';
+  const end = addDaysISO(sch.thisMonday, 7 * (o.weeks || 12));
+  const type = id => sch.types.find(t => t.id === id), req = id => sch.requirements.find(r => r.id === id);
+  const list = sch.openSlots.filter(s => s.weekTo >= sch.thisMonday && s.weekFrom < end).sort((a, b) => a.weekFrom.localeCompare(b.weekFrom));
+  const inWeeks = s => Math.max(0, Math.round((Date.parse(s.weekFrom) - Date.parse(sch.thisMonday)) / 6048e5));
+  return todayCard(`Ej tilldelade perioder${list.length ? ` (${list.length})` : ''}`, list.length ? `<ul class="today-list">${list.map(s => { const n = inWeeks(s);
+      return `<li class="${n <= (o.warn || 4) ? 'slot-soon' : ''}"><span class="sact" style="--c:${esc(type(s.typeId)?.color || '#9aa5ad')}">${esc(s.requirementId ? req(s.requirementId)?.name || '?' : type(s.typeId)?.code || '?')}</span>
+        <span class="muted" style="min-width:0">v${isoWeek(s.weekFrom)}${s.weekTo !== s.weekFrom ? '–' + isoWeek(s.weekTo) : ''} · ${n === 0 ? 'börjar nu' : `om ${n} ${n === 1 ? 'vecka' : 'veckor'}`}</span></li>`; }).join('')}</ul>`
+    : '<p class="muted" style="margin:0">Inga perioder utan person.</p>', ['#/schema', 'Dela ut i veckoschemat']);
 }

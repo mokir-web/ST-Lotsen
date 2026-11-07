@@ -438,6 +438,15 @@
     .u-sel { flex: none; width: 18px; height: 18px; margin: 12px 4px 0 6px; }
     .u-selall { display: flex; gap: 8px; align-items: center; font-weight: normal; font-size: 14px; color: var(--ink-soft); padding: 4px 6px 8px; margin: 0; }
     .u-bulk { position: sticky; top: 0; z-index: 4; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
+    .talk-list li { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    .talk-list .talk-who { min-width: 0; }
+    .talk-list .talk-who .muted { min-width: 0; font-size: 13px; }
+    .talk-list li.talk-overdue .talk-who .muted { color: var(--danger); font-weight: 600; }
+    .talk-list li.talk-soon .talk-who .muted { color: #8a5a00; }
+    .talk-btn { flex: none; padding: 5px 12px; font-size: 13px; }
+    .talk-done { flex: none; font-size: 13px; color: #1f5a3a; }
+    .slot-soon .muted { color: var(--danger); font-weight: 600; }
+    .tw-opweek li.cur { font-weight: bold; }
     .tw-gal { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
     .tw-gal-item { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 12px; }
     .tw-gal-item p { margin: 3px 0 0; font-size: 13px; color: var(--ink-soft); }
@@ -963,7 +972,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.45.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.46.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
