@@ -44,9 +44,18 @@ function drawDopsRegister(root) {
 async function dregOpenForm(root) {
   const d = _dreg;
   d.questions = await dopsApi('/form-types/' + encodeURIComponent(d.form) + '/questions');
-  d.answers = {}; d.history = []; d.section = d.questions[0]?.section || null; d.step = 'form'; d.started = Date.now();
+  d.answers = {}; d.history = []; d.step = 'form'; d.started = Date.now();
+  // Förenklad registrering (som MoraDOPS): har formuläret prio-markerade frågor (oftast fritextfrågorna) och även andra frågor
+  // visas prio-frågorna samlat först. Därifrån skickar man in direkt eller fortsätter med hela formuläret (bedömningsskalorna).
+  d.section = dregHasPrio() ? DREG_PRIO : d.questions[0]?.section || null;
   drawDregSection(root);
 }
+
+const DREG_PRIO = '__prio__';
+const dregAnswerable = q => q.type !== 'rubrik' && q.type !== 'info';
+const dregHasPrio = () => { const qs = _dreg.questions.filter(dregAnswerable); return qs.some(q => q.prio) && qs.some(q => !q.prio); };
+// Frågorna i det avsnitt som visas (prio-vyn blandar frågor från flera avsnitt).
+const dregInView = q => _dreg.section === DREG_PRIO ? q.prio && dregAnswerable(q) : q.section === _dreg.section;
 
 const dregKey = q => q.section + '__' + q.question;
 
@@ -75,7 +84,7 @@ function dregInput(q, i) {
 function dregCollect(root) {
   const d = _dreg;
   d.questions.forEach((q, i) => {
-    if (q.section !== d.section || q.type === 'rubrik') return;
+    if (!dregInView(q) || q.type === 'rubrik') return;
     const name = `dq${i}`;
     let val = '';
     if (q.type === 'multi') val = [...root.querySelectorAll(`input[name="${name}"]:checked`)].map(c => c.value).join(', ');
@@ -109,20 +118,28 @@ function dregNext() {
 
 function drawDregSection(root) {
   const d = _dreg;
-  const qs = d.questions.map((q, i) => [q, i]).filter(([q]) => q.section === d.section);
-  const next = qs[0]?.[0].nextSection;
+  const prio = d.section === DREG_PRIO;
+  const qs = d.questions.map((q, i) => [q, i]).filter(([q]) => dregInView(q));
+  const next = prio ? null : qs[0]?.[0].nextSection;
   root.innerHTML = `
     <h1 class="page">${esc(d.form)}</h1>
     <p class="muted" style="margin:-4px 0 12px">Mottagare: <strong>${esc(d.recipient)}</strong>${dregCategory() ? ' · ' + esc(dregCategory()) : ''}
       · <button class="link-btn" id="dreg-cancel">Avbryt</button></p>
-    <div class="card">${d.section ? `<h2 style="margin-top:0">${esc(d.section)}</h2>` : ''}${qs.map(([q, i]) => dregInput(q, i)).join('') || '<p class="muted">Inga frågor.</p>'}
+    <div class="card" id="dreg-card">${prio ? `<p class="dreg-prio-info">Fyll i frågorna nedan och skicka in direkt — eller fortsätt med hela bedömningsformuläret (bedömningsskalorna). Det du fyllt i här följer med.</p>`
+      : d.section ? `<h2 style="margin-top:0">${esc(d.section)}</h2>` : ''}${qs.map(([q, i]) => dregInput(q, i)).join('') || '<p class="muted">Inga frågor.</p>'}
       <div class="row" style="margin-top:14px;gap:8px">
         ${d.history.length ? '<button class="btn-ghost" id="dreg-back">‹ Tillbaka</button>' : ''}
-        ${next ? '<button class="btn" id="dreg-next">Fortsätt ›</button>' : '<button class="btn" id="dreg-send">Skicka bedömningen</button>'}
-      </div></div>`;
+        ${prio ? '<button class="btn" id="dreg-send">Skicka bedömningen</button><button class="btn-ghost" id="dreg-full">Fyll även i hela bedömningsformuläret ›</button>'
+          : next ? '<button class="btn" id="dreg-next">Fortsätt ›</button>' : '<button class="btn" id="dreg-send">Skicka bedömningen</button>'}
+      </div>
+      <p class="hint dreg-kbhint">Tangentbord: Tab/Skift+Tab byter fråga, en siffra väljer på en skala (eller alternativ nummer så många) och går vidare, Enter går vidare.</p></div>`;
   el('dreg-cancel').onclick = () => { if (!Object.keys(d.answers).length || confirm('Avbryt bedömningen? Det du fyllt i sparas inte.')) { d.step = 'who'; d.form = ''; drawDopsRegister(root); } };
   if (el('dreg-back')) el('dreg-back').onclick = () => { dregCollect(root); d.section = d.history.pop(); drawDregSection(root); window.scrollTo(0, 0); };
   if (el('dreg-next')) el('dreg-next').onclick = () => { dregCollect(root); const n = dregNext(); d.history.push(d.section); d.section = n; drawDregSection(root); window.scrollTo(0, 0); };
+  if (el('dreg-full')) el('dreg-full').onclick = () => { dregCollect(root); d.history.push(d.section); d.section = d.questions[0]?.section || null; drawDregSection(root); window.scrollTo(0, 0); };
+  root.querySelector('#dreg-card').addEventListener('focusin', e => { const q = e.target.closest('.dreg-q'); if (q) dregKbMark(q); });
+  root.querySelector('#dreg-card').addEventListener('mousedown', () => dregKbMark(null));
+  setTimeout(() => dregKbFocus(0), 30);
   if (el('dreg-send')) el('dreg-send').onclick = async () => {
     dregCollect(root);
     const answers = d.questions.filter(q => q.type !== 'rubrik' && d.answers[dregKey(q)] != null)
@@ -185,3 +202,49 @@ async function renderDopsInbox(root) {
     };
   } catch (err) { dopsFail(root, 'Inkorg', err); }
 }
+
+// ── Tangentbord i formuläret (som MoraDOPS) ──────────────────────────────
+// Tab/Skift+Tab: nästa/föregående fråga. Siffra: på en skala väljs värdet, på en envalsfråga alternativ nummer så många, och
+// fokus går vidare; på en flervalsfråga växlas alternativet. Enter: vidare till nästa fråga (i fritext blir det ny rad), och på
+// sista frågan till Fortsätt — Skicka trycks aldrig från tangentbordet. Gäller bara på Registrera bedömning.
+const dregFields = () => [...document.querySelectorAll('#dreg-card .dreg-q')];
+function dregKbMark(q) { dregFields().forEach(f => f.classList.toggle('kb-focused', f === q)); }
+function dregKbFocus(i) {
+  const fs = dregFields(), q = fs[i];
+  if (!q) { (el('dreg-next') || el('dreg-full') || el('dreg-send'))?.focus(); dregKbMark(null); return; }
+  const inp = q.querySelector('input:checked') || q.querySelector('input, textarea');
+  inp?.focus({ preventScroll: true });
+  q.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  dregKbMark(q);
+}
+addEventListener('keydown', e => {
+  if (location.hash !== '#/dops/registrera' || _dreg?.step !== 'form' || !el('dreg-card')) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const fs = dregFields(), q = document.activeElement?.closest?.('.dreg-q'), i = q ? fs.indexOf(q) : -1;
+  const ta = document.activeElement?.tagName === 'TEXTAREA';
+  if (e.key === 'Tab') {
+    if (i < 0 && !el('dreg-card').contains(document.activeElement)) return;
+    e.preventDefault();
+    dregKbFocus(e.shiftKey ? Math.max(0, i - 1) : i + 1);
+    return;
+  }
+  if (i < 0) return;
+  if (e.key === 'Enter') {
+    if (ta) return;   // ny rad i fritext
+    e.preventDefault();
+    const r = document.activeElement.type === 'radio' ? document.activeElement : null;
+    if (r && !r.checked) r.checked = true;
+    dregKbFocus(i + 1);
+    return;
+  }
+  if (ta || !/^[0-9]$/.test(e.key)) return;
+  const n = Number(e.key), inputs = [...q.querySelectorAll('input')];
+  if (!inputs.length) return;
+  const scale = q.querySelector('.dreg-scale');
+  const hit = scale ? inputs.find(x => x.value === String(n)) : inputs[n - 1];
+  if (!hit) return;
+  e.preventDefault();
+  if (hit.type === 'checkbox') { hit.checked = !hit.checked; hit.focus(); return; }
+  hit.checked = true; hit.focus();
+  setTimeout(() => dregKbFocus(i + 1), 120);
+});

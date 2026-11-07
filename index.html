@@ -302,9 +302,17 @@
     .open-row th.pname, .open-row td { background: #faf7ee; }
     .ocell { cursor: pointer; } .ocell:hover { background: #f3ecd6 !important; }
     .ocell .sact { opacity: .9; outline: 1.5px dashed rgba(0,0,0,.35); outline-offset: -2px; }
+    .sheet.wide { max-width: 820px; }
+    .cand-line { display: flex; gap: 2px; margin: 4px 0 2px; flex-wrap: wrap; }
+    .cand-line span { min-width: 26px; text-align: center; font-size: 11px; padding: 2px 0; border-radius: 3px; background: #e3f2e8; color: #1f5a3a; }
+    .cand-line span.x { background: #f6e3df; color: var(--danger); font-weight: bold; }
+    .cand-line span.ev { background: #fbf0d9; color: #8a5a00; }
+    .cand-key { display: inline-block; padding: 0 6px; border-radius: 3px; background: #e3f2e8; color: #1f5a3a; font-size: 12px; }
+    .cand-key.x { background: #f6e3df; color: var(--danger); } .cand-key.ev { background: #fbf0d9; color: #8a5a00; }
+    .cand-conf ul { margin: 2px 0 0; padding-left: 18px; font-size: 13px; } .cand-conf li { margin: 2px 0; }
     .sheet .cand { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 8px 0; display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; }
     .cand-main { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
-    .cand-conf { grid-column: 1 / 2; font-size: 13px; color: var(--danger); } .cand-conf.ok { color: #1f5a3a; }
+    .cand-conf { grid-column: 1 / 2; font-size: 13px; color: var(--ink); } .cand-conf strong { color: var(--danger); } .cand-conf.ok { color: #1f5a3a; }
     .cand .btn, .cand .btn-ghost { grid-row: 1 / 3; grid-column: 2; align-self: center; padding: 7px 14px; font-size: 14px; width: auto; margin: 0; }
     .cand-conf .sact { display: inline-block; max-width: none; margin: 2px 2px 0 0; }
     .cand .pchip { font-size: 12px; padding: 1px 7px; }
@@ -330,8 +338,12 @@
     .tw-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
     .tw-actions { display: flex; gap: 8px; }
     .tw-actions .btn { padding: 9px 18px; font-size: 14px; }
-    .today-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); grid-auto-rows: 215px; grid-auto-flow: row dense; gap: 16px; position: relative; }
-    .today-grid.placed { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: row; }
+    .tw-actions { flex-wrap: wrap; justify-content: flex-end; }
+    #tw-target { max-width: 260px; font-size: 14px; padding: 7px 8px; }
+    .tw-tplhint { background: #fbf0d9; border: 1.5px solid #e2c27a; border-radius: 8px; padding: 8px 12px; color: #6b4a00; }
+    .tw-sample { font-style: italic; }
+    .today-grid { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; gap: 16px; position: relative; }   /* smal: en kolumn i läsordning */
+    .today-grid.placed { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 215px; grid-auto-flow: row; }
     .today-grid.placed .tw { z-index: 1; }
     .tw-cell { border: 2px dashed #d5dde3; border-radius: 10px; background: rgba(255,255,255,.35); }
     .tw-ghost { z-index: 2; border: 3px solid var(--accent); border-radius: 10px; background: rgba(181,100,26,.12); pointer-events: none;
@@ -352,28 +364,41 @@
     .tw-sch tr.svc td { font-weight: bold; color: var(--ink-soft); } .tw-sch tr.svc td.low { color: var(--danger); }
     .today-grid .card { margin: 0; }
     .tw { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-    .tw-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+    /* Rullar bara när innehållet inte får plats; vid slutet (eller utan något att rulla) går rullningen vidare till sidan. */
+    .tw-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: auto; }
     .tw-link { margin: 10px 0 0; }
-    .tw-w { grid-column: span 2; } .tw-t { grid-row: span 2; } .tw-l { grid-column: span 2; grid-row: span 2; }
-    @media (max-width: 640px) {
-      .today-grid { grid-template-columns: 1fr; grid-auto-rows: auto; }
-      .tw-w, .tw-l { grid-column: auto; } .tw-t, .tw-l { grid-row: auto; }
-      .tw-t .tw-body, .tw-l .tw-body { max-height: 440px; } .tw-s .tw-body, .tw-w .tw-body { max-height: 220px; }
-      .today-grid.editing .tw { min-height: 150px; }
-    }
+    @media (max-width: 640px) { .today-grid.editing .tw { min-height: 150px; } }
+    .tw { position: relative; }
+    .tw-resize { position: absolute; right: 2px; bottom: 0; z-index: 3; width: 26px; height: 26px; display: flex; align-items: flex-end; justify-content: flex-end;
+      padding: 0 4px 2px 0; font-size: 16px; line-height: 1; color: var(--accent); cursor: nwse-resize; touch-action: none; user-select: none; }
+    .tw-dim { margin-right: auto; font-size: 12px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+    .tw-dims { display: flex; gap: 14px; }
+    .tw-dims .tw-opt input { width: 70px; }
+    /* Kompakt läge: mindre text och luft, så att mer får plats i kortet. */
+    .tw-compact { padding: 10px 12px; }
+    .tw-compact .tw-body { font-size: 13px; }
+    .tw-compact h2 { font-size: 12px !important; margin-bottom: 4px !important; }
+    .tw-compact .today-sub { font-size: 11px; margin: 8px 0 2px; }
+    .tw-compact .todo li, .tw-compact .today-list li { padding: 2px 0; }
+    .tw-compact .big-name { font-size: 17px; }
+    .tw-compact .sact { font-size: 12px; padding: 0 6px; }
+    .tw-compact .pchip { font-size: 11px; padding: 0 5px; }
+    .tw-compact .tw-link { margin-top: 6px; font-size: 13px; }
+    .tw-compact .staff-row div { padding: 3px 1px; } .tw-compact .staff-row strong { font-size: 15px; }
+    .tw-compact .tw-sch table { font-size: 11px; } .tw-compact .tw-sch td { padding: 1px 3px; } .tw-compact .tw-sch .sact { font-size: 10px; padding: 0 3px; }
+    .tw-compact .dg-head strong { font-size: 17px; } .tw-compact .dg-track { height: 9px; }
+    .tw-compact .dg-dir { width: 18px; height: 18px; font-size: 11px; }
+    .dg-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13px; margin: 5px 0; }
+    .dg-name { display: flex; gap: 5px; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dg-num { font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+    .dg-track.sm { height: 8px; }
+    .dg-dir.sm { width: 16px; height: 16px; font-size: 10px; }
     .today-grid.editing .tw { outline: 2px dashed var(--line); outline-offset: -2px; }
     .today-grid.editing .tw-body:not(.tw-form) { pointer-events: none; opacity: .55; }
     .tw.dragging { outline: 2px solid var(--accent) !important; box-shadow: 0 8px 24px rgba(0,0,0,.18); opacity: .9; }
     .tw-bar { display: flex; align-items: center; gap: 6px; margin: -4px -4px 8px; flex: none; }
     .tw-handle { cursor: grab; touch-action: none; border: none; background: #f2f5f7; border-radius: 6px; font-size: 18px; line-height: 1; padding: 6px 10px; color: var(--ink-soft); }
     .tw-handle:active { cursor: grabbing; }
-    .tw-sizes { display: inline-flex; border: 1.5px solid var(--line); border-radius: 6px; overflow: hidden; margin-right: auto; }
-    .tw-sizes button { border: none; background: #fff; padding: 4px 8px; font-size: 15px; border-right: 1px solid var(--line); color: var(--ink-soft); }
-    .tw-sizes button:last-child { border-right: none; }
-    .tw-sizes button.on { background: var(--accent); color: #fff; }
-    .tw-sz { display: block; border: 1.5px solid currentColor; border-radius: 2px; }
-    .tw-sz-s { width: 8px; height: 8px; } .tw-sz-w { width: 16px; height: 8px; } .tw-sz-t { width: 8px; height: 16px; } .tw-sz-l { width: 16px; height: 16px; }
-    .tw-sizes button { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 28px; }
     .tw-ico { border: 1.5px solid var(--line); background: #fff; border-radius: 6px; padding: 3px 9px; font-size: 14px; color: var(--ink-soft); }
     .tw-ico.on { background: var(--accent-soft); border-color: var(--accent); }
     .tw-opt { display: block; margin: 8px 0; font-size: 14px; }
@@ -401,6 +426,14 @@
     .urows { display: flex; flex-direction: column; }
     .urow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; text-align: left; background: none; border: none; border-top: 1px solid var(--line); border-radius: 0; padding: 10px 6px; font: inherit; color: inherit; }
     .urow:first-child { border-top: none; }
+    .urow-w { display: flex; align-items: stretch; border-top: 1px solid var(--line); }
+    .urow-w:first-of-type { border-top: none; }
+    .urow-w .urow { flex: 1; border-top: none; min-width: 0; }
+    .urow-w.sel { background: #f6efe6; }
+    .u-sel { flex: none; width: 18px; height: 18px; margin: 12px 4px 0 6px; }
+    .u-selall { display: flex; gap: 8px; align-items: center; font-weight: normal; font-size: 14px; color: var(--ink-soft); padding: 4px 6px 8px; margin: 0; }
+    .u-bulk { position: sticky; top: 0; z-index: 4; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
+    .ub-list { margin: 4px 0; padding-left: 18px; font-size: 14px; } .ub-list li { margin: 6px 0; } .ub-list del { color: var(--danger); } .ub-list ins { text-decoration: none; background: #e3f2e8; }
     .urow:hover, .urow.on { background: var(--accent-soft); }
     .urow .uname { font-weight: bold; min-width: 160px; }
     .urow .uuser { color: var(--ink-soft); font-size: 14px; min-width: 120px; }
@@ -644,6 +677,10 @@
     .dcp-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
     .dsel { margin: 0 4px 0 0; vertical-align: -2px; }
     .dreg-q { padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .dreg-q.kb-focused { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); padding-left: 10px; margin-left: -10px; border-radius: 4px; }
+    .dreg-prio-info { background: #eef1f3; border: 1.5px solid #c7d1d7; border-radius: 8px; padding: 12px 14px; color: #2e4a5f; font-size: 14px; margin: 0 0 6px; }
+    .dreg-kbhint { margin: 10px 0 0; font-size: 12px; }
+    @media (max-width: 760px) { .dreg-kbhint { display: none; } }
     .dreg-label { font-weight: bold; margin-bottom: 4px; }
     .dreg-opts { display: flex; flex-wrap: wrap; gap: 4px; }
     .dreg-opts .chip { cursor: pointer; font-size: 14px; }
@@ -814,7 +851,7 @@
       </a>
       <nav id="worlds" class="hidden" aria-label="Moduler">
         <a href="#/" id="world-home">Startsida</a>
-        <a href="#/kalender" id="world-op" class="hidden">Opjour</a>
+        <a href="#/opjour" id="world-op" class="hidden">Opjour</a>
         <a href="#/schema" id="world-plan" class="hidden">Planering</a>
         <a href="#/oversikt" id="world-st" class="hidden">ST-utbildning</a>
         <a href="#/dops" id="world-dops" class="hidden">DOPS</a>
@@ -852,7 +889,7 @@
       <nav id="subnav" class="hidden" aria-label="Undersidor">
         <div data-world="op" class="hidden">
           <div class="sn-title">Opjour</div>
-          <a href="#/kalender" data-route="#/kalender">Kalender</a>
+          <a href="#/opjour" data-route="#/opjour">Opjour</a>
           <a href="#/stats" data-route="#/stats" id="nav-stats" class="hidden">Statistik</a>
         </div>
         <div data-world="plan" class="hidden">
@@ -887,7 +924,8 @@
           <a href="#/installningar/klinik" data-route="#/installningar/klinik" id="nav-set-clinic" class="hidden">Klinik</a>
           <a href="#/installningar/opjour" data-route="#/installningar/opjour" id="nav-set-opjour" class="hidden">Opjour</a>
           <a href="#/installningar/planering" data-route="#/installningar/planering" id="nav-set-plan" class="hidden">Planering</a>
-          <a href="#/installningar/st" data-route="#/installningar/st" id="nav-set-st" class="hidden">ST-utbildning</a>
+          <a href="#/installningar/utbildningsplan" data-route="#/installningar/utbildningsplan" id="nav-set-st" class="hidden">Utbildningsplan</a>
+          <a href="#/installningar/malbeskrivning" data-route="#/installningar/malbeskrivning" id="nav-set-goals" class="hidden">Målbeskrivning</a>
           <a href="#/installningar/dops" data-route="#/installningar/dops" id="nav-set-dops" class="hidden">DOPS</a>
           <a href="#/installningar/system" data-route="#/installningar/system" id="nav-set-system" class="hidden">System</a>
           <a href="#/installningar/anvandning" data-route="#/installningar/anvandning" id="nav-set-usage" class="hidden">Användning</a>
@@ -903,7 +941,7 @@
       ? 'http://localhost:8080'
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.42.1';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.43.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1146,11 +1184,13 @@
       const root = el('view');
       // Gamla adresser till inställningarna (före 0.38.0) → modulen Inställningar.
       const old = { '#/settings': '#/installningar/konto', '#/admin': '#/installningar/anvandare', '#/opjour-settings': '#/installningar/opjour',
-        '#/schema/installningar': '#/installningar/planering', '#/installningar': '#/installningar/konto' };
+        '#/schema/installningar': '#/installningar/planering', '#/installningar': '#/installningar/konto', '#/kalender': '#/opjour',
+        '#/installningar/st': '#/installningar/utbildningsplan', '#/installningar/st/krav': '#/installningar/utbildningsplan',
+        '#/installningar/st/delmal': '#/installningar/malbeskrivning', '#/installningar/st/personer': '#/installningar/anvandare' };
       if (old[h]) { location.replace(old[h]); return; }
-      if (h === '#/st' || h.startsWith('#/st/')) { location.replace('#/installningar/st' + h.slice(4)); return; }
+      if (h === '#/st' || h.startsWith('#/st/')) { location.replace(old['#/installningar/st' + h.slice(4)] || '#/installningar/utbildningsplan'); return; }
       if (h.startsWith('#/dops/installningar')) { location.replace('#/installningar/dops' + h.slice('#/dops/installningar'.length)); return; }
-      const narrow = ['#/installningar/konto', '#/installningar/anvandare', '#/installningar/klinik', '#/installningar/opjour', '#/installningar/system', '#/installningar/felanmalan', '#/stats'];
+      const narrow = ['#/installningar/konto', '#/installningar/klinik', '#/installningar/opjour', '#/installningar/system', '#/installningar/felanmalan', '#/stats'];
       root.classList.toggle('wide', !narrow.includes(h) && worldOf(h) !== 'today');   // bred vy för kalendern, schemat och ST-inställningarna
       root.classList.toggle('roomy', worldOf(h) === 'today');
       if (h === '#/installningar/konto') renderSettings(root);
@@ -1161,9 +1201,10 @@
       else if (h === '#/installningar/felanmalan') renderAdmin(root, 'errors');
       else if (h === '#/installningar/opjour') renderOpSettings(root);
       else if (h === '#/installningar/planering') renderStSettings(root, 'typer', 'plan');
-      else if (h === '#/installningar/st' || h.startsWith('#/installningar/st/')) renderStSettings(root, h.split('/')[3]);
+      else if (h === '#/installningar/utbildningsplan') renderStSettings(root, 'krav');
+      else if (h === '#/installningar/malbeskrivning') renderStSettings(root, 'delmal');
       else if (h === '#/installningar/dops' || h.startsWith('#/installningar/dops/')) renderDopsSettings(root, h.split('/')[3]);
-      else if (h === '#/kalender') renderApp(root);
+      else if (h === '#/opjour') renderApp(root);
       else if (h === '#/stats') renderStats(root);
       else if (h === '#/schema') renderSchema(root);
       else if (h === '#/oversikt') renderOversikt(root);
@@ -1200,13 +1241,13 @@
       if (h === '#/schema' || h.startsWith('#/schema/')) return 'plan';
       if (h === '#/oversikt' || h.startsWith('#/plan')) return 'st';
       if (h === '#/dops' || h.startsWith('#/dops/')) return 'dops';
-      if (['#/kalender', '#/stats'].includes(h)) return 'op';
+      if (['#/opjour', '#/stats'].includes(h)) return 'op';
       if (h === '#/utbildning' || h.startsWith('#/utbildning/')) return 'edu';
       return 'today';
     }
     function markNav(h) {
       const world = worldOf(h), key = !h || h === '#' ? '#/' : h.startsWith('#/plan') ? '#/plan'
-        : h.startsWith('#/installningar/st') ? '#/installningar/st' : h.startsWith('#/installningar/dops') ? '#/installningar/dops'
+        : h.startsWith('#/installningar/dops') ? '#/installningar/dops'
         : h.startsWith('#/utbildning/forslag') ? '#/utbildning/forslag' : h;
       el('world-op').classList.toggle('active', world === 'op');
       el('subnav').classList.toggle('hidden', state.scope !== 'user' || world === 'today');   // Idag har inga undersidor
@@ -1288,7 +1329,7 @@
     addEventListener('keydown', e => { if (e.key === 'Escape') closeNavTree(); });
 
     // Startsidor (som i DOPS-appen): de sidor personen har tillgång till. me = /me (för admin: personen i panelen har samma klinik).
-    const START_PAGES = [['', 'Startsida', () => true], ['#/kalender', 'Opjour – kalender', m => m.includes('opjour')],
+    const START_PAGES = [['', 'Startsida', () => true], ['#/opjour', 'Opjour', m => m.includes('opjour')],
       ['#/schema', 'Planering – veckoschema', m => m.includes('schema')], ['#/oversikt', 'ST-utbildning – måluppfyllelse', m => m.includes('mal')],
       ['#/plan', 'ST-utbildning – min utbildningsplan', m => m.includes('mal')], ['#/dops', 'DOPS – översikt', m => m.includes('dops')],
       ['#/dops/registrera', 'DOPS – registrera bedömning', m => m.includes('dops')], ['#/dops/inkorg', 'DOPS – inkorg', m => m.includes('dops')],
@@ -1318,11 +1359,12 @@
       // Inställningar: en egen modul, med de delar personen har behörighet till (Mitt konto har alla).
       ['menu-admin', 'tool-admin'].forEach(id => show(id, true));
       const lead = me.isDirector || me.isAdmin;
-      show('nav-set-users', me.isAdmin);
+      show('nav-set-users', me.isAdmin || (me.isDirector && (schema || mal)));   // studierektor: ST-läkare och handledare
       show('nav-set-clinic', me.isAdmin);
       show('nav-set-opjour', me.isAdmin && mods.includes('opjour'));
       show('nav-set-plan', schema && lead);
       show('nav-set-st', (schema || mal) && lead);
+      show('nav-set-goals', (schema || mal) && lead);
       show('nav-set-dops', mods.includes('dops') && lead);
       show('nav-set-system', !!me.isGlobalAdmin);
       show('nav-set-usage', !!me.isGlobalAdmin);
@@ -1459,6 +1501,7 @@
   <script src="js/import.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/admin.js"></script>
+  <script src="js/userbulk.js"></script>
   <script src="js/opsettings.js"></script>
   <script src="js/stats.js"></script>
   <script src="js/display.js"></script>

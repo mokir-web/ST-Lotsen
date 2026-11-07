@@ -1,11 +1,12 @@
-// ── Inställningar → ST-utbildning (#/st/<flik>) och Inställningar → Planering (#/schema/installningar) ──
+// ── Inställningar → Utbildningsplan, Målbeskrivning och Planering ───────────────────────────────────────
 // Klassiskt script. Beror på index.html: api(), esc(), el(), setMenuForUser(). Global entry: renderStSettings(root).
 //
 // Klinikens egna inställningar för veckoschemat (plattform_plan.md §3, §5): aktivitetstyper (kod, namn, färg, påverkan på
 // "I tjänst", ger måluppfyllelse) och krav (kategori, namn, randning/ort, längd, undantag för i tjänst, ST-år, obligatoriskt).
 // För studierektor och admin. Inget raderas — inaktivera i stället, så att befintliga schemaposter behåller sin betydelse.
-// ST-flikar: Krav, Delmål (målbeskrivning + vilka delmål kraven täcker) och ST-läkare (ST-uppgifter och handledare).
-// Planeringens inställningar (bemanning och aktivitetstyper) använder samma kod med page = 'plan'.
+// Egna undersidor: Utbildningsplan (tab 'krav': kraven per ST-år) och Målbeskrivning (tab 'delmal': målbeskrivning + vilka delmål
+// kraven täcker). ST-läkare och handledare (tab 'personer') ställs in i användarpanelen under Inställningar → Användare; studierektor
+// som inte är admin får den listan där (page = 'users'). Planeringens inställningar (bemanning, visning och typer): page = 'plan'.
 
 let _sts = null;
 
@@ -14,7 +15,7 @@ const effectOptions = (sel, inherit) =>
   (inherit ? `<option value=""${!sel ? ' selected' : ''}>Ärv från typen</option>` : '')
   + Object.entries(EFFECT_LABEL).map(([v, l]) => `<option value="${v}"${sel === v ? ' selected' : ''}>${l}</option>`).join('');
 
-const STS_TABS = [['krav', 'Krav'], ['delmal', 'Delmål'], ['personer', 'ST-läkare och handledare']];
+const STS_TABS = [['krav', 'Utbildningsplan'], ['delmal', 'Målbeskrivning'], ['personer', 'ST-läkare och handledare']];
 
 async function renderStSettings(root, tab, page = 'st') {
   if (page === 'st' && tab === 'typer') { location.hash = '#/installningar/planering'; return; }   // gamla länkar
@@ -61,8 +62,7 @@ function drawStSettings(root) {
   root.innerHTML = _sts.page === 'plan' ? `
     <h1 class="page">Planering</h1>
     ${stsTypesTab()}` : `
-    <h1 class="page">ST-utbildning</h1>
-    <nav class="subtabs" aria-label="Flikar">${STS_TABS.map(([k, l]) => `<a href="#/installningar/st/${k}"${k === tab ? ' class="active" aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
+    <h1 class="page">${_sts.page === 'users' ? 'Användare – ST-läkare och handledare' : STS_TABS.find(t => t[0] === tab)[1]}</h1>
     ${tab === 'delmal' ? stsGoalsTab() : tab === 'personer' ? stsPeopleTab() : stsReqTab()}`;
   attachTypeCards(root);
   attachYearBoard(root, { onMove: moveReq, onEdit: id => openReqPanel(id), onAdd: y => openReqPanel(null, y) });
@@ -70,8 +70,17 @@ function drawStSettings(root) {
 }
 
 function stsTypesTab() {
-  const { types, minInService } = _sts.cfg;
+  const { types, minInService, schemaWeeks } = _sts.cfg;
   return `
+    <div class="card">
+      <h2>Visning</h2>
+      <p class="hint" style="margin-top:0">Hur många veckor veckoschemat visar när det öppnas (från två veckor bakåt). Pilarna stegar fyra veckor i taget.</p>
+      <div class="row" style="gap:8px;align-items:flex-end">
+        <div><label for="st-weeks" style="margin-top:0">Antal veckor (4–104)</label><input type="number" id="st-weeks" min="4" max="104" value="${schemaWeeks ?? 26}" style="max-width:120px"></div>
+        <button class="btn" onclick="saveSchemaWeeks()">Spara</button>
+      </div>
+      <div class="status" id="st-weeks-status"></div>
+    </div>
     <div class="card">
       <h2>Bemanning</h2>
       <p class="hint" style="margin-top:0">Minsta antal ST-läkare i tjänst per vecka. Raden "I tjänst" i veckoschemat och på startsidan blir röd när
@@ -171,7 +180,7 @@ function openReqPanel(id, year) {
       <h3>Delmål${fw ? ' · ' + esc(fw.label) : ''}</h3>
       ${goals.length ? `<input type="search" id="rp-gsearch" placeholder="Sök delmål…" oninput="filterReqGoals(this.value)" style="max-width:none">
         <div class="goalpick">${goals.map(g => `<label data-txt="${esc((g.code + ' ' + g.text).toLowerCase())}"><input type="checkbox" data-goal="${esc(g.id)}"${(r.goalIds || []).includes(g.id) ? ' checked' : ''}><b>${esc(g.code)}</b><span>${esc(g.text)}</span></label>`).join('')}</div>`
-      : '<p class="hint">Välj en förvald målbeskrivning under fliken <a href="#/installningar/st/delmal">Delmål</a> för att koppla delmål.</p>'}
+      : '<p class="hint">Välj en förvald målbeskrivning under fliken <a href="#/installningar/malbeskrivning">Målbeskrivning</a> för att koppla delmål.</p>'}
     </div>
     <div class="sp-foot"><button class="btn" onclick="saveReqPanel(${id ? `'${esc(id)}'` : 'null'})">${id ? 'Spara' : 'Lägg till'}</button>
       <button class="btn-ghost" onclick="closeReqPanel()">Avbryt</button><div class="status err" id="rp-status"></div></div>
@@ -231,8 +240,8 @@ function openGoalPanel(goal, fwLabel, reqs, onSaved) {
       <h3>Krav som räknas till delmålet</h3>
       ${active.length ? `<input type="search" placeholder="Sök krav…" oninput="filterReqGoals(this.value)" style="max-width:none">
         <div class="goalpick reqpick">${cats.map(c => active.filter(r => r.category === c).map(r => `<label data-txt="${esc((r.category + ' ' + r.name).toLowerCase())}"><input type="checkbox" data-req="${esc(r.id)}"${(r.goalIds || []).includes(goal.id) ? ' checked' : ''}><b>${esc(r.category)}</b><span>${esc(r.name)}${r.stYear ? ` <span class="muted">år ${r.stYear}</span>` : ''}${r.mandatory ? '' : ' <span class="muted">*</span>'}</span></label>`).join('')).join('')}</div>
-        <p class="hint">* = valfritt. Saknas en aktivitet läggs den till som krav under fliken <a href="#/installningar/st/krav" onclick="closeReqPanel()">Krav</a>.</p>`
-      : '<p class="hint">Kliniken har inga aktiva krav. Lägg till dem under fliken <a href="#/installningar/st/krav" onclick="closeReqPanel()">Krav</a>.</p>'}
+        <p class="hint">* = valfritt. Saknas en aktivitet läggs den till som krav under <a href="#/installningar/utbildningsplan" onclick="closeReqPanel()">Utbildningsplan</a>.</p>`
+      : '<p class="hint">Kliniken har inga aktiva krav. Lägg till dem under <a href="#/installningar/utbildningsplan" onclick="closeReqPanel()">Utbildningsplan</a>.</p>'}
     </div>
     <div class="sp-foot"><button class="btn" id="gp-save">Spara</button>
       <button class="btn-ghost" onclick="closeReqPanel()">Avbryt</button><div class="status err" id="gp-status"></div></div>
@@ -286,7 +295,7 @@ function stsGoalsTab() {
           <select id="st-vfw" onchange="setStsViewFw(this.value)">${_sts.frameworks.map(f => `<option value="${esc(f.id)}"${f.id === vfw?.id ? ' selected' : ''}>${esc(f.label)}${f.id === _sts.cfg.defaultFrameworkId ? ' (förval)' : ''}</option>`).join('')}${vfw ? '' : '<option value="" selected>– välj –</option>'}</select></div>
       </div>
       ${goals.length ? `<p class="hint"><strong>${covered} av ${goals.length}</strong> delmål har minst ett krav. <strong>Klicka på ett delmål</strong> för att välja vilka
-        krav som räknas till det (det går också att välja delmål genom att klicka på ett krav i fliken <a href="#/installningar/st/krav">Krav</a>).
+        krav som räknas till det (det går också att välja delmål genom att klicka på ett krav under <a href="#/installningar/utbildningsplan">Utbildningsplan</a>).
         Ett delmål kan också uppfyllas på annat sätt — det här är bara klinikens mall.</p>
       <div class="status" id="st-goals-status"></div>
       <div class="sch-scroll"><table class="imp-table goal-cov">
@@ -358,6 +367,13 @@ async function onStPeopleClick(e) {
     await reloadStSettings();
     toast(`Sparat: ${who.displayName}.`);
   } catch (err) { const b = row.querySelector('[data-s]'); b.textContent = err.message; b.className = 'status err'; }
+}
+
+async function saveSchemaWeeks() {
+  try {
+    await api('/admin/st/clinic', { method: 'PUT', body: { schemaWeeks: Number(el('st-weeks').value) } });
+    await reloadStSettings({ box: 'st-weeks-status', text: 'Sparat. Gäller nästa gång veckoschemat öppnas.' });
+  } catch (err) { const b = el('st-weeks-status'); b.textContent = err.message; b.className = 'status err'; }
 }
 
 async function saveMinInService() {

@@ -144,7 +144,7 @@ function planOverview() {
     </div>
     <div class="card">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Per ST-år</h2>
-        ${me.isDirector || me.isAdmin ? '<a class="btn-ghost no-print" href="#/installningar/st/krav" style="text-decoration:none">Ändra mallen</a>' : ''}</div>
+        ${me.isDirector || me.isAdmin ? '<a class="btn-ghost no-print" href="#/installningar/utbildningsplan" style="text-decoration:none">Ändra mallen</a>' : ''}</div>
       <p class="hint">${data.canEditPlan ? '<span class="no-print"><strong>Dra</strong> ett krav till ett annat år eller <strong>klicka</strong> för att flytta eller ta bort det — bara i den här planen, mallen ändras inte. </span>' : ''}Status per krav. * = valfritt.</p>
       ${yearBoardHtml(data.requirements, { editable: data.canEditPlan, add: false, status: r => planChip(data.cells[r.id]),
         detail: r => r.personal ? `<div class="yb-tags"><span title="Avviker från mallen">Egen plan · mall: ${r.templateYear ? 'år ' + r.templateYear : 'inget år'}</span></div>` : '' })}

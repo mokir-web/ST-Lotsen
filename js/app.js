@@ -139,7 +139,7 @@ function drawApp(root) {
     </div>
 
     <div class="card">
-      <h2>Kalender</h2>
+      <h2>Opjour</h2>
       <p class="muted" style="margin-top:-4px;font-size:13px">
         ${cal.sheetSync ? 'Tryck på en dag för att se den.' : `Tryck på en dag för att boka${hasInterests() ? ' eller anmäla intresse' : ''}. Passerade dagar går att titta på men inte ändra.`} Är texten i en ruta för lång visas resten när du trycker på den.
       </p>

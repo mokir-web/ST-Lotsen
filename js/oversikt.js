@@ -137,7 +137,7 @@ function drawOversikt(root) {
         </table>
       </div>` : (ordered.length ? '<p class="muted">Inga ST-läkare att visa.</p>'
         : `<div class="empty"><p><strong>Inga krav än.</strong> Kraven är klinikens mall per ST-år — det ST-läkarna ska uppnå.</p>
-          ${data.canEditAll ? '<a class="btn" href="#/installningar/st/krav" style="text-decoration:none">Lägg in krav</a>' : '<p class="hint">Studierektor lägger in dem.</p>'}</div>`)}
+          ${data.canEditAll ? '<a class="btn" href="#/installningar/utbildningsplan" style="text-decoration:none">Lägg in krav</a>' : '<p class="hint">Studierektor lägger in dem.</p>'}</div>`)}
       <p style="margin:12px 0 0;line-height:2;font-size:13px">
         <span class="pchip st-klart">✓ Klart</span> <span class="pchip st-tidigare">✓ Tidigare</span> <span class="pchip st-pagaende">▶ Pågående</span> <span class="pchip st-bokad">◷ Bokad (vecka)</span>
         <span class="pchip st-forslag">? Förslag/Ev.</span> <span class="pchip st-plan">✎ Plan</span> <span class="pchip st-ejgjort">· Ej gjort</span> <span class="pchip st-saknas">! Saknas (försenat)</span>

@@ -26,12 +26,14 @@ async function renderAdmin(root, mode = 'users') {
   try {
     const me = await api('/me');
     setMenuForUser(me);
+    if (mode === 'users' && !me.isAdmin && me.isDirector) { renderStSettings(root, 'personer', 'users'); return; }   // studierektor: ST-läkare och handledare
     if (!me.isAdmin || (['system', 'errors'].includes(mode) && !me.isGlobalAdmin)) { location.hash = '#/installningar/konto'; return; }
     _admin = { me, mode, draw: drawAdmin, open: new Set(), filter: 'alla', q: '', panel: null, notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
     if (mode === 'system' || (mode === 'clinic' && me.isGlobalAdmin)) _admin.clinics = (await api('/admin/clinics')).clinics;
     if (mode === 'system') _admin.dops = await api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message }));
     if (mode === 'errors') _admin.errors = await api('/error-reports').catch(() => null);
     if (mode === 'users' && (me.modules || []).includes('dops')) await loadDopsUsers();
+    if (mode === 'users' && (me.modules || []).some(m => m === 'schema' || m === 'mal')) _admin.frameworks = (await api('/goals/frameworks').catch(() => ({ frameworks: [] }))).frameworks;
     drawAdmin(root);
   } catch (err) {
     root.innerHTML = `<p class="err">${esc(err.message)}</p>`;
@@ -115,7 +117,7 @@ function stSection(u, locked) {
           <div class="qsws" style="grid-template-columns:repeat(2, 90px);margin:6px 0">
             ${quickSwitch('ST-läkare', 'st', u.isSt, locked, '')}${quickSwitch('Studierektor', 'director', u.isDirector, locked, '')}
           </div>
-          ${u.isSt ? '<p class="hint" style="margin:4px 0 0">ST-start, målbeskrivning och handledare: <a href="#/installningar/st/personer">Inställningar → ST-utbildning</a>.</p>' : ''}
+          ${u.isSt ? '<p class="hint" style="margin:4px 0 0">ST-start, målbeskrivning och handledare: i personens panel under Inställningar → Användare.</p>' : ''}
         </div>`;
 }
 
@@ -159,6 +161,8 @@ function drawAdmin(root) {
       <div class="row" style="justify-content:space-between">
         <h2 style="margin:0">Användare (${roster.filter(u => u.active).length})</h2>
         <div class="row" style="gap:8px">
+          <button class="btn-ghost" onclick="ubExport()" title="Hela listan som Excel-fil">Exportera Excel</button>
+          <button class="btn-ghost" onclick="openUserPanel({ kind: 'sync' })" title="Läs in en ändrad export; bara det som ändrats uppdateras">Uppdatera från Excel…</button>
           <button class="btn-ghost" onclick="openUserPanel({ kind: 'import' })">Importera…</button>
           <button class="btn" onclick="openUserPanel({ kind: 'add' })">+ Lägg till</button>
         </div>
@@ -168,6 +172,7 @@ function drawAdmin(root) {
         <div class="seg" id="u-filter">${U_FILTERS.map(([k, l]) => `<button type="button" data-f="${k}" class="${_admin.filter === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       </div>
       ${dupBox()}
+      <div id="u-bulk" class="u-bulk hidden"></div>
       <div id="u-rows" class="urows"></div>
     </div>
 
@@ -175,6 +180,10 @@ function drawAdmin(root) {
   `;
   el('u-filter').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { _admin.filter = b.dataset.f; drawAdmin(el('view')); } });
   el('u-rows').addEventListener('click', e => { const r = e.target.closest('[data-uid]'); if (r) openUserPanel({ kind: 'user', id: r.dataset.uid, tab: 'roller' }); });
+  el('u-rows').addEventListener('change', e => {
+    const c = e.target.closest('[data-sel]'); if (c) { ubToggle(c.dataset.sel, c.checked); return; }
+    const all = e.target.closest('#u-selall'); if (all) ubToggleAll(JSON.parse(all.dataset.ids), all.checked);
+  });
   root.querySelector('.dup-box')?.addEventListener('click', e => { const b = e.target.closest('[data-merge]'); if (b) openUserPanel({ kind: 'merge', ids: b.dataset.merge.split(',') }); });
   drawUserRows();
   if (_admin.panel) drawUserPanel();
@@ -233,14 +242,18 @@ function drawUserRows() {
     .filter(u => f === 'inaktiva' ? !u.active : u.active)
     .filter(u => f === 'st' ? u.isSt : f === 'handl' ? adeptsOf(u.id).length : f === 'admin' ? u.isAdmin : true)
     .filter(u => !q || (u.displayName + ' ' + (u.username || '')).toLowerCase().includes(q));
-  el('u-rows').innerHTML = list.map(u => {
+  const sel = ubSel(), allOn = list.length && list.every(u => sel.has(u.id));
+  el('u-rows').innerHTML = (list.length ? `<label class="u-selall"><input type="checkbox" id="u-selall" data-ids='${esc(JSON.stringify(list.map(u => u.id)))}'${allOn ? ' checked' : ''}> Markera alla ${list.length} i listan</label>` : '')
+    + list.map(u => {
     const n = adeptsOf(u.id).length;
-    return `<button type="button" class="urow${_admin.panel?.id === u.id ? ' on' : ''}" data-uid="${esc(u.id)}">
+    return `<div class="urow-w${sel.has(u.id) ? ' sel' : ''}"><input type="checkbox" class="u-sel" data-sel="${esc(u.id)}" aria-label="Markera ${esc(u.displayName)}"${sel.has(u.id) ? ' checked' : ''}>
+      <button type="button" class="urow${_admin.panel?.id === u.id ? ' on' : ''}" data-uid="${esc(u.id)}">
       <span class="uname">${esc(u.displayName)}${u.id === _admin.me.userId ? ' <span class="muted">(du)</span>' : ''}</span>
       <span class="uuser">${esc(u.username || '')}</span>
       <span class="uchips">${adminChips(u)}${n ? ` <span class="tagchip">Handledare (${n})</span>` : ''}</span>
-    </button>`;
+    </button></div>`;
   }).join('') || `<p class="muted">${q ? 'Ingen träff.' : 'Inga användare här.'}</p>`;
+  ubBar();
 }
 
 function openUserPanel(p) { _admin.panel = p; drawUserPanel(); if (el('u-rows')) drawUserRows(); }
@@ -297,6 +310,8 @@ function drawUserPanel() {
         <input type="file" id="imp-file" accept=".csv,.txt,.xlsx" onchange="onImportFile(this.files[0])">
       </div>
       <div id="imp-out"></div>`;
+  } else if (p.kind === 'bulk' || p.kind === 'sync') {
+    ({ title, body } = p.kind === 'bulk' ? ubBulkPanel() : ubSyncPanel());
   } else if (p.kind === 'merge') {
     const [a, b] = p.ids.map(id => (_admin.me.roster || []).find(x => x.id === id));
     if (!a || !b) { closeUserPanel(); return; }
@@ -342,8 +357,7 @@ function drawUserPanel() {
         ${roleRow('Statistik', u.isAdmin ? 'Ser sidan Statistik — admin ser den alltid.' : 'Ser sidan Statistik.', 'stats', u.isAdmin || u.canSeeStats, u.isAdmin || locked, '')}` : ''}
         ${st ? `<h3>ST-utbildning</h3>
         <div class="role-info"><strong>Handledare för</strong><small>${adepts.length ? adepts.map(a => esc(a.displayName)).join(', ') : 'ingen'}</small></div>
-        ${u.isSt ? `<div class="role-info"><strong>Handledare</strong><small>${(u.supervisorIds || []).length ? u.supervisorIds.map(id => esc(nameOf(id))).join(', ') : 'ingen angiven'}</small></div>` : ''}
-        <p class="hint">ST-start, målbeskrivning och handledare: <a href="#/installningar/st/personer">Inställningar → ST-utbildning</a>.</p>` : ''}
+        ${u.isSt ? stPersonFields(u, locked) : '<p class="hint">Sätt yrkesrollen till ST-läkare för att ange ST-start, målbeskrivning och handledare.</p>'}` : ''}
         ${mods().includes('dops') ? dopsUserSection(u) : ''}`,
       konto: `
         ${roleRow('Aktiv', 'Ett inaktivt konto kan inte logga in. Bokningar och historik ligger kvar.', 'active', u.active, fixed, why)}
@@ -381,6 +395,31 @@ function drawUserPanel() {
   });
   document.body.appendChild(root);
   if (p.kind === 'import' && _admin.plan) drawImportPlan();
+}
+
+// ST-uppgifter i användarpanelen (tidigare Inställningar → ST-utbildning → ST-läkare och handledare): ST-start och -slut,
+// målbeskrivning och handledare. Sparas med PATCH /admin/st/people/:id (studierektor eller admin).
+const toMonthU = iso => (iso || '').slice(0, 7);
+function stPersonFields(u, locked) {
+  const others = sortedRoster().filter(x => !x.isDisplay && x.active && x.id !== u.id);
+  const sup = new Set(u.supervisorIds || []);
+  return `<div class="field-row">
+      <div><label for="up-ststart">ST-start</label><input type="month" id="up-ststart" value="${esc(toMonthU(u.stStart))}"${locked ? ' disabled' : ''}></div>
+      <div><label for="up-stend">ST-slut <small class="muted" style="font-weight:normal">(när ST är klar)</small></label><input type="month" id="up-stend" value="${esc(toMonthU(u.stEnd))}"${locked ? ' disabled' : ''}></div>
+    </div>
+    <label for="up-fw">Målbeskrivning</label><select id="up-fw"${locked ? ' disabled' : ''}><option value="">Klinikens förval</option>${(_admin.frameworks || []).map(f => `<option value="${esc(f.id)}"${f.id === u.frameworkId ? ' selected' : ''}>${esc(f.label)}</option>`).join('')}</select>
+    <label>Handledare</label>
+    <details class="sup-pick"><summary>${sup.size ? [...sup].map(id => `<span class="chip">${esc(nameOf(id))}</span>`).join('') : '<span class="muted">Ingen handledare — välj</span>'}</summary>
+      <div class="sup-list">${others.map(x => `<label class="row" style="gap:6px;font-weight:normal;margin:2px 0"><input type="checkbox" data-supv="${esc(x.id)}"${sup.has(x.id) ? ' checked' : ''}> ${esc(x.displayName)}</label>`).join('')}</div>
+    </details>
+    <div class="row" style="margin-top:10px;gap:8px"><button class="btn" onclick="saveStPerson()"${locked ? ' disabled' : ''}>Spara ST-uppgifter</button>
+      <a href="#/plan/${esc(u.id)}" style="font-size:14px">Utbildningsplan →</a></div>
+    <p class="hint">Handledaren ser sina ST-läkares måluppfyllelse och plan. ST-slut sätts när ST är klar — personen syns då som avslutad.</p>`;
+}
+function saveStPerson() {
+  panelAction(id => api('/admin/st/people/' + encodeURIComponent(id), { method: 'PATCH', body: {
+    stStart: el('up-ststart').value, stEnd: el('up-stend').value, frameworkId: el('up-fw').value || null,
+    supervisorIds: [...document.querySelectorAll('[data-supv]')].filter(c => c.checked).map(c => c.dataset.supv) } }), 'ST-uppgifterna är sparade.');
 }
 
 // Kör en ändring på personen i panelen, ritar om sidan (panelen öppnas igen på samma flik) och visar resultatet i panelen.
@@ -933,7 +972,8 @@ async function deleteClinic(id) {
 
 const IMPORT_PART_LABEL = [
   ['opjour', 'Opjour: jourbytestid'], ['moduler', 'Moduler'], ['typer', 'Aktivitetstyper (Planering)'], ['krav', 'Krav med kopplade delmål (ST-utbildning)'],
-  ['bemanning', 'Minsta antal i tjänst'], ['malbeskrivning', 'Förvald målbeskrivning'], ['jobbimport', 'Översättning av jobbschemats koder']
+  ['bemanning', 'Minsta antal i tjänst'], ['veckor', 'Veckoschemats förvalda period (antal veckor)'], ['malbeskrivning', 'Förvald målbeskrivning'],
+  ['jobbimport', 'Översättning av jobbschemats koder'], ['mallar', 'Startsidans mallar per yrkesroll'], ['utbildning', 'Utbildningsmaterial (områden och poster)']
 ];
 function importCard() {
   const others = _admin.clinics.filter(c => c.id !== _admin.me.clinicId);
