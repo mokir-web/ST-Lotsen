@@ -7,6 +7,8 @@ const HELP = [
   ['#/', 'Idag', [
     'Det viktigaste från alla moduler på ett ställe: det du behöver ta hand om, dagens opjour och dina pass, din vecka i schemat, bemanningen, ditt förlopp, vad som är kvar under ditt ST-år och dina senaste bedömningar i DOPS.',
     'Korten syns bara om de gäller dig. Klicka på länken under ett kort för att gå vidare. Loggan uppe till vänster leder alltid hit.',
+    '<strong>Anpassa</strong> (uppe till höger) gör korten redigerbara: dra i ⠿ för att flytta ett kort (eller markera ⠿ och använd piltangenterna), välj storlek (liten, bred, hög eller stor), ⚙ för vad kortet ska visa och ✕ för att dölja det. Dolda kort ligger under rutnätet och läggs tillbaka med +. Tryck <em>Klar</em> för att spara. Layouten sparas på ditt konto och gäller på alla enheter. <em>Återställ</em> går tillbaka till standardlayouten.',
+    'På telefon ligger korten i en kolumn, och storleken styr bara hur högt kortet får bli.',
     'Vill du börja på en annan sida när du öppnar ST-Lotsen: välj startsida under Inställningar → Mitt konto.']],
   ['#/kalender', 'Opjour · Kalender', [
     'Vem som har opjour vilken dag. Klicka på en dag för att se detaljer och boka eller släppa ditt pass.',
