@@ -23,7 +23,8 @@ const HELP = [
     'ST-läkarnas handledningstillfällen. ST-läkaren ser sina egna, handledaren sina adepter (med måluppfyllelse i korthet) och studierektorn alla.',
     'Status mot klinikens intervall (Inställningar → Handledning): gul = mer än intervallet sedan senaste handledning, röd = mer än en och en halv gång intervallet.',
     '<strong>Handledning utförd…</strong> registrerar datum och anteckningar: en <em>gemensam</em> som ST-läkaren och handledaren ser, och en <em>egen</em> som bara den som skrev den kan läsa. Studierektorn ser datum men inga anteckningar. Anteckningarna kan ändras efteråt.',
-    'Samtalsstödet bredvid är ämnena ur strukturerad ST-handledning (varje gång, var 3:e, 6:e och 12:e månad) — som vägledning, inget fylls i per ämne.']],
+    'Samtalsstödet bredvid är ämnena ur strukturerad ST-handledning (varje gång, var 3:e, 6:e och 12:e månad) — som vägledning, inget fylls i per ämne.',
+    '<strong>Importera anteckningar…</strong> läser in egna anteckningar från tidigare (CSV eller Excel med kolumnerna Datum och Anteckning; datum som ÅÅÅÅ-MM-DD eller ÅÅMMDD). Varje rad blir en handledning med raden som din egen anteckning — bara du kan läsa den. Finns redan en handledning samma dag läggs anteckningen där. Du ser allt innan något sparas.']],
   ['#/utbildning', 'Utbildningsmaterial', [
     'Klinikens samling av bra utbildningsmaterial (artiklar, videor, kurser), ordnad i områden. Områdena finns i undermenyn.',
     'Videor och spellistor från YouTube, Vimeo och videofiler (.mp4) spelas upp direkt på sidan med <em>▶ Spela upp här</em>. En spellista (märkt ☰) spelas upp med listan i spelaren, där man hoppar mellan avsnitten. Klistra in länken till spellistan (youtube.com/playlist?list=…) eller till en video i den. Övriga länkar öppnas i en ny flik.',

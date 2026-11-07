@@ -84,12 +84,13 @@ function drawHlPerson(root, d) {
     <div class="tw-head"><div><h1 class="page" style="margin-bottom:2px">${self ? 'Mina handledningar' : esc(p.displayName)} ${hlStatus(p.status)}</h1>
       <p class="muted" style="margin:0">Senast: ${esc(p.lastHeld ? hlDate(p.lastHeld) : 'ingen')}${d.months && p.nextDue ? ` · nästa enligt intervallet (var ${d.months}:e månad): ${esc(hlDate(p.nextDue))}` : ''}
         ${(_hl.me.modules || []).includes('mal') ? ` · <a href="#/plan/${esc(p.id)}">Utbildningsplan och måluppfyllelse</a>` : ''}</p></div>
-      <div class="tw-actions">${d.canMark ? '<button class="btn" data-hl="done">Handledning utförd…</button>' : ''}</div></div>
+      <div class="tw-actions">${d.canWrite ? '<button class="btn-ghost" data-hl="import" title="Egna anteckningar från en fil (CSV eller Excel)">Importera anteckningar…</button>' : ''}${d.canMark ? '<button class="btn" data-hl="done">Handledning utförd…</button>' : ''}</div></div>
     <div class="hl-layout"><div>${d.talks.length ? d.talks.map(talk).join('') : '<div class="card"><p class="muted" style="margin:0">Ingen handledning registrerad än.</p></div>'}</div>
       <aside class="card hl-guide-side"><h2>Samtalsstöd</h2><p class="hint" style="margin-top:0">Ämnen ur strukturerad ST-handledning, som vägledning inför samtalet.</p>${hlTopicsHtml()}</aside></div>`;
   root.onclick = async e => {
     const b = e.target.closest('[data-hl]'); if (!b) return;
     if (b.dataset.hl === 'done') return hlDoneDialog(d);
+    if (b.dataset.hl === 'import') return hlImportDialog(d);
     const card = b.closest('.hl-talk');
     b.disabled = true;
     try {
@@ -176,4 +177,68 @@ async function renderHlSettings(root) {
       catch (err) { alert(err.message); }
     };
   } catch (err) { root.innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+}
+
+// ── Importera egna anteckningar ──────────────────────────────────────────
+// En fil (CSV eller Excel) med kolumnerna Datum och Anteckning. Varje rad blir ett handledningstillfälle med raden som EGEN anteckning
+// (bara den som importerar kan läsa den); finns ett tillfälle samma dag läggs anteckningen där. Förhandsvisning innan något sparas.
+// Datum: ÅÅÅÅ-MM-DD, ÅÅMMDD, ÅÅÅÅMMDD eller Excels datum.
+function hlParseDate(v) {
+  const s = String(v ?? '').trim();
+  let m;
+  if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) return `${m[1]}-${m[2]}-${m[3]}`;
+  if ((m = s.match(/^(\d{4})(\d{2})(\d{2})$/))) return `${m[1]}-${m[2]}-${m[3]}`;
+  if ((m = s.match(/^(\d{2})(\d{2})(\d{2})$/))) return `20${m[1]}-${m[2]}-${m[3]}`;
+  if (/^\d{5}(\.\d+)?$/.test(s)) return new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(s)) * 864e5).toISOString().slice(0, 10);   // Excels datumnummer
+  return s;
+}
+function hlRowsFromTable(table) {
+  const norm = x => String(x ?? '').trim().toLowerCase();
+  const h = table.findIndex(r => r.some(c => norm(c) === 'datum'));
+  const head = h >= 0 ? table[h].map(norm) : [];
+  const dc = h >= 0 ? head.indexOf('datum') : 0;
+  const nc = h >= 0 ? head.findIndex(c => ['anteckning', 'innehåll', 'text', 'anteckningar'].includes(c)) : 1;
+  return table.slice(h + 1).filter(r => r.some(c => String(c ?? '').trim()))
+    .map(r => ({ date: hlParseDate(r[dc]), note: String(r[nc < 0 ? 1 : nc] ?? '').trim() }));
+}
+function hlImportDialog(d) {
+  let root = el('sheet-root');
+  if (!root) { root = document.createElement('div'); root.id = 'sheet-root'; document.body.appendChild(root); }
+  root.innerHTML = `<div class="overlay" data-close="1"><div class="sheet wide" role="dialog" aria-label="Importera anteckningar">
+      <h2>Importera anteckningar · ${esc(d.person.displayName)} <button type="button" class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" data-close="1" aria-label="Stäng">✕</button></h2>
+      <p class="hint" style="margin-top:0">En fil (CSV eller Excel) med kolumnerna <strong>Datum</strong> och <strong>Anteckning</strong>. Varje rad blir en handledning med
+        raden som <strong>din egen anteckning</strong> — bara du kan läsa den. Finns redan en handledning samma dag läggs anteckningen där; har du redan en egen
+        anteckning den dagen hoppas raden över. Du ser allt innan något sparas.</p>
+      <input type="file" id="hl-imp-file" accept=".csv,.txt,.xlsx">
+      <div id="hl-imp-out"></div></div></div>`;
+  root.querySelector('.overlay').addEventListener('click', e => { if (e.target.dataset.close) root.innerHTML = ''; });
+  let rows = null;
+  const ST = { create: ['Ny handledning', 'ok'], attach: ['Läggs på befintlig', 'ok'], skip: ['Hoppas över (har redan egen anteckning)', 'muted'], error: ['Fel', 'err'] };
+  const show = (r, done) => {
+    const n = r.counts.create + r.counts.attach;
+    el('hl-imp-out').innerHTML = `<p style="margin:10px 0 4px"><strong>${done ? 'Importerat' : 'Förhandsvisning'}:</strong> ${r.counts.create} nya handledningar, ${r.counts.attach} på befintliga,
+        ${r.counts.skip} hoppas över, ${r.counts.error} med fel.</p>
+      <div class="sch-scroll" style="max-height:50vh"><table class="dst-table hl-imp"><tr><th>Datum</th><th>Anteckning</th><th>Status</th></tr>
+        ${r.items.map(it => `<tr><td>${esc(it.date)}</td><td class="hl-imp-note">${esc(it.note)}</td><td class="${ST[it.status][1]}">${esc(it.error || ST[it.status][0])}</td></tr>`).join('')}</table></div>
+      ${done ? '<div class="row" style="margin-top:10px"><button class="btn" data-close="1">Klar</button></div>'
+        : n ? `<div class="row" style="margin-top:10px"><button class="btn" id="hl-imp-go">Importera ${n}</button></div>` : ''}
+      <div class="status err" id="hl-imp-err"></div>`;
+    el('hl-imp-go')?.addEventListener('click', async e => {
+      e.target.disabled = true;
+      try {
+        const res = await api(`/handledning/${encodeURIComponent(d.person.id)}/import`, { method: 'POST', body: { rows } });
+        show(res, true);
+        el('hl-imp-out').querySelector('[data-close]').onclick = () => { root.innerHTML = ''; renderHandledning(el('view'), d.person.id); };
+      } catch (err) { e.target.disabled = false; el('hl-imp-err').textContent = err.message; }
+    });
+  };
+  el('hl-imp-file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    el('hl-imp-out').innerHTML = '<p class="muted">Läser filen…</p>';
+    try {
+      rows = hlRowsFromTable(await OpjourImport.readTable(f));
+      if (!rows.length) throw new Error('Filen innehåller inga rader.');
+      show(await api(`/handledning/${encodeURIComponent(d.person.id)}/import`, { method: 'POST', body: { rows, dryRun: true } }), false);
+    } catch (err) { el('hl-imp-out').innerHTML = `<p class="err">${esc(err.message)}</p>`; }
+  });
 }

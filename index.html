@@ -464,6 +464,8 @@
     .hl-dialog { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 18px; }
     .hl-dialog textarea { width: 100%; box-sizing: border-box; }
     @media (max-width: 760px) { .hl-dialog { grid-template-columns: 1fr; } }
+    .hl-imp td { vertical-align: top; } .hl-imp-note { white-space: pre-wrap; font-size: 13px; max-width: 460px; }
+    .hl-imp td.ok { color: #1f5a3a; } .hl-imp td.err { color: var(--danger); }
     .hl-kol td.hl-old { color: var(--danger); font-weight: 600; }
     .talk-list li { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
     .talk-list .talk-who { min-width: 0; }
@@ -1006,7 +1008,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.48.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.48.1';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
