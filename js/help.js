@@ -21,7 +21,7 @@ const HELP = [
     'Specialister och handledare kan fylla i en ny rapport när den senaste är äldre än tre månader, och studierektorn kan be ST-läkare om självskattning. Båda öppnas när ST-Lotsen får skriva i DOPS-appens databas — fyll i formulären i DOPS-appen så länge.']],
   ['#/handledning', 'Handledning', [
     'ST-läkarnas handledningstillfällen. ST-läkaren ser sina egna, handledaren sina adepter (med måluppfyllelse i korthet) och studierektorn alla.',
-    'Status mot klinikens intervall (Inställningar → Utbildningsplan): gul = mer än intervallet sedan senaste handledning, röd = mer än en och en halv gång intervallet.',
+    'Status mot klinikens intervall (Inställningar → Handledning): gul = mer än intervallet sedan senaste handledning, röd = mer än en och en halv gång intervallet.',
     '<strong>Handledning utförd…</strong> registrerar datum och anteckningar: en <em>gemensam</em> som ST-läkaren och handledaren ser, och en <em>egen</em> som bara den som skrev den kan läsa. Studierektorn ser datum men inga anteckningar. Anteckningarna kan ändras efteråt.',
     'Samtalsstödet bredvid är ämnena ur strukturerad ST-handledning (varje gång, var 3:e, 6:e och 12:e månad) — som vägledning, inget fylls i per ämne.']],
   ['#/utbildning', 'Utbildningsmaterial', [
@@ -58,20 +58,19 @@ const HELP = [
   ['#/dops', 'DOPS · Översikt', [
     'Dina mottagna och registrerade bedömningar per formulärtyp, med klinikens mål (per 6 månader, skalat med vald period) och en graf över tid. <em>Ej aktuellt</em> döljer ett formulär för dig — låst tills ST-Lotsen får skriva i DOPS-appens databas.']],
   ['#/dops/registrera', 'DOPS · Registrera bedömning', ['Välj mottagare och formulär och fyll i ett avsnitt i taget; <em>Fortsätt</em> följer formulärets hoppregler. Har formuläret prio-frågor (oftast fritext) visas de först: skicka in direkt eller fyll även i hela formuläret med bedömningsskalorna.', '<strong>Tangentbord:</strong> Tab och Skift+Tab byter fråga, en siffra väljer värdet på en skala (eller alternativ nummer så många) och går vidare, Enter går vidare. Skicka trycks aldrig från tangentbordet.', '<strong>Skicka</strong> är låst tills ST-Lotsen får skriva i DOPS-appens databas — registrera i DOPS-appen så länge.']],
-  ['#/dops/inkorg', 'DOPS · Inkorg', ['Förfrågningar om bedömning till dig, och de du skickat. <em>Bedöm nu</em> öppnar formuläret ifyllt. Att skicka förfrågningar och markera läst/utförd är låst tills vidare.']],
+  ['#/dops/inkorg', 'DOPS · Förfrågningar', ['Förfrågningar om bedömning till dig, och de du skickat. <em>Bedöm nu</em> öppnar formuläret ifyllt. Att skicka förfrågningar och markera läst/utförd är låst tills vidare.']],
   ['#/dops/mina', 'DOPS · Mina bedömningar', ['Mottagna och skickade bedömningar med alla svar. Filtrera på datum och formulärtyp. Markera bedömningar och <strong>Exportera till Word</strong> för att ladda ner dem. Att ta bort en bedömning är låst tills vidare.']],
   ['#/dops/kliniken', 'DOPS · Kliniken', ['Klinikens alla bedömningar, för Studierektor och Administratör i DOPS. Filtrera på datum, mottagarkategori, mottagare och formulärtyp.']],
   ['#/dops/statistik', 'DOPS · Statistik', ['Klinikens statistik för Studierektor och Administratör i DOPS: bedömningar över tid, fördelning per formulär, tidsåtgång och sparad tid, fritextåterkoppling, måluppfyllelse per person, vem som saknar bedömning, spridning av bedömare, mest aktiva och förfrågningar. Filtrera på datum och formulärtyp.']],
-  ['#/dops/tavling', 'DOPS · Tävling', ['Kvartalstävlingen: flest registrerade och flest mottagna bedömningar under en omgång. Att starta eller avsluta en omgång är låst tills ST-Lotsen får skriva i DOPS-appens databas.']],
-  ['#/dops/dokument', 'DOPS · Dokument', ['Mallar och avtal för kliniker som vill ansluta till DOPS (Administratör).']],
+  ['#/dops/tavling', 'DOPS · Tävling', ['Visas när en tävlingsomgång pågår (Studierektor och Administratör i DOPS ser den alltid). Kvartalstävlingen: flest registrerade och flest mottagna bedömningar under en omgång. Att starta eller avsluta en omgång är låst tills ST-Lotsen får skriva i DOPS-appens databas.']],
   ['#/installningar/dops', 'DOPS · Inställningar', ['DOPS-appens inställningar för Studierektor och Administratör: klinik (inaktivering, förfrågningar), formulär (grupper, vilka roller som ser dem, mål per 6 månader), användare och behörigheter, schemalagda utskick och — för global Administratör — formulärbyggaren. Att spara är låst tills ST-Lotsen får skriva i DOPS-appens databas. Kopplingen av konton mellan ST-Lotsen och DOPS finns under Inställningar → Användare.']],
   ['#/dops/progress', 'DOPS · Progress', [
     'Bedömningarna (DOPS, Mini-CEX m.fl.), direkt ur DOPS-appens databas. Bara läsning — nya bedömningar görs i DOPS-appen (moradops.se) tills registreringen slås på här.',
     'Välj formulärtyp. Skalfrågor visas som kurva över tid med medelvärde (streckad linje), flervalsfrågor som fördelning, därefter fritextsvaren och varje bedömning.',
     'Du ser dina egna bedömningar. Den som är Studierektor eller Administratör i DOPS väljer person och ser alla på kliniken.']],
   ['#/installningar/malbeskrivning', 'Inställningar · Målbeskrivning', ['Klinikens målbeskrivning och hur väl kraven täcker delmålen. Välj målbeskrivning i listan ovanför tabellen (t.ex. HSLF-FS 2021:8). <strong>Klicka på ett delmål</strong> för att välja vilka krav som räknas till det; det går också från ett krav under Utbildningsplan.']],
-  ['#/installningar/utbildningsplan', 'Inställningar · Utbildningsplan', [
-    '<strong>Handledarsamtal:</strong> hur ofta ST-läkarna ska ha samtal (månader). Startsidan påminner ST-läkaren, handledaren och studierektorn när det är dags; den som hållit samtalet trycker Gjort.',
+  ['#/installningar/handledning', 'Inställningar · Handledning', ['Hur ofta ST-läkarna ska ha handledning (månader). Styr gul/röd status under Handledning, påminnelserna i Att göra och kortet Handledarsamtal på startsidan. Tomt = följs inte upp.']],
+  ['#/installningar/utbildningsplan', 'Inställningar · Mall för utbildningsplan', [
     'Klinikens mall: det som ska uppnås, per ST-år. ST-läkarna ser samma vy i sin utbildningsplan.',
     '<strong>Dra</strong> ett krav till ett annat år, <strong>klicka</strong> för att ändra det (delmål, randning, längd, i tjänst).']],
   ['#/installningar/konto', 'Inställningar · Mitt konto', ['Ditt namn, användarnamn, telefon, e-post, startsida och PIN.']],
@@ -81,11 +80,11 @@ const HELP = [
   ['#/installningar/system', 'Inställningar · System', ['För global admin: kliniker (lägg upp, byt namn, radera, arbeta i) och anslutningen till DOPS.',
     'Att radera en klinik tar bort allt som hör till den och går inte att ångra. Du bekräftar genom att skriva klinikens namn. En klinik med ett globalt adminkonto kan inte raderas.']],
   ['#/installningar/anvandning', 'Inställningar · Användning', ['För global admin: hur ST-Lotsen och DOPS-appen används — personer, sessioner, sidvisningar, mest besökta sidor, enheter och webbläsare. ST-Lotsen samlar in sedan version 0.39.0; ingen IP-adress sparas.']],
-  ['#/installningar/felanmalan', 'Inställningar · Felanmälan', ['För global admin: användarnas felanmälningar och fel som appen rapporterat automatiskt. Markera som hanterade när de är åtgärdade.']],
+  ['#/installningar/felanmalan', 'Inställningar · Felrapporter', ['För global admin: användarnas felanmälningar och fel som appen rapporterat automatiskt. Markera som hanterade när de är åtgärdade.']],
   ['#/installningar/anvandare', 'Inställningar · Användare', ['Alla användare och allt som gäller en person: klinikroller (admin, studierektor), yrkesroll, Opjour (bokar, reserv, statistik), ST-utbildning (ST-start och -slut, målbeskrivning, handledare), DOPS (användarroll, koppling) och konto (PIN, inaktivera, slå ihop). Klicka på en person.',
     '<strong>Flera på en gång:</strong> kryssa i personer (eller Markera alla) och tryck <em>Ändra markerade…</em>. Välj bara de fält som ska ändras — yrkesroll, studierektor, aktiv, opjour, reserv, statistik, startsida, målbeskrivning eller en handledare till.',
     '<strong>Excel:</strong> <em>Exportera Excel</em> ger hela listan. Ändra i filen och läs in den med <em>Uppdatera från Excel…</em>: bara det som skiljer sig ändras (tom cell = ändra inte), rader utan träff blir nya användare, och du ser alla ändringar innan något sparas.',
-    'Studierektor som inte är admin ser här ST-läkarna och deras handledare.', 'Med modulen DOPS påslagen: DOPS-konton — godkänn förslagen, koppla övriga för hand, hämta namn eller e-post från DOPS och skapa ST-Lotsen-konton för dem som bara finns i DOPS (tillfällig PIN visas en gång). Kliniken kopplas till DOPS av global admin.']]
+    '<strong>Moduler som personen ser</strong> (panelen → Roller, eller Ändra markerade…): stäng av en modul för att ta bort den ur personens menyer och startsida, t.ex. ST-utbildning för en handledare som bara ska se sina adepter under Handledning.', 'Studierektor som inte är admin ser här ST-läkarna och deras handledare.', 'Med modulen DOPS påslagen: DOPS-konton — godkänn förslagen, koppla övriga för hand, hämta namn eller e-post från DOPS och skapa ST-Lotsen-konton för dem som bara finns i DOPS (tillfällig PIN visas en gång). Kliniken kopplas till DOPS av global admin.']]
 ];
 
 function openHelp() {

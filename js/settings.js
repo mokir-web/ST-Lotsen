@@ -20,13 +20,17 @@ async function renderSettings(root) {
         <input type="text" id="st-name" value="${esc(me.displayName)}" maxlength="60" autocomplete="name">
         <label for="st-user">Användarnamn</label>
         <input type="text" id="st-user" value="${esc(me.username || '')}" maxlength="60" autocapitalize="none" spellcheck="false" autocomplete="username">
-        <label for="st-phone">Telefonnummer</label>
-        <input type="tel" id="st-phone" value="${esc(me.phone || '')}" placeholder="070-123 45 67" maxlength="30" inputmode="tel" autocomplete="tel">
+        <div class="field-row">
+          <div><label for="st-phone">Telefon arbete</label>
+            <input type="tel" id="st-phone" value="${esc(me.phone || '')}" placeholder="010-123 45 67" maxlength="30" inputmode="tel" autocomplete="tel-local"></div>
+          <div><label for="st-phone-priv">Telefon privat</label>
+            <input type="tel" id="st-phone-priv" value="${esc(me.phonePrivate || '')}" placeholder="070-123 45 67" maxlength="30" inputmode="tel" autocomplete="tel"></div>
+        </div>
         <label for="st-email">E-post</label>
         <input type="email" id="st-email" value="${esc(me.email || '')}" maxlength="120" autocapitalize="none" spellcheck="false" autocomplete="email">
         <label style="margin-top:14px">Klinik</label>
         <div>${esc(me.clinicName || state.clinicName)} <span class="muted">(ändras inte här)</span></div>
-        <p class="hint">Ditt namn och telefonnummer syns för alla som är inloggade på kliniken, i kalendern, så att man kan nå dig när du har jour eller är reserv. E-posten ser bara du och klinikens admin. Byter du användarnamn loggar du in med det nya nästa gång.</p>
+        <p class="hint">Ditt namn syns för alla som är inloggade på kliniken. Telefonnumren (arbete och privat) visas på klinikens visningsskärm när du har opjour eller är reserv just den dagen, så att man kan nå dig. E-posten ser bara du och klinikens admin. Byter du användarnamn loggar du in med det nya nästa gång.</p>
         <div class="row" style="margin-top:10px"><button class="btn" onclick="saveContact()">Spara</button></div>
         <div id="st-contact-status" class="status"></div>
       </div>
@@ -70,7 +74,7 @@ function stStatus(id, text, ok) {
 async function saveContact() {
   try {
     const r = await api('/profile', { method: 'PUT', body: {
-      displayName: el('st-name').value, username: el('st-user').value, phone: el('st-phone').value, email: el('st-email').value
+      displayName: el('st-name').value, username: el('st-user').value, phone: el('st-phone').value, phonePrivate: el('st-phone-priv').value, email: el('st-email').value
     } });
     stStatus('st-contact-status', r.username !== _settings.me.username ? `Sparat. Nästa gång loggar du in som "${r.username}".` : 'Sparat.', true);
     _settings.me.username = r.username;

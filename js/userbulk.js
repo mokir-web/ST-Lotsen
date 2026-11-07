@@ -11,7 +11,7 @@ const UB_ROLES = [['ST', 'ST-läkare'], ['BT', 'BT-läkare'], ['AT', 'AT-läkare
 const ubYes = v => { const s = String(v ?? '').trim().toLowerCase(); return ['ja', 'j', 'yes', 'true', 'sant', '1', 'x'].includes(s) ? true : ['nej', 'n', 'no', 'false', 'falskt', '0'].includes(s) ? false : undefined; };
 const ubBool = b => b ? 'Ja' : 'Nej';
 const ubMonth = v => { const s = String(v ?? '').trim(); if (!s) return undefined; const m = s.match(/^(\d{4})-(\d{1,2})/); return m ? `${m[1]}-${m[2].padStart(2, '0')}` : null; };
-const ubHasOp = () => mods().includes('opjour'), ubHasSt = () => mods().some(m => m === 'schema' || m === 'mal');
+const ubHasOp = () => mods().includes('opjour'), ubHasSt = () => mods().some(m => m === 'schema' || m === 'mal');   // mods() = klinikens moduler
 
 // k: fältnamn, h: rubrik i Excel, get: värde som text, parse: text → värde (undefined = ändra inte, null = ogiltigt),
 // cur: nuvarande värde att jämföra med, grp: vilket anrop som sparar det.
@@ -20,7 +20,8 @@ function ubFields() {
     { k: 'displayName', h: 'Fullständigt namn', get: u => u.displayName, grp: 'profile' },
     { k: 'username', h: 'Användarnamn', get: u => u.username || '', grp: 'profile' },
     { k: 'email', h: 'E-post', get: u => u.email || '', grp: 'profile' },
-    { k: 'phone', h: 'Telefon', get: u => u.phone || '', grp: 'profile' },
+    { k: 'phone', h: 'Telefon arbete', alias: ['telefon'], get: u => u.phone || '', grp: 'profile' },
+    { k: 'phonePrivate', h: 'Telefon privat', alias: ['privat telefon', 'privat'], get: u => u.phonePrivate || '', grp: 'profile' },
     { k: 'jobRole', h: 'Yrkesroll', get: u => (UB_ROLES.find(r => r[0] === (u.jobRole || (u.isSt ? 'ST' : ''))) || ['', ''])[1], cur: u => u.jobRole || (u.isSt ? 'ST' : ''),
       parse: v => { const s = String(v ?? '').trim().toLowerCase(); if (!s) return undefined; const r = UB_ROLES.find(([c, l]) => c.toLowerCase() === s || l.toLowerCase() === s); return r ? r[0] : null; }, grp: 'patch' },
     { k: 'isAdmin', h: 'Admin', bool: true, get: u => ubBool(u.isAdmin), cur: u => !!u.isAdmin, grp: 'patch' },
@@ -53,6 +54,7 @@ async function ubApply(u, ch) {
   const prof = Object.fromEntries(by('profile'));
   if (Object.keys(prof).length) await run('Uppgifter', () => api('/profile', { method: 'PUT', body: { userId: u.id, ...prof } }));
   const p = Object.fromEntries(by('patch').map(([k, v]) => k === 'opjourBook' ? ['opjourView', !v] : [k, v]));
+  if ('hiddenModules' in ch) p.hiddenModules = ch.hiddenModules;
   if (Object.keys(p).length) await run('Roller', () => api('/admin/users/' + encodeURIComponent(u.id), { method: 'PATCH', body: p }));
   if ('availableReserve' in ch) await run('Reserv', () => api('/reserve', { method: 'PUT', body: { available: ch.availableReserve, userId: u.id } }));
   const st = Object.fromEntries(by('st').map(([k, v]) => k === 'supervisorIds' ? [k, v ? v.split(',') : []] : [k, v]));
@@ -87,6 +89,9 @@ function ubBulkPanel() {
       ${yn('bk-director', 'Studierektor')}
       ${yn('bk-active', 'Aktiv', 'Ett inaktivt konto kan inte logga in.')}
       ${ubHasOp() ? yn('bk-book', 'Bokar opjour') + yn('bk-reserve', 'Reserv') + yn('bk-stats', 'Statistik') : ''}
+      <label class="role-row"><span><strong>Visa eller dölj modul</strong></span><span class="row" style="gap:6px;flex-wrap:nowrap">
+        <select id="bk-mod" style="max-width:150px">${keep}${MODULE_INFO.filter(([id]) => mods().includes(id)).map(([id, n]) => `<option value="${id}">${n}</option>`).join('')}</select>
+        <select id="bk-modon" style="max-width:100px"><option value="1">Visa</option><option value="0">Dölj</option></select></span></label>
       <label class="role-row"><span><strong>Startsida</strong></span><select id="bk-start" style="max-width:190px">${keep}${START_PAGES.filter(([, , ok]) => ok(mods())).map(([v, l]) => `<option value="${v || '__start'}">${l}</option>`).join('')}</select></label>
       ${ubHasSt() ? `<h3>ST-läkare bland de markerade</h3>
       <label class="role-row"><span><strong>Målbeskrivning</strong></span><select id="bk-fw" style="max-width:190px">${keep}<option value="__clinic">Klinikens förval</option>${(_admin.frameworks || []).map(f => `<option value="${esc(f.id)}">${esc(f.label)}</option>`).join('')}</select></label>
@@ -102,8 +107,8 @@ async function ubRunBulk(btn) {
   if (v('bk-role')) set.jobRole = v('bk-role');
   for (const [id, k] of [['bk-director', 'isDirector'], ['bk-active', 'active'], ['bk-book', 'opjourBook'], ['bk-reserve', 'availableReserve'], ['bk-stats', 'canSeeStats']]) if (v(id)) set[k] = v(id) === '1';
   if (v('bk-start')) set.startPage = v('bk-start') === '__start' ? '' : v('bk-start');
-  const fw = v('bk-fw'), sup = v('bk-sup');
-  if (!Object.keys(set).length && !fw && !sup) { showStatus(el('up-status'), 'Välj minst ett fält att ändra.', false); return; }
+  const fw = v('bk-fw'), sup = v('bk-sup'), mod = v('bk-mod'), modOn = v('bk-modon') === '1';
+  if (!Object.keys(set).length && !fw && !sup && !mod) { showStatus(el('up-status'), 'Välj minst ett fält att ändra.', false); return; }
   if (set.active === false && !confirm(`Inaktivera ${ubSel().size} konton? De kan inte längre logga in.`)) return;
   btn.disabled = true;
   const fields = ubFields(), people = [...ubSel()].map(id => sortedRoster().find(u => u.id === id)).filter(Boolean);
@@ -114,6 +119,8 @@ async function ubRunBulk(btn) {
     const isSt = (ch.jobRole ?? (u.jobRole || (u.isSt ? 'ST' : ''))) === 'ST';
     if (isSt && fw) ch.frameworkId = fw === '__clinic' ? null : fw;
     if (isSt && sup && sup !== u.id && !(u.supervisorIds || []).includes(sup)) ch.supervisorIds = [...(u.supervisorIds || []), sup].sort().join(',');
+    const hid = new Set(u.hiddenModules || []);
+    if (mod && hid.has(mod) === modOn) { modOn ? hid.delete(mod) : hid.add(mod); ch.hiddenModules = [...hid]; }
     if (!Object.keys(ch).length) continue;
     const e = await ubApply(u, ch);
     if (e.length) errs.push(`${u.displayName}: ${e.join('; ')}`); else changed++;
@@ -156,11 +163,12 @@ async function ubReadFile(file) {
     const hIdx = table.findIndex(r => r.some(c => norm(c) === 'fullständigt namn'));
     if (hIdx < 0) throw new Error('Hittar ingen kolumn "Fullständigt namn". Utgå från exporten.');
     const head = table[hIdx].map(norm), col = h => head.indexOf(norm(h));
-    const idCol = head.indexOf('id'), used = fields.filter(f => col(f.h) >= 0);
+    const colOf = f => [f.h, ...(f.alias || [])].map(col).find(i => i >= 0) ?? -1;
+    const idCol = head.indexOf('id'), used = fields.filter(f => colOf(f) >= 0);
     const roster = sortedRoster().filter(u => !u.isDisplay);
     const plan = { changes: [], created: [], errors: [] };
     table.slice(hIdx + 1).forEach((r, i) => {
-      const cell = f => r[col(f.h)];
+      const cell = f => r[colOf(f)];
       const name = String(r[col('Fullständigt namn')] ?? '').trim(), line = hIdx + 2 + i;
       if (!name) return;
       const id = idCol >= 0 ? String(r[idCol] ?? '').trim() : '';

@@ -18,13 +18,25 @@ async function dopsStart(root, title) {
   dopsNav(dme);
   return me;
 }
+// Tävling visas när en omgång pågår, och alltid för Studierektor/Administratör (som lägger upp omgångarna). Svaret sparas för sessionen.
+let _dopsCompetitionOn = null;
+async function dopsCompetitionNav(dme) {
+  const nav = el('nav-dops-tavling');
+  if (!nav) return;
+  if (dopsPriv(dme)) { nav.classList.remove('hidden'); return; }
+  if (_dopsCompetitionOn === null) {
+    try { _dopsCompetitionOn = !!(await dopsApi('/competition?clinicId=' + encodeURIComponent(dme.klinikId))).current; } catch { _dopsCompetitionOn = false; }
+  }
+  nav.classList.toggle('hidden', !_dopsCompetitionOn);
+  fitSubnav();
+}
 // Undersidor som beror på behörigheten i DOPS (Studierektor/Administratör).
 function dopsNav(dme) {
   el('nav-dops-registrera')?.classList.toggle('hidden', dme.userRole === 'Mottagare');
   el('nav-dops-kliniken')?.classList.toggle('hidden', !dopsPriv(dme));
   el('nav-dops-statistik')?.classList.toggle('hidden', !dopsPriv(dme));
   el('nav-dops-installningar')?.classList.toggle('hidden', !dopsPriv(dme));
-  el('nav-dops-dokument')?.classList.toggle('hidden', !(dme.privileges || []).some(p => p.privilege === 'Administratör'));
+  dopsCompetitionNav(dme);
 }
 const dopsFail = (root, title, err) => { root.innerHTML = `<h1 class="page">${title}</h1><p class="err">${esc(err.message)}</p>`; };
 // Låst (423) och andra fel visas som besked; inget ändras.

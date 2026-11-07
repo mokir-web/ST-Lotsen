@@ -150,7 +150,7 @@ function drawAdmin(root) {
     return;
   }
   if (mode === 'errors') {
-    root.innerHTML = `<h1 class="page">Felanmälan</h1>${_admin.errors ? errorCard() : '<p class="err">Kunde inte hämta felrapporterna.</p>'}`;
+    root.innerHTML = `<h1 class="page">Felrapporter</h1>${_admin.errors ? errorCard() : '<p class="err">Kunde inte hämta felrapporterna.</p>'}`;
     return;
   }
   root.innerHTML = `
@@ -195,7 +195,7 @@ function drawAdmin(root) {
 const U_FILTERS = [['alla', 'Alla'], ['st', 'ST-läkare'], ['handl', 'Handledare'], ['admin', 'Admin'], ['inaktiva', 'Inaktiva']];
 const adeptsOf = id => (_admin.me.roster || []).filter(x => x.active && (x.supervisorIds || []).includes(id));
 const nameOf = id => (_admin.me.roster || []).find(x => x.id === id)?.displayName || '?';
-const mods = () => _admin.me.modules || ['opjour'];
+const mods = () => _admin.me.clinicModules || _admin.me.modules || ['opjour'];   // klinikens moduler (även dolda för admin själv)
 
 // ── Dubbletter och sammanslagning ─────────────────────────────────────────
 // Samma namn (oavsett versaler och extra mellanslag) på flera personkonton = möjlig dubblett, t.ex. efter en import.
@@ -294,12 +294,14 @@ function drawUserPanel() {
         <label for="au-name">Fullständigt namn</label><input type="text" id="au-name" maxlength="60" required oninput="onAuName(this.value)">
         <label for="au-email">E-post</label><input type="email" id="au-email" maxlength="120" autocapitalize="none" spellcheck="false" oninput="onAuEmail(this.value)">
         <label for="au-user">Användarnamn <small class="muted" style="font-weight:normal">— e-postadressen om inget annat anges</small></label><input type="text" id="au-user" autocapitalize="none" spellcheck="false" maxlength="60" oninput="_admin.userTouched=true">
-        <label for="au-phone">Telefon (valfritt)</label><input type="tel" id="au-phone" maxlength="30" inputmode="tel" placeholder="070-123 45 67">
+        <div class="field-row"><div><label for="au-phone">Telefon arbete (valfritt)</label><input type="tel" id="au-phone" maxlength="30" inputmode="tel" placeholder="010-123 45 67"></div>
+          <div><label for="au-phone-priv">Telefon privat (valfritt)</label><input type="tel" id="au-phone-priv" maxlength="30" inputmode="tel" placeholder="070-123 45 67"></div></div>
         <label for="au-role">Roll</label><select id="au-role"><option value="user">Användare</option><option value="admin">Admin</option></select>
-        <label for="au-pin">Tillfällig PIN</label>
+        <label for="au-pin">PIN</label>
         <div class="row" style="flex-wrap:nowrap"><input type="text" id="au-pin" inputmode="numeric" maxlength="4" value="${esc(_admin.pin)}" style="max-width:120px" required>
           <button type="button" class="btn-ghost" onclick="el('au-pin').value=randomPin()">Slumpa</button></div>
-        <p class="hint">Personen väljer en egen PIN vid första inloggningen. Övriga roller (ST-läkare, reserv …) sätts i personens panel efteråt.</p>
+        <label class="row" style="gap:8px;font-weight:normal;margin-top:8px"><input type="checkbox" id="au-mustchange" checked> Personen väljer en egen PIN vid första inloggningen</label>
+        <p class="hint">Skriv en egen PIN eller slumpa (4 siffror; 6 för admin om personen inte byter själv). Övriga roller (ST-läkare, reserv …) sätts i personens panel efteråt.</p>
         <div class="row" style="margin-top:12px"><button type="submit" class="btn">Lägg till</button></div>
         <div id="au-status" class="status err"></div>
       </form>`;
@@ -340,7 +342,8 @@ function drawUserPanel() {
       uppgifter: `
         <label for="up-name">Fullständigt namn</label><input type="text" id="up-name" value="${esc(u.displayName)}" maxlength="60">
         <label for="up-user">Användarnamn</label><input type="text" id="up-user" value="${esc(u.username || '')}" maxlength="60" autocapitalize="none" spellcheck="false">
-        <label for="up-phone">Telefon</label><input type="tel" id="up-phone" value="${esc(u.phone || '')}" maxlength="30" inputmode="tel" placeholder="070-123 45 67">
+        <div class="field-row"><div><label for="up-phone">Telefon arbete</label><input type="tel" id="up-phone" value="${esc(u.phone || '')}" maxlength="30" inputmode="tel" placeholder="010-123 45 67"></div>
+          <div><label for="up-phone-priv">Telefon privat</label><input type="tel" id="up-phone-priv" value="${esc(u.phonePrivate || '')}" maxlength="30" inputmode="tel" placeholder="070-123 45 67"></div></div>
         <label for="up-email">E-post</label><input type="email" id="up-email" value="${esc(u.email || '')}" maxlength="120" autocapitalize="none" spellcheck="false">
         <label for="up-start">Startsida</label><select id="up-start">${startPageOptions(_admin.me, u.startPage)}</select>
         <p class="hint" style="margin-top:4px">Sidan som öppnas när personen startar ST-Lotsen. Personen kan också välja själv under Mitt konto.</p>
@@ -359,11 +362,20 @@ function drawUserPanel() {
         ${st ? `<h3>ST-utbildning</h3>
         <div class="role-info"><strong>Handledare för</strong><small>${adepts.length ? adepts.map(a => esc(a.displayName)).join(', ') : 'ingen'}</small></div>
         ${u.isSt ? stPersonFields(u, locked) : '<p class="hint">Sätt yrkesrollen till ST-läkare för att ange ST-start, målbeskrivning och handledare.</p>'}` : ''}
-        ${mods().includes('dops') ? dopsUserSection(u) : ''}`,
+        ${mods().includes('dops') ? dopsUserSection(u) : ''}
+        <h3>Moduler som personen ser</h3>
+        <p class="hint" style="margin:0 0 4px">Stäng av en modul för att ta bort den ur personens menyer och startsida (t.ex. ST-utbildning för en handledare som bara ska se sina adepter under Handledning).</p>
+        ${MODULE_INFO.filter(([id]) => mods().includes(id)).map(([id, name]) => `<label class="role-row"><span><strong>${name}</strong></span>${sw(`data-hidemod="${id}"`, !(u.hiddenModules || []).includes(id), locked)}</label>`).join('')}`,
       konto: `
         ${roleRow('Aktiv', 'Ett inaktivt konto kan inte logga in. Bokningar och historik ligger kvar.', 'active', u.active, fixed, why)}
         <h3>PIN</h3>
-        ${locked ? '<p class="hint">Globalt adminkonto — kan bara ändras av en global admin.</p>' : '<button class="btn-ghost" onclick="resetUserPin()">Återställ PIN…</button><p class="hint">Personen får en tillfällig PIN och väljer en egen vid nästa inloggning.</p>'}
+        ${locked ? '<p class="hint">Globalt adminkonto — kan bara ändras av en global admin.</p>' : `
+        <div class="row" style="gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div><label for="up-newpin" style="margin-top:0">Ny PIN</label><input type="text" id="up-newpin" inputmode="numeric" maxlength="6" autocomplete="off" style="max-width:130px" placeholder="${u.isAdmin || u.isDirector ? '6 siffror' : '4 eller 6 siffror'}"></div>
+          <button class="btn" onclick="setUserPin()">Spara PIN</button>
+          <button class="btn-ghost" onclick="resetUserPin()">Slumpa tillfällig PIN…</button></div>
+        <label class="row" style="gap:8px;font-weight:normal;margin-top:6px"><input type="checkbox" id="up-mustchange"> Personen ska byta PIN vid nästa inloggning</label>
+        <p class="hint">Ange en PIN som gäller direkt (${u.isAdmin || u.isDirector ? '6 siffror för admin och studierektor' : '4 eller 6 siffror'}), eller slumpa en tillfällig som personen byter vid nästa inloggning. Alla enheter loggas ut.</p>`}
         <h3>Slå ihop</h3>
         <div class="row" style="gap:8px;flex-wrap:nowrap"><select id="up-merge" style="flex:1;min-width:0"><option value="">Välj dubblett…</option>${sortedRoster()
           .filter(x => !x.isDisplay && x.id !== u.id).sort((x, y) => (normName(y.displayName) === normName(u.displayName)) - (normName(x.displayName) === normName(u.displayName)))
@@ -393,6 +405,12 @@ function drawUserPanel() {
   });
   root.addEventListener('change', e => {
     const box = e.target.closest('input[data-r]'); if (box) onRoleChange(box);
+    const hm = e.target.closest('input[data-hidemod]');
+    if (hm) {
+      const u = (_admin.me.roster || []).find(x => x.id === _admin.panel.id);
+      const hidden = new Set(u.hiddenModules || []); hm.checked ? hidden.delete(hm.dataset.hidemod) : hidden.add(hm.dataset.hidemod);
+      panelAction(id => api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { hiddenModules: [...hidden] } }), 'Sparat.');
+    }
     if (e.target.id === 'up-jobrole') panelAction(() => api('/admin/users/' + encodeURIComponent(_admin.panel.id), { method: 'PATCH', body: { jobRole: e.target.value } }), 'Yrkesrollen är sparad.');
     if (e.target.id === 'up-dopsrole') panelAction(() => api('/dops/app/users/' + encodeURIComponent(e.target.dataset.dops), { method: 'PATCH', body: { userRole: e.target.value } }), 'Sparat i DOPS.');
     if (e.target.name === 'mg-keep') { _admin.panel.keep = e.target.value; drawUserPanel(); }
@@ -449,7 +467,15 @@ function onRoleChange(box) {
 }
 
 function saveUserDetails() {
-  panelAction(id => api('/profile', { method: 'PUT', body: { userId: id, displayName: el('up-name').value, username: el('up-user').value, phone: el('up-phone').value, email: el('up-email').value, startPage: el('up-start').value } }), 'Sparat.');
+  panelAction(id => api('/profile', { method: 'PUT', body: { userId: id, displayName: el('up-name').value, username: el('up-user').value, phone: el('up-phone').value, phonePrivate: el('up-phone-priv').value, email: el('up-email').value, startPage: el('up-start').value } }), 'Sparat.');
+}
+
+function setUserPin() {
+  const u = (_admin.me.roster || []).find(x => x.id === _admin.panel.id), pin = el('up-newpin').value.trim();
+  if (!/^\d{4}(\d{2})?$/.test(pin)) { showStatus(el('up-status'), 'Ange 4 eller 6 siffror.', false); return; }
+  if (!confirm(`Sätta ny PIN för ${u.displayName}? Den gamla slutar gälla och personen loggas ut på alla enheter.`)) return;
+  panelAction(id => api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { newPin: pin, mustChange: el('up-mustchange').checked } }),
+    `Ny PIN sparad${el('up-mustchange')?.checked ? ' — personen byter vid nästa inloggning' : ''}.`);
 }
 
 function resetUserPin() {
@@ -494,6 +520,8 @@ async function addUser(e) {
     email: el('au-email').value.trim(),
     phone: el('au-phone').value,
     tempPin: el('au-pin').value.trim(),
+    mustChange: el('au-mustchange').checked,
+    phonePrivate: el('au-phone-priv').value,
     role: el('au-role').value
   };
   try {
@@ -749,7 +777,7 @@ const MODULE_INFO = [
 ];
 
 function moduleCard() {
-  const on = _admin.me.modules || ['opjour'];
+  const on = _admin.me.clinicModules || _admin.me.modules || ['opjour'];
   const shown = MODULE_INFO.filter(([id]) => id !== 'dops' || _admin.me.dopsLinked || on.includes('dops'));   // bara kliniker kopplade till DOPS
   return `<div class="card">
       <h2>Moduler</h2>

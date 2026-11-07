@@ -1,4 +1,4 @@
-// ── DOPS-modulen: Registrera bedömning och Inkorg (#/dops/registrera, #/dops/inkorg) ──
+// ── DOPS-modulen: Registrera bedömning och Förfrågningar (#/dops/registrera, #/dops/inkorg) ──
 // Klassiskt script. Beror på index.html och js/dopsapp.js (dopsStart, dopsApi, dopsFail, dopsWrite, _dme).
 //
 // Som DOPS-appens bedömningsformulär och inkorg, mot DOPS-appens backend under /dops/app. Formuläret visar ett avsnitt i taget;
@@ -178,7 +178,7 @@ async function renderDopsInbox(root) {
     const people = (ref.lists?.Registrerare?.[_dme.clinic] || []).filter(n => n !== `${_dme.firstName} ${_dme.lastName}`.trim()).sort((a, b) => a.localeCompare(b, 'sv'));
     const myForms = ref.formTypes?.[_dme.jobRole] || [];
     root.innerHTML = `
-      <h1 class="page">Inkorg</h1>
+      <h1 class="page">Förfrågningar</h1>
       <div class="card"><h2 style="margin-top:0">Till mig (${r.inbox.length})</h2>${r.inbox.map(q => item(q, false)).join('') || '<p class="muted" style="margin:0">Inga förfrågningar.</p>'}</div>
       <div class="card"><h2 style="margin-top:0">Be om en bedömning</h2>
         <div class="field-row"><div><label for="dib-to" style="margin-top:0">Bedömare</label><select id="dib-to"><option value="">Välj…</option>${people.map(n => `<option>${esc(n)}</option>`).join('')}</select></div>
@@ -202,7 +202,7 @@ async function renderDopsInbox(root) {
         await dopsApi('/requests', { method: 'POST', body: { toEmail: email, formType: el('dib-form').value, message: el('dib-msg').value.trim() } });
       }, 'Förfrågan är skickad.')) reload();
     };
-  } catch (err) { dopsFail(root, 'Inkorg', err); }
+  } catch (err) { dopsFail(root, 'Förfrågningar', err); }
 }
 
 // ── Tangentbord i formuläret (som MoraDOPS) ──────────────────────────────

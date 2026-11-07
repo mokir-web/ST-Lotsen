@@ -30,13 +30,13 @@ async function drawDisplay(root) {
   let banner;
   if (cal.opjourToday) {
     banner = head + `<div class="name">${esc(cal.opjourToday.displayName)}</div>`
-           + (cal.opjourToday.phone ? `<div class="phone-big">${phoneLink(cal.opjourToday.phone)}</div>` : '');
+           + (cal.opjourToday.phone || cal.opjourToday.phonePrivate ? `<div class="phone-big">${phonesHtml(cal.opjourToday.phone, cal.opjourToday.phonePrivate)}</div>` : '');
   } else if (ints.length) {
     banner = head + `<div class="sub">Ingen uppskriven — intresserade</div>
-      <ul class="plist">${ints.map(i => `<li>${personLine(i.displayName, i.phone)}</li>`).join('')}</ul>`;
+      <ul class="plist">${ints.map(i => `<li>${personLine(i.displayName, i.phone, '', i.phonePrivate)}</li>`).join('')}</ul>`;
   } else if (cal.reservesToday.length) {
     banner = head + `<div class="sub">Ingen uppskriven — reserv</div>
-      <ul class="plist">${cal.reservesToday.map(r => `<li>${personLine(r.displayName, r.phone)}</li>`).join('')}</ul>`;
+      <ul class="plist">${cal.reservesToday.map(r => `<li>${personLine(r.displayName, r.phone, '', r.phonePrivate)}</li>`).join('')}</ul>`;
   } else {
     banner = head + `<div class="name" style="font-size:24px;color:var(--ink-soft)">Ingen uppskriven</div>`;
   }

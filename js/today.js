@@ -268,7 +268,13 @@ function drawTw() {
   const { layout, edit, open } = _today, me = _today.d.me;
   const placed = _today.placed = twPlacedMode();
   el('tw-actions').innerHTML = edit
-    ? `${me.isAdmin ? `<select id="tw-target" title="Vilken startsida du redigerar"><option value="">Min startsida</option>${TW_ROLES.map(([k, l]) => `<option value="${k}"${_today.tpl === k ? ' selected' : ''}>Mall: ${esc(l)}${(me.todayTemplateRoles || []).includes(k) ? '' : ' (ingen än)'}</option>`).join('')}</select>` : ''}${me.isAdmin && !_today.tpl ? '<button type="button" class="btn-ghost" data-act="template" title="Gör den här layouten till utgångsläge för en yrkesroll">Spara som mall…</button>' : ''}<label class="tw-colsl" title="Rutnätets upplösning: fler kolumner ger mindre rutor">Rutnät <input type="number" id="tw-cols" min="1" max="${TW_MAXCOLS}" value="${TW_COLS}"> kolumner</label><button type="button" class="btn-ghost" data-act="gallery">+ Lägg till kort</button><button type="button" class="btn-ghost" data-act="reset">Återställ</button><button type="button" class="btn-ghost" data-act="cancel">Avbryt</button><button type="button" class="btn" data-act="save">Klar</button>`
+    ? `<button type="button" class="btn-ghost" data-act="gallery">+ Lägg till kort</button>
+      <details class="tw-more"><summary class="btn-ghost">⋯ Mer</summary><div class="tw-more-pop">
+        <label class="tw-colsl" title="Rutnätets upplösning: fler kolumner ger mindre rutor">Rutnät <input type="number" id="tw-cols" min="1" max="${TW_MAXCOLS}" value="${TW_COLS}"> kolumner</label>
+        ${me.isAdmin ? `<label class="tw-colsl">Redigera <select id="tw-target" title="Vilken startsida du redigerar"><option value="">Min startsida</option>${TW_ROLES.map(([k, l]) => `<option value="${k}"${_today.tpl === k ? ' selected' : ''}>Mall: ${esc(l)}${(me.todayTemplateRoles || []).includes(k) ? '' : ' (ingen än)'}</option>`).join('')}</select></label>` : ''}
+        ${me.isAdmin && !_today.tpl ? '<button type="button" class="btn-ghost" data-act="template" title="Gör den här layouten till utgångsläge för en yrkesroll">Spara som mall…</button>' : ''}
+        <button type="button" class="btn-ghost" data-act="reset">Återställ</button></div></details>
+      <button type="button" class="btn-ghost" data-act="cancel">Avbryt</button><button type="button" class="btn" data-act="save">Klar</button>`
     : '<button type="button" class="btn-ghost tw-edit" data-act="edit" title="Flytta, ändra storlek, dölj och ställ in korten">✎ Anpassa</button>';
   const hint = el('tw-hint');
   hint.classList.toggle('hidden', !edit);
@@ -642,7 +648,7 @@ function myWeekCard({ me, sch, plan, today }, o = {}) {
     <p style="margin:0">${now.length ? now.map(a => chip(a) + (a.weekTo > sch.thisMonday ? ` <span class="muted" style="font-size:14px">t.o.m. v${isoWeek(a.weekTo)}</span>` : '')).join(' ') : '<span class="muted">Inget inlagt den här veckan</span>'}
       ${inService === false ? ' <span class="tagchip">ej i tjänst</span>' : ''}</p>
     ${o.later === false ? '' : `<h3 class="today-sub">Kommande · ${esc(span)}</h3>
-    ${later.length ? `<ul class="today-list">${later.map(a => `<li><span class="muted">${wk(a)}</span> ${chip(a)}</li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Inget planerat under perioden.</p>'}
+    ${later.length ? `<ul class="today-list">${groupActs(later, a => [a.typeId, a.requirementId, a.detail, a.status].join('|')).map(g => `<li><span class="muted">${g.label}</span> ${chip(g.items[0])}</li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Inget planerat under perioden.</p>'}
     ${sch.window.toISO < end ? '<p class="hint" style="margin:6px 0 0">Ladda om sidan för att se hela perioden.</p>' : ''}`}`,
     ['#/schema', 'Veckoschemat']);
 }
@@ -835,7 +841,7 @@ function dopsInboxCard({ dopsReq }, o = {}) {
   return todayCard(`DOPS-förfrågningar${open.length ? ` (${open.length})` : ''}`, open.length
     ? `<ul class="today-list">${open.slice(0, o.count || 5).map(q => `<li><strong>${esc(q.fromName || q.from)}</strong>${q.read ? '' : ' <span class="tagchip">Ny</span>'}<br>
         <span class="muted" style="font-size:13px;min-width:0">${esc(q.formType || 'Valfritt formulär')}${q.dueDate ? ' · senast ' + esc(q.dueDate) : ''}</span></li>`).join('')}</ul>`
-    : '<p class="muted" style="margin:0">Inga förfrågningar väntar.</p>', ['#/dops/inkorg', 'Till inkorgen']);
+    : '<p class="muted" style="margin:0">Inga förfrågningar väntar.</p>', ['#/dops/inkorg', 'Till förfrågningarna']);
 }
 
 // Snabblänkar: egna länkar ("namn | adress") under ⚙. Bara http(s)-adresser.
@@ -856,13 +862,15 @@ function linksCard(d, o = {}) {
 function talksCard({ me, talks, talkDone }, o = {}) {
   if (!talks) return '';
   if (!talks.months) return todayCard('Handledarsamtal', `<p class="muted" style="margin:0">Kliniken följer inte upp handledarsamtal än.${me.isDirector || me.isAdmin
-    ? ' Ställ in hur ofta under <a href="#/installningar/utbildningsplan">Inställningar → Utbildningsplan</a>.' : ''}</p>`);
+    ? ' Ställ in hur ofta under <a href="#/installningar/handledning">Inställningar → Handledning</a>.' : ''}</p>`);
   const soon = o.soonDays || 30;
-  let rows = talks.people.map(p => ({ ...p, st: p.daysLeft == null ? null : p.daysLeft < 0 ? 'overdue' : p.daysLeft <= soon ? 'soon' : 'ok' }));
-  if (o.onlyDue) rows = rows.filter(p => p.st === 'overdue' || p.st === 'soon' || talkDone[p.id]);
+  // Samma gränser som modulen Handledning: röd när mer än 150 % av intervallet gått, sen (gul) när intervallet passerats.
+  const half = talks.months * 30.44 * 0.5;
+  let rows = talks.people.map(p => ({ ...p, st: p.daysLeft == null ? null : p.daysLeft < -half ? 'red' : p.daysLeft < 0 ? 'overdue' : p.daysLeft <= soon ? 'soon' : 'ok' }));
+  if (o.onlyDue) rows = rows.filter(p => p.st === 'red' || p.st === 'overdue' || p.st === 'soon' || talkDone[p.id]);
   rows.sort((a, b) => (a.nextDue || '9999').localeCompare(b.nextDue || '9999'));
   const self = rows.length === 1 && rows[0].id === me.userId;
-  const when = p => p.nextDue == null ? 'ST-start saknas' : p.st === 'overdue' ? `skulle hållits ${fmtDM(p.nextDue)}` : `nästa ${fmtDM(p.nextDue)}${p.st === 'soon' ? ` (om ${p.daysLeft} d)` : ''}`;
+  const when = p => p.nextDue == null ? 'ST-start saknas' : p.st === 'overdue' || p.st === 'red' ? `skulle hållits ${fmtDM(p.nextDue)}` : `nästa ${fmtDM(p.nextDue)}${p.st === 'soon' ? ` (om ${p.daysLeft} d)` : ''}`;
   return todayCard(self ? 'Mitt handledarsamtal' : 'Handledarsamtal', rows.length ? `<p class="muted" style="margin:0 0 6px;font-size:13px">Var ${talks.months}:e månad</p>
     <ul class="today-list talk-list">${rows.map(p => `<li class="talk-${p.st || 'na'}"><span class="talk-who">${self ? '' : `<strong>${esc(p.displayName)}</strong><br>`}
         <span class="muted">${p.lastHeld ? `senast ${esc(fmtDM(String(p.lastHeld).slice(0, 10)))} · ` : ''}${esc(when(p))}</span></span>
@@ -914,8 +922,9 @@ function coursesCard({ sch, today }, o = {}) {
   const list = sch.activities.filter(a => a.requirementId && a.weekFrom >= sch.thisMonday && a.weekFrom < end)
     .filter(a => o.kind === 'rand' ? req(a.requirementId)?.away : o.kind === 'kurs' ? !req(a.requirementId)?.away : true)
     .sort((a, b) => a.weekFrom.localeCompare(b.weekFrom) || who(a.userId).localeCompare(who(b.userId), 'sv'));
-  const wk = a => a.weekFrom === a.weekTo ? `v${isoWeek(a.weekFrom)}` : `v${isoWeek(a.weekFrom)}–${isoWeek(a.weekTo)}`;
-  return todayCard('Kommande kurser och randningar', list.length ? `<ul class="today-list">${list.map(a => `<li><span class="muted">${wk(a)}</span>
+  // Samma person och krav i flera perioder blir en rad: "v44, 46–48, 50".
+  const groups = groupActs(list, a => [a.userId, a.requirementId, a.typeId, a.status].join('|'));
+  return todayCard('Kommande kurser och randningar', groups.length ? `<ul class="today-list">${groups.map(({ items: [a], label }) => `<li><span class="muted">${label}</span>
       <span class="sact${a.status === 'ev' ? ' ev' : ''}" style="--c:${esc(type(a.typeId)?.color || '#9aa5ad')}">${esc(req(a.requirementId)?.name || '?')}</span> ${esc(who(a.userId))}</li>`).join('')}</ul>`
     : `<p class="muted" style="margin:0">Inget planerat de närmaste ${o.months || 3} månaderna.</p>`, ['#/schema', 'Veckoschemat']);
 }
@@ -925,10 +934,11 @@ function openSlotsCard({ sch }, o = {}) {
   if (!sch || !sch.openSlots) return '';
   const end = addDaysISO(sch.thisMonday, 7 * (o.weeks || 12));
   const type = id => sch.types.find(t => t.id === id), req = id => sch.requirements.find(r => r.id === id);
-  const list = sch.openSlots.filter(s => s.weekTo >= sch.thisMonday && s.weekFrom < end).sort((a, b) => a.weekFrom.localeCompare(b.weekFrom));
-  const inWeeks = s => Math.max(0, Math.round((Date.parse(s.weekFrom) - Date.parse(sch.thisMonday)) / 6048e5));
-  return todayCard(`Ej tilldelade perioder${list.length ? ` (${list.length})` : ''}`, list.length ? `<ul class="today-list">${list.map(s => { const n = inWeeks(s);
+  const list = sch.openSlots.filter(s => s.weekTo >= sch.thisMonday && s.weekFrom < end);
+  const groups = groupActs(list, s => [s.typeId, s.requirementId, s.detail].join('|'));
+  const inWeeks = w => Math.max(0, Math.round((Date.parse(w) - Date.parse(sch.thisMonday)) / 6048e5));
+  return todayCard(`Ej tilldelade perioder${list.length ? ` (${list.length})` : ''}`, groups.length ? `<ul class="today-list">${groups.map(({ items: [s], label, first }) => { const n = inWeeks(first);
       return `<li class="${n <= (o.warn || 4) ? 'slot-soon' : ''}"><span class="sact" style="--c:${esc(type(s.typeId)?.color || '#9aa5ad')}">${esc(s.requirementId ? req(s.requirementId)?.name || '?' : type(s.typeId)?.code || '?')}</span>
-        <span class="muted" style="min-width:0">v${isoWeek(s.weekFrom)}${s.weekTo !== s.weekFrom ? '–' + isoWeek(s.weekTo) : ''} · ${n === 0 ? 'börjar nu' : `om ${n} ${n === 1 ? 'vecka' : 'veckor'}`}</span></li>`; }).join('')}</ul>`
+        <span class="muted" style="min-width:0">${label} · ${n === 0 ? 'börjar nu' : `om ${n} ${n === 1 ? 'vecka' : 'veckor'}`}</span></li>`; }).join('')}</ul>`
     : '<p class="muted" style="margin:0">Inga perioder utan person.</p>', ['#/schema', 'Dela ut i veckoschemat']);
 }

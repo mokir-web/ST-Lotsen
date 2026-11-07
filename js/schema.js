@@ -498,8 +498,8 @@ function candidatesView(s) {
     const firm = new Set(c.conflicts.filter(a => a.status !== 'ev').flatMap(overlap));
     const line = `<div class="cand-line" aria-hidden="true">${slotWeeks.map(w => `<span class="${firm.has(w) ? 'x' : hit.has(w) ? 'ev' : ''}" title="v${isoWeek(w)}">${isoWeek(w)}</span>`).join('')}</div>`;
     return `<div class="cand-conf"><strong>Krockar ${hit.size} av ${slotWeeks.length} veckor</strong>${line}
-      <ul>${c.conflicts.map(a => { const ov = overlap(a);
-        return `<li>${actChip(a)} ${schSpan(a)}${a.status === 'ev' ? ' <span class="muted">(preliminär)</span>' : ''} — överlappar ${ov.length === slotWeeks.length ? 'hela perioden' : `v${ov.map(isoWeek).join(', v')}`}</li>`; }).join('')}</ul></div>`;
+      <ul>${groupActs(c.conflicts, a => [a.typeId, a.requirementId, a.detail, a.status].join('|')).map(g => { const ov = [...new Set(g.items.flatMap(overlap))];
+        return `<li>${actChip(g.items[0])} ${g.label}${g.items[0].status === 'ev' ? ' <span class="muted">(preliminär)</span>' : ''} — överlappar ${ov.length === slotWeeks.length ? 'hela perioden' : weekList(ov)}</li>`; }).join('')}</ul></div>`;
   };
   const row = c => `<div class="cand ${group(c)}"><div class="cand-main"><strong>${esc(c.displayName)}</strong>
       <span class="muted" style="font-size:13px">${c.stMonths == null ? 'ST-start saknas' : `ST-år ${Math.floor(c.stMonths / 12) + 1} vid start`}</span> ${statusChip(c)}</div>

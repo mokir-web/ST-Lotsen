@@ -213,6 +213,7 @@
     .btn-danger { background: var(--danger); }
     .btn-block { width: 100%; margin-top: 8px; }
     .hint { font-size: 14px; color: var(--ink-soft); margin: 6px 0 0; }
+    .ph-l { font-size: .75em; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .3px; }
     .phone { color: var(--interest); font-weight: bold; text-decoration: none; white-space: nowrap; }
     .plist { list-style: none; margin: 6px 0 0; padding: 0; }
     .plist li { padding: 3px 0; }
@@ -340,6 +341,12 @@
     .tw-actions .btn { padding: 9px 18px; font-size: 14px; }
     .tw-actions { flex-wrap: wrap; justify-content: flex-end; }
     #tw-target { max-width: 260px; font-size: 14px; padding: 7px 8px; }
+    .tw-more { position: relative; }
+    .tw-more > summary { list-style: none; cursor: pointer; display: inline-block; }
+    .tw-more > summary::-webkit-details-marker { display: none; }
+    .tw-more-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; background: var(--card); border: 1.5px solid var(--line); border-radius: 10px;
+      box-shadow: 0 8px 22px rgba(20,30,38,.18); padding: 10px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 240px; }
+    .tw-more-pop .tw-colsl { justify-content: space-between; margin: 0; }
     .tw-tplhint { background: #fbf0d9; border: 1.5px solid #e2c27a; border-radius: 8px; padding: 8px 12px; color: #6b4a00; }
     .tw-sample { font-style: italic; }
     .today-grid { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; gap: 16px; position: relative; }   /* smal: en kolumn i läsordning */
@@ -461,7 +468,8 @@
     .talk-list li { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
     .talk-list .talk-who { min-width: 0; }
     .talk-list .talk-who .muted { min-width: 0; font-size: 13px; }
-    .talk-list li.talk-overdue .talk-who .muted { color: var(--danger); font-weight: 600; }
+    .talk-list li.talk-red .talk-who .muted { color: var(--danger); font-weight: 600; }
+    .talk-list li.talk-overdue .talk-who .muted { color: #8a5a00; font-weight: 600; }
     .talk-list li.talk-soon .talk-who .muted { color: #8a5a00; }
     .talk-btn { flex: none; padding: 5px 12px; font-size: 13px; }
     .talk-done { flex: none; font-size: 13px; color: #1f5a3a; }
@@ -956,13 +964,12 @@
           <div class="sn-title">DOPS</div>
           <a href="#/dops" data-route="#/dops">Översikt</a>
           <a href="#/dops/registrera" data-route="#/dops/registrera" id="nav-dops-registrera">Registrera bedömning</a>
-          <a href="#/dops/inkorg" data-route="#/dops/inkorg">Inkorg</a>
+          <a href="#/dops/inkorg" data-route="#/dops/inkorg">Förfrågningar</a>
           <a href="#/dops/mina" data-route="#/dops/mina">Mina bedömningar</a>
           <a href="#/dops/progress" data-route="#/dops/progress">Progress</a>
           <a href="#/dops/kliniken" data-route="#/dops/kliniken" id="nav-dops-kliniken" class="hidden">Kliniken</a>
           <a href="#/dops/statistik" data-route="#/dops/statistik" id="nav-dops-statistik" class="hidden">Statistik</a>
-          <a href="#/dops/tavling" data-route="#/dops/tavling">Tävling</a>
-          <a href="#/dops/dokument" data-route="#/dops/dokument" id="nav-dops-dokument" class="hidden">Dokument</a>
+          <a href="#/dops/tavling" data-route="#/dops/tavling" id="nav-dops-tavling" class="hidden">Tävling</a>
         </div>
         <div data-world="hl" class="hidden">
           <div class="sn-title">Handledning</div>
@@ -980,12 +987,13 @@
           <a href="#/installningar/klinik" data-route="#/installningar/klinik" id="nav-set-clinic" class="hidden">Klinik</a>
           <a href="#/installningar/opjour" data-route="#/installningar/opjour" id="nav-set-opjour" class="hidden">Opjour</a>
           <a href="#/installningar/planering" data-route="#/installningar/planering" id="nav-set-plan" class="hidden">Planering</a>
-          <a href="#/installningar/utbildningsplan" data-route="#/installningar/utbildningsplan" id="nav-set-st" class="hidden">Utbildningsplan</a>
+          <a href="#/installningar/utbildningsplan" data-route="#/installningar/utbildningsplan" id="nav-set-st" class="hidden">Mall för utbildningsplan</a>
           <a href="#/installningar/malbeskrivning" data-route="#/installningar/malbeskrivning" id="nav-set-goals" class="hidden">Målbeskrivning</a>
+          <a href="#/installningar/handledning" data-route="#/installningar/handledning" id="nav-set-hl" class="hidden">Handledning</a>
           <a href="#/installningar/dops" data-route="#/installningar/dops" id="nav-set-dops" class="hidden">DOPS</a>
           <a href="#/installningar/system" data-route="#/installningar/system" id="nav-set-system" class="hidden">System</a>
           <a href="#/installningar/anvandning" data-route="#/installningar/anvandning" id="nav-set-usage" class="hidden">Användning</a>
-          <a href="#/installningar/felanmalan" data-route="#/installningar/felanmalan" id="nav-set-errors" class="hidden">Felanmälan</a>
+          <a href="#/installningar/felanmalan" data-route="#/installningar/felanmalan" id="nav-set-errors" class="hidden">Felrapporter</a>
         </div>
       </nav>
       <main id="view"></main>
@@ -998,7 +1006,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.47.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.48.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1260,6 +1268,7 @@
       else if (h === '#/installningar/planering') renderStSettings(root, 'typer', 'plan');
       else if (h === '#/installningar/utbildningsplan') renderStSettings(root, 'krav');
       else if (h === '#/installningar/malbeskrivning') renderStSettings(root, 'delmal');
+      else if (h === '#/installningar/handledning') renderHlSettings(root);
       else if (h === '#/installningar/dops' || h.startsWith('#/installningar/dops/')) renderDopsSettings(root, h.split('/')[3]);
       else if (h === '#/opjour') renderApp(root);
       else if (h === '#/stats') renderStats(root);
@@ -1274,7 +1283,7 @@
       else if (h === '#/dops/kliniken') renderDopsClinic(root);
       else if (h === '#/dops/statistik') renderDopsStats(root);
       else if (h === '#/dops/tavling') renderDopsCompetition(root);
-      else if (h === '#/dops/dokument') renderDopsDocuments(root);
+      else if (h === '#/dops/dokument') location.replace('#/dops');   // Dokument är borttaget (0.48.0); användaröverenskommelser kommer under Inställningar
       else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
       else if (h === '#/utbildning' || h.startsWith('#/utbildning/')) renderEdu(root, h.slice('#/utbildning/'.length) || '');
       else if (h === '#/handledning' || h.startsWith('#/handledning/')) renderHandledning(root, h.slice('#/handledning/'.length) || '');
@@ -1392,7 +1401,7 @@
     const START_PAGES = [['', 'Startsida', () => true], ['#/opjour', 'Opjour', m => m.includes('opjour')],
       ['#/schema', 'Planering – veckoschema', m => m.includes('schema')], ['#/oversikt', 'ST-utbildning – måluppfyllelse', m => m.includes('mal')],
       ['#/plan', 'ST-utbildning – min utbildningsplan', m => m.includes('mal')], ['#/dops', 'DOPS – översikt', m => m.includes('dops')],
-      ['#/dops/registrera', 'DOPS – registrera bedömning', m => m.includes('dops')], ['#/dops/inkorg', 'DOPS – inkorg', m => m.includes('dops')],
+      ['#/dops/registrera', 'DOPS – registrera bedömning', m => m.includes('dops')], ['#/dops/inkorg', 'DOPS – förfrågningar', m => m.includes('dops')],
       ['#/dops/mina', 'DOPS – mina bedömningar', m => m.includes('dops')], ['#/dops/progress', 'DOPS – progress', m => m.includes('dops')],
       ['#/utbildning', 'Utbildningsmaterial', m => m.includes('utbildning')], ['#/handledning', 'Handledning', m => m.includes('handledning')]];
     function startPageOptions(me, current) {
@@ -1421,16 +1430,19 @@
       const firstSt = ['nav-oversikt', 'nav-plan'].map(el).find(a => !a.classList.contains('hidden'));
       show('world-st', !!firstSt);
       if (firstSt) el('world-st').href = firstSt.getAttribute('href');
-      // Inställningar: en egen modul, med de delar personen har behörighet till (Mitt konto har alla).
-      ['menu-admin', 'tool-admin'].forEach(id => show(id, true));
+      // Inställningar: en egen modul, med de delar personen har behörighet till (Mitt konto har alla). Utgår från klinikens moduler,
+      // även sådana som är dolda för personen själv.
+      const cm = me.clinicModules || mods, cschema = cm.includes('schema'), cmal = cm.includes('mal');
+      show('tool-admin', true);
       const lead = me.isDirector || me.isAdmin;
       show('nav-set-users', me.isAdmin || (me.isDirector && (schema || mal)));   // studierektor: ST-läkare och handledare
       show('nav-set-clinic', me.isAdmin);
-      show('nav-set-opjour', me.isAdmin && mods.includes('opjour'));
-      show('nav-set-plan', schema && lead);
-      show('nav-set-st', (schema || mal) && lead);
-      show('nav-set-goals', (schema || mal) && lead);
-      show('nav-set-dops', mods.includes('dops') && lead);
+      show('nav-set-opjour', me.isAdmin && cm.includes('opjour'));
+      show('nav-set-plan', cschema && lead);
+      show('nav-set-st', (cschema || cmal) && lead);
+      show('nav-set-goals', (cschema || cmal) && lead);
+      show('nav-set-hl', (cm.includes('handledning') || cmal) && lead);
+      show('nav-set-dops', cm.includes('dops') && lead);
       show('nav-set-system', !!me.isGlobalAdmin);
       show('nav-set-usage', !!me.isGlobalAdmin);
       show('nav-set-errors', !!me.isGlobalAdmin);
@@ -1524,8 +1536,36 @@
     function mondayOfISO(iso) {
       return addDaysISO(iso, -((new Date(iso + 'T12:00:00Z').getUTCDay() + 6) % 7));
     }
-    function personLine(name, phone, prefix = '') {
-      return `${prefix}<strong>${esc(name)}</strong>${phone ? ' · ' + phoneLink(phone) : ''}`;
+    function personLine(name, phone, prefix = '', phonePrivate = null) {
+      const nums = phonesHtml(phone, phonePrivate);
+      return `${prefix}<strong>${esc(name)}</strong>${nums ? ' · ' + nums : ''}`;
+    }
+    // Arbete och Privat. Bara ett nummer: visas utan etikett om det är arbetsnumret, annars med "Privat".
+    function phonesHtml(work, priv) {
+      if (work && priv) return `<span class="ph-l">Arbete</span> ${phoneLink(work)} · <span class="ph-l">Privat</span> ${phoneLink(priv)}`;
+      if (priv) return `<span class="ph-l">Privat</span> ${phoneLink(priv)}`;
+      return work ? phoneLink(work) : '';
+    }
+
+    // Veckor som kort text: måndagar → "v44, 46–48, 50" (följer över årsskiftet: "v52, 1–2"). Används där samma sak återkommer
+    // i flera perioder (t.ex. en randning med annat emellan), så att den blir en rad i stället för flera.
+    function weekList(mondays) {
+      const ws = [...new Set(mondays)].sort(), parts = [];
+      for (let i = 0; i < ws.length;) {
+        let j = i;
+        while (j + 1 < ws.length && addDaysISO(ws[j], 7) === ws[j + 1]) j++;
+        parts.push(i === j ? String(isoWeek(ws[i])) : `${isoWeek(ws[i])}–${isoWeek(ws[j])}`);
+        i = j + 1;
+      }
+      return parts.length ? 'v' + parts.join(', ') : '';
+    }
+    function actWeeks(a) { const out = []; for (let w = a.weekFrom; w <= a.weekTo; w = addDaysISO(w, 7)) out.push(w); return out; }
+    // Slår ihop poster med samma nyckel (t.ex. person + krav): [{ items, weeks, first, label }] sorterade på första veckan.
+    function groupActs(list, key) {
+      const m = new Map();
+      for (const a of list) { const k = key(a), g = m.get(k) || { items: [], weeks: [] }; g.items.push(a); g.weeks.push(...actWeeks(a)); m.set(k, g); }
+      return [...m.values()].map(g => { g.weeks.sort(); return { ...g, first: g.weeks[0], label: weekList(g.weeks) }; })
+        .sort((x, y) => x.first.localeCompare(y.first));
     }
 
     // ISO-veckonummer (vecka 1 = veckan med årets första torsdag).

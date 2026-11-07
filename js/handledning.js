@@ -61,7 +61,7 @@ function drawHlList(root, d, progress) {
   root.innerHTML = `
     <h1 class="page">Handledning</h1>
     <p class="muted" style="margin:-4px 0 12px">${d.months ? `Handledning var ${d.months}:e månad. Gul = mer än så sedan senaste, röd = mer än en och en halv gång intervallet.`
-      : `Kliniken har inte angett hur ofta handledning ska ske.${d.lead ? ' Ställ in det under <a href="#/installningar/utbildningsplan">Inställningar → Utbildningsplan</a>.' : ''}`}</p>
+      : `Kliniken har inte angett hur ofta handledning ska ske.${d.lead ? ' Ställ in det under <a href="#/installningar/handledning">Inställningar → Handledning</a>.' : ''}`}</p>
     ${block('Mina handledningar', mine)}${block('Mina adepter', adepts)}${block(d.lead ? 'Alla ST-läkare' : 'Övriga', others)}
     ${d.people.length ? '' : '<div class="card"><p class="muted" style="margin:0">Inga ST-läkare att visa.</p></div>'}
     <details class="card hl-guide"><summary><strong>Samtalsstöd</strong> — ämnen ur strukturerad ST-handledning</summary>${hlTopicsHtml()}</details>`;
@@ -150,4 +150,30 @@ function drawKollegium(root, d) {
     </table></div>
     <p class="hint">Röd = senaste rapporten är äldre än tre månader (eller saknas); då kan specialister och handledare fylla i en ny.
       ${esc(locked)}</p></div>`;
+}
+
+// ── Inställningar → Handledning (studierektor och admin) ─────────────────
+// Hur ofta handledning ska ske. Styr status (gul/röd), påminnelser i Att göra och kortet Handledarsamtal på startsidan.
+async function renderHlSettings(root) {
+  root.innerHTML = '<p class="muted">Laddar…</p>';
+  try {
+    const me = await api('/me');
+    setMenuForUser(me);
+    if (!(me.isDirector || me.isAdmin)) { location.hash = '#/installningar/konto'; return; }
+    const cfg = await api('/admin/st/config');
+    root.innerHTML = `<h1 class="page">Handledning</h1>
+      <div class="card"><h2>Intervall</h2>
+        <p class="hint" style="margin-top:0">Hur ofta ST-läkarna ska ha handledning. Nästa tillfälle räknas från det senaste (eller från ST-start).
+          Under Handledning blir en ST-läkare gul när mer tid än intervallet har gått och röd vid mer än en och en halv gång intervallet.
+          Startsidan påminner ST-läkaren, handledaren och studierektorn (Att göra och kortet Handledarsamtal). Tomt = följs inte upp.</p>
+        <div class="row" style="gap:8px;align-items:flex-end">
+          <div><label for="hl-months" style="margin-top:0">Var … månad (1–24)</label><input type="number" id="hl-months" min="1" max="24" value="${cfg.supervisionMonths ?? ''}" placeholder="av" style="max-width:120px"></div>
+          <button class="btn" id="hl-months-save">Spara</button>
+        </div></div>
+      <div class="card"><h2>Samtalsstöd</h2><p class="hint" style="margin-top:0">Ämnena som visas vid varje handledning (ur strukturerad ST-handledning).</p>${hlTopicsHtml()}</div>`;
+    el('hl-months-save').onclick = async () => {
+      try { await api('/admin/st/clinic', { method: 'PUT', body: { supervisionMonths: el('hl-months').value } }); toast('Sparat.'); }
+      catch (err) { alert(err.message); }
+    };
+  } catch (err) { root.innerHTML = `<p class="err">${esc(err.message)}</p>`; }
 }
