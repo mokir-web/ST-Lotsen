@@ -70,6 +70,8 @@
     header .iconbtn svg { width: 20px; height: 20px; }
     #menu-wrap { position: relative; }
     #menu-btn { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #menu-btn .mb-set { display: none; }
+    header #menu .m-only { display: none; }   /* dator: Hjälp, Felanmälan och Inställningar är ikoner i headern */
     #menu { position: absolute; right: 0; top: calc(100% + 8px); min-width: 190px; background: #fff; border: 1.5px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px rgba(20,30,38,0.28); z-index: 20; overflow: hidden; }
     header #menu a, header #menu button { display: block; width: 100%; text-align: left; padding: 13px 16px; font-size: 16px; color: var(--ink); text-decoration: none; background: none; border: none; border-radius: 0; }
     header #menu a:hover, header #menu button:hover { background: #eef1f3; }
@@ -84,7 +86,7 @@
     #subnav a.active { background: var(--accent-soft); color: var(--accent); font-weight: bold; border-right-color: var(--accent); }
     /* Trädmenyn (telefon): ☰ fäller ut alla moduler; en modul med flera undersidor fälls ut i sin tur. */
     header { position: relative; }
-    #nav-btn { display: none; order: -1; flex: none; align-items: center; height: 34px; padding: 0 14px; font-size: 15px; font-weight: bold;
+    #nav-btn { display: none; flex: none; align-items: center; height: 34px; padding: 0 14px; font-size: 15px; font-weight: bold;
       color: var(--chrome); background: #e8a35c; border: 2px solid #e8a35c; border-radius: 6px; }   /* telefon: tydlig knapp längst till vänster */
     #nav-btn.active { background: #fff; border-color: #fff; }
     #navtree { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; background: #fff; color: var(--ink); box-shadow: 0 10px 24px rgba(20,30,38,0.28);
@@ -105,6 +107,11 @@
       #nav-btn { display: inline-flex; }
       #menu-btn { max-width: 104px; padding: 5px 8px; font-size: 13px; }
       #nav-btn { height: 32px; padding: 0 11px; font-size: 14px; }
+      /* Telefon: Hjälp, Felanmälan och Inställningar ligger i menyn längst till höger, som då heter Inställningar. */
+      #tools > .iconbtn { display: none !important; }
+      #menu-btn { max-width: none; }
+      #menu-btn .mb-name { display: none; } #menu-btn .mb-set { display: inline; }
+      header #menu .m-only { display: block; }
       header { padding-top: calc(var(--safe-top) + 8px); gap: 8px; }
       header .brand img { width: 30px; height: 30px; }
       header .brand-name { font-size: 15px; }
@@ -917,11 +924,11 @@
   <!-- ── App ───────────────────────────────────────────── -->
   <div id="app" class="hidden">
     <header>
-      <button type="button" id="nav-btn" onclick="toggleNavTree(event)" aria-haspopup="true" aria-expanded="false" aria-controls="navtree">Meny</button>
       <a class="brand" id="brand" href="#/" aria-label="ST-Lotsen — startsidan">
         <img src="icons/logo.svg" width="34" height="34" alt="">
         <span class="brand-text"><span class="brand-name">ST-Lotsen</span><span class="clinic" id="app-clinic"></span></span>
       </a>
+      <button type="button" id="nav-btn" onclick="toggleNavTree(event)" aria-haspopup="true" aria-expanded="false" aria-controls="navtree">Meny</button>
       <nav id="worlds" class="hidden" aria-label="Moduler">
         <a href="#/" id="world-home">Startsida</a>
         <a href="#/opjour" id="world-op" class="hidden">Opjour</a>
@@ -944,11 +951,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
         </a>
         <div id="menu-wrap">
-          <button id="menu-btn" onclick="toggleMenu(event)" aria-haspopup="true" aria-expanded="false">Konto ▾</button>
+          <button id="menu-btn" onclick="toggleMenu(event)" aria-haspopup="true" aria-expanded="false"><span class="mb-name" id="menu-name">Konto</span><span class="mb-set">Inställningar</span> ▾</button>
           <nav id="menu" class="hidden">
             <a href="#/installningar/konto" data-route="#/installningar/konto">Mitt konto</a>
-            <a href="#/installningar" id="menu-admin" class="hidden">Inställningar</a>
-            <a href="#" onclick="openFeedback(event)" id="menu-feedback">Felanmälan</a>
+            <a href="#/installningar" id="menu-admin" class="m-only">Inställningar</a>
+            <button type="button" class="m-only" onclick="closeMenu(); openHelp()">Hjälp</button>
+            <a href="#" onclick="openFeedback(event)" id="menu-feedback" class="m-only">Felanmälan</a>
             <hr>
             <button onclick="logout()">Logga ut</button>
           </nav>
@@ -1018,7 +1026,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.49.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.50.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1480,7 +1488,7 @@
       show('nav-set-errors', !!me.isGlobalAdmin);
       if (me.startPage !== undefined) { try { localStorage.setItem('opjour_start', me.startPage || ''); } catch {} }
       drawActingBar(me);
-      el('menu-btn').textContent = (me.displayName || 'Konto') + ' ▾';
+      el('menu-name').textContent = me.displayName || 'Konto';
       fitSubnav();
       fitNav();
     }
