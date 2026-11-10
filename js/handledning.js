@@ -29,14 +29,16 @@ async function renderHandledning(root, sub = '') {
     const me = await api('/me');
     setMenuForUser(me);
     if (!(me.modules || []).includes('handledning')) { root.innerHTML = '<h1 class="page">Handledning</h1><p class="muted">Modulen är inte påslagen för kliniken.</p>'; return; }
-    _hl = { me, sub };
-    if (sub === 'kollegium') return drawKollegium(root, await api('/handledning/kollegium'));
+    _hl = { me, sub, editing: null };
+    const here = location.hash, gone = () => location.hash !== here;   // ritar inte över en sida man hunnit gå vidare till
+    if (sub === 'kollegium') { const k = await api('/handledning/kollegium'); if (!gone()) drawKollegium(root, k); return; }
     const list = await api('/handledning');
+    if (gone()) return;
     // En ST-läkare utan egna adepter går direkt till sina egna handledningar.
     if (!sub && !list.lead && !list.adepts.length && list.people.length === 1) { location.replace('#/handledning/' + list.people[0].id); return; }
-    if (sub) return drawHlPerson(root, await api('/handledning/' + encodeURIComponent(sub)));
+    if (sub) { const one = await api('/handledning/' + encodeURIComponent(sub)); if (!gone()) drawHlPerson(root, one); return; }
     const progress = (me.modules || []).includes('mal') ? await api('/progress').catch(() => null) : null;
-    drawHlList(root, list, progress);
+    if (!gone()) drawHlList(root, list, progress);
   } catch (err) { root.innerHTML = `<p class="err">${esc(err.message)}</p>`; }
 }
 
@@ -67,37 +69,62 @@ function drawHlList(root, d, progress) {
     <details class="card hl-guide"><summary><strong>Samtalsstöd</strong> — ämnen ur strukturerad ST-handledning</summary>${hlTopicsHtml()}</details>`;
 }
 
+// Personvyn: handledningarna som läsbara kort (nyast först). "Ändra" öppnar kortet för redigering: datum, anteckningarna (för ST-läkaren
+// och handledaren) och Ta bort. Studierektor ser datum och kan ändra datum eller ta bort, men inga anteckningar.
 function drawHlPerson(root, d) {
   const p = d.person, self = p.id === _hl.me.userId;
-  const talk = t => `<div class="card hl-talk" data-id="${esc(t.id)}">
-      <div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(fmtDateLong(String(t.heldOn).slice(0, 10)))}</h2>
-        <span class="muted" style="font-size:13px">Markerad av ${esc(t.recordedByName || 'Ingen användare')}</span></div>
-      ${d.canWrite ? `
-      <label>Gemensam anteckning <small class="muted" style="font-weight:normal">— syns för ${self ? 'dig och din handledare' : 'dig och ST-läkaren'}</small></label>
-      <textarea class="hl-shared" rows="3" maxlength="4000">${esc(t.sharedNote)}</textarea>
-      <label>Min anteckning <small class="muted" style="font-weight:normal">— bara du kan läsa den</small></label>
-      <textarea class="hl-mine" rows="3" maxlength="4000">${esc(t.myNote)}</textarea>
-      <div class="row" style="margin-top:8px"><button class="btn-ghost" data-hl="save">Spara anteckningarna</button></div>` : '<p class="muted" style="margin:6px 0 0">Anteckningarna är ST-läkarens och handledarens.</p>'}
+  const canEdit = d.canWrite || d.canMark;
+  const note = (label, sub, text) => text ? `<div class="hl-note"><h4>${label} <small>${sub}</small></h4><div class="hl-text">${esc(text)}</div></div>` : '';
+  const view = t => `<div class="card hl-talk" data-id="${esc(t.id)}">
+      <div class="hl-talk-head"><h2>${esc(fmtDateLong(String(t.heldOn).slice(0, 10)))}</h2>
+        <span class="muted" style="font-size:13px">Markerad av ${esc(t.recordedByName || 'Ingen användare')}</span>
+        ${canEdit ? '<button class="btn-ghost hl-edit-btn" data-hl="edit">Ändra</button>' : ''}</div>
+      ${d.canWrite ? (note('Gemensam anteckning', self ? 'du och din handledare' : 'du och ST-läkaren', t.sharedNote) + note('Min anteckning', 'bara du', t.myNote)
+          || '<p class="muted" style="margin:6px 0 0">Inga anteckningar.</p>')
+        : '<p class="muted" style="margin:6px 0 0">Anteckningarna är ST-läkarens och handledarens.</p>'}
     </div>`;
+  const edit = t => `<div class="card hl-talk editing" data-id="${esc(t.id)}">
+      <label style="margin-top:0">Datum</label><input type="date" class="hl-e-date" value="${esc(String(t.heldOn).slice(0, 10))}" max="${todayStockholm()}" style="max-width:200px">
+      ${d.canWrite ? `<label>Gemensam anteckning <small class="muted" style="font-weight:normal">— syns för ${self ? 'dig och din handledare' : 'dig och ST-läkaren'}</small></label>
+      <textarea class="hl-shared" rows="5" maxlength="4000">${esc(t.sharedNote)}</textarea>
+      <label>Min anteckning <small class="muted" style="font-weight:normal">— bara du kan läsa den</small></label>
+      <textarea class="hl-mine" rows="5" maxlength="4000">${esc(t.myNote)}</textarea>` : ''}
+      <div class="row" style="margin-top:10px;gap:8px"><button class="btn" data-hl="save">Spara</button><button class="btn-ghost" data-hl="cancel">Avbryt</button>
+        <button class="btn-ghost hl-del" data-hl="delete" style="margin-left:auto">Ta bort…</button></div>
+    </div>`;
+  const editing = _hl.editing;
   root.innerHTML = `
     <p style="margin:0 0 6px">${_hl.me.isDirector || _hl.me.isAdmin || _hl.me.isSupervisor ? '<a href="#/handledning">← Alla</a>' : ''}</p>
     <div class="tw-head"><div><h1 class="page" style="margin-bottom:2px">${self ? 'Mina handledningar' : esc(p.displayName)} ${hlStatus(p.status)}</h1>
       <p class="muted" style="margin:0">Senast: ${esc(p.lastHeld ? hlDate(p.lastHeld) : 'ingen')}${d.months && p.nextDue ? ` · nästa enligt intervallet (var ${d.months}:e månad): ${esc(hlDate(p.nextDue))}` : ''}
         ${(_hl.me.modules || []).includes('mal') ? ` · <a href="#/plan/${esc(p.id)}">Utbildningsplan och måluppfyllelse</a>` : ''}</p></div>
       <div class="tw-actions">${d.canWrite ? '<button class="btn-ghost" data-hl="import" title="Egna anteckningar från en fil (CSV eller Excel)">Importera anteckningar…</button>' : ''}${d.canMark ? '<button class="btn" data-hl="done">Handledning utförd…</button>' : ''}</div></div>
-    <div class="hl-layout"><div>${d.talks.length ? d.talks.map(talk).join('') : '<div class="card"><p class="muted" style="margin:0">Ingen handledning registrerad än.</p></div>'}</div>
+    <div class="hl-layout"><div>${d.talks.length ? d.talks.map(t => t.id === editing ? edit(t) : view(t)).join('') : '<div class="card"><p class="muted" style="margin:0">Ingen handledning registrerad än.</p></div>'}</div>
       <aside class="card hl-guide-side"><h2>Samtalsstöd</h2><p class="hint" style="margin-top:0">Ämnen ur strukturerad ST-handledning, som vägledning inför samtalet.</p>${hlTopicsHtml()}</aside></div>`;
+  if (editing) root.querySelector('.hl-talk.editing')?.scrollIntoView({ block: 'nearest' });
   root.onclick = async e => {
     const b = e.target.closest('[data-hl]'); if (!b) return;
-    if (b.dataset.hl === 'done') return hlDoneDialog(d);
-    if (b.dataset.hl === 'import') return hlImportDialog(d);
-    const card = b.closest('.hl-talk');
+    const act = b.dataset.hl, card = b.closest('.hl-talk');
+    if (act === 'done') return hlDoneDialog(d);
+    if (act === 'import') return hlImportDialog(d);
+    if (act === 'edit') { _hl.editing = card.dataset.id; return drawHlPerson(root, d); }
+    if (act === 'cancel') { _hl.editing = null; return drawHlPerson(root, d); }
+    const id = card.dataset.id, t = d.talks.find(x => x.id === id);
     b.disabled = true;
     try {
-      await api('/handledning/talks/' + encodeURIComponent(card.dataset.id), { method: 'PUT', body: { sharedNote: card.querySelector('.hl-shared').value, myNote: card.querySelector('.hl-mine').value } });
-      toast('Anteckningarna är sparade.');
-    } catch (err) { alert(err.message); }
-    b.disabled = false;
+      if (act === 'delete') {
+        if (!confirm(`Ta bort handledningen ${fmtDateLong(String(t.heldOn).slice(0, 10))}? Den gemensamma anteckningen och båda parters egna anteckningar försvinner. Det går inte att ångra.`)) { b.disabled = false; return; }
+        await api('/handledning/talks/' + encodeURIComponent(id), { method: 'DELETE' });
+        toast('Handledningen är borttagen.');
+      } else {
+        const body = { heldOn: card.querySelector('.hl-e-date').value };
+        if (d.canWrite) Object.assign(body, { sharedNote: card.querySelector('.hl-shared').value, myNote: card.querySelector('.hl-mine').value });
+        await api('/handledning/talks/' + encodeURIComponent(id), { method: 'PUT', body });
+        toast('Sparat.');
+      }
+      _hl.editing = null;
+      renderHandledning(el('view'), d.person.id);
+    } catch (err) { b.disabled = false; alert(err.message); }
   };
 }
 

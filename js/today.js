@@ -16,8 +16,9 @@ async function renderToday(root) {
     const mods = me.modules || ['opjour'], today = todayStockholm(), monday = mondayOfISO(today);
     const soft = p => p ? p.catch(() => null) : Promise.resolve(null);
     const dopsOn = mods.includes('dops') && me.dopsUser;
-    const layout = twLayout(me.todayLayout, me.todayTemplate).cards, on = id => layout.find(c => c.id === id)?.on;
-    const weeks = twWeeksNeeded(layout);
+    // Data hämtas för kort som är på i datorns eller telefonens layout (fönstret kan byta plattform utan omladdning).
+    const L = twLayout(me.todayLayout, me.todayTemplate), on = id => [...L.cards, ...(L.phone || [])].some(c => c.id === id && c.on);
+    const weeks = Math.max(twWeeksNeeded(L.cards), L.phone ? twWeeksNeeded(L.phone) : 0);
     const lead = me.isDirector || me.isAdmin;
     const talkOk = mods.includes('mal') && (me.isSt || lead || me.isSupervisor);
     const [cal, sch, plan, todo, dops, dopsRec, dopsSent, edu, progress, dopsReq, talks] = await Promise.all([
@@ -34,6 +35,8 @@ async function renderToday(root) {
       soft(talkOk && on('samtal') ? api('/talks') : null)
     ]);
     // undefined = inte hämtat (kortet är inte på startsidan); hämtas när kortet läggs till (twNeedsReload).
+    // Har personen hunnit gå till en annan sida medan allt hämtades ska startsidan inte rita över den.
+    if (location.hash && location.hash !== '#' && location.hash !== '#/') return;
     drawToday(root, { me, mods, today, cal, sch, plan, todo, dops, dopsRec, dopsSent, edu: edu ? { ...edu, loaded: true } : mods.includes('utbildning') ? { sections: [], loaded: false } : null,
       progress: on('stgrupp') ? progress : undefined, dopsReq: on('dopsinbox') ? dopsReq : undefined, talks: on('samtal') ? talks : undefined, talkDone: {} });
   } catch (err) {
@@ -63,11 +66,17 @@ function greeting() {
 // "Anpassa" slår på redigeringsläget: dra i ⠿ och släpp kortet på valfri ruta, även en tom. Övriga kort ligger kvar; får kortet
 // inte plats i sin storlek fälls det ihop (största storlek som får plats) och går inte ens 1×1 ligger det kvar. Storleken ändras
 // genom att dra i hörnet ◢ (eller under ⚙). ⚙ ställer in innehållet, ✕ döljer. Dolda kort ligger under rutnätet.
-// Under 720 px: en kolumn i läsordning (rad för rad), korten högst så höga som sin höjd i rutor; där flyttas de i ordning och
-// rutnätet packas om. Layouten sparas på kontot (PUT /profile/today-layout); null = klinikens mall eller standarden.
+// Höjden är som standard automatisk (auto): kortet får så många rader som innehållet behöver (mäts efter ritningen) och kort
+// nedanför skjuts ned. En höjd man drar eller skriver in slår av auto.
+// Telefon (och under 720 px) har en helt egen startsida (_today.phone): egna kort, egen ordning, egna inställningar och egen höjd
+// (mh, rader à 100 px; saknas = hela innehållet), alltid en kolumn i full bredd. Så länge den inte ändrats (null) följer den datorns
+// layout i läsordning. Redigeringen gäller plattformen man står i; _today.layout är den plattformens kortlista.
+// Layouten sparas på kontot (PUT /profile/today-layout); null = klinikens mall eller standarden.
 // Kort som inte gäller personen (t.ex. DOPS utan kopplat konto) syns varken i rutnätet eller bland de dolda.
 let TW_COLS = 3, TW_ROW = 215;   // aktuellt rutnät (kolumner) och radhöjd i px (räknas ut i drawTw)
-const TW_MAXH = 30, TW_MAXCOLS = 10, TW_GAP = 16, TW_PLACED_MIN = 720;
+const TW_MAXH = 30, TW_MAXCOLS = 10, TW_GAP = 16, TW_PLACED_MIN = 720, TW_MROW = 100;
+// Telefon (pekskärm och liten skärm): alltid en kolumn i full bredd, även på tvären.
+const TW_PHONE = (() => { try { return matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600; } catch { return false; } })();
 const TW_LEGACY = { s: [1, 1], w: [2, 1], t: [1, 2], l: [2, 2] };   // storlekar före 0.43.0
 const TW_COMPACT = { k: 'compact', label: 'Kompakt läge (mindre text och luft)', def: false };
 const TW_PERIOD = [['months', 'Ett antal månader framåt'], ['year', 'Resten av innevarande ST-år']];
@@ -146,6 +155,7 @@ let _today = null;
 function twLayout(saved, template) {
   const src = saved ?? template;
   const cols = src && !Array.isArray(src) && Number.isInteger(src.cols) ? Math.min(TW_MAXCOLS, Math.max(1, src.cols)) : 3;
+  const v2 = !!src && !Array.isArray(src) && src.v === 2;   // äldre layouter (före 0.49.0): alla kort får automatisk höjd
   const list = src ? (Array.isArray(src) ? src : src.cards || []) : [];
   const f = cols / 3, sc = (v, min = 1) => Math.max(min, Math.round(v * f));   // standardstorlekarna gäller tre kolumner
   const out = [];
@@ -156,21 +166,46 @@ function twLayout(saved, template) {
     const opts = { ...(c.opts || {}) };
     if (c.id === 'styear') opts.period = 'year';
     out.push({ id, on: c.on !== false, w: Math.min(cols, Math.max(1, c.w || lw || sc(w.w))), h: Math.min(TW_MAXH, Math.max(1, c.h || lh || sc(w.h))),
+      auto: v2 ? c.auto === true : true,
       ...(Number.isInteger(c.x) && Number.isInteger(c.y) && c.x < cols ? { x: c.x, y: c.y } : {}), opts });
   }
-  for (const w of TODAY_WIDGETS) if (!out.some(c => c.id === w.id)) out.push({ id: w.id, on: w.on !== false, w: Math.min(cols, sc(w.w)), h: sc(w.h), opts: {} });
-  return { cols, cards: out };
+  for (const w of TODAY_WIDGETS) if (!out.some(c => c.id === w.id)) out.push({ id: w.id, on: w.on !== false, w: Math.min(cols, sc(w.w)), h: sc(w.h), auto: true, opts: {} });
+  let phone = null;
+  if (src && !Array.isArray(src) && Array.isArray(src.phone?.cards)) {
+    phone = [];
+    for (const c of src.phone.cards) {
+      if (!twDef(c.id) || phone.some(x => x.id === c.id)) continue;
+      phone.push({ id: c.id, on: c.on !== false, ...(Number.isInteger(c.mh) ? { mh: Math.min(TW_MAXH, Math.max(1, c.mh)) } : {}), opts: { ...(c.opts || {}) } });
+    }
+    for (const w of TODAY_WIDGETS) if (!phone.some(c => c.id === w.id)) phone.push({ id: w.id, on: w.on !== false, opts: {} });
+  }
+  return { cols, cards: out, phone };
 }
+// Telefonens layout när den inte är egen: datorns kort i läsordning (oplacerade sist) med samma synlighet och inställningar.
+const twPhoneFrom = desk => [...twReading(desk.filter(c => c.x != null)), ...desk.filter(c => c.x == null)].map(c => ({ id: c.id, on: c.on, opts: { ...c.opts } }));
+const twPhoneKey = list => JSON.stringify(list.map(({ id, on, mh, opts }) => [id, on, mh || 0, opts]));
 const twBase = () => twLayout(null, _today.d.me.todayTemplate);
-const twSnap = () => JSON.stringify({ cols: TW_COLS, cards: _today.layout });
-function twUse(L) { _today.layout = L.cards; TW_COLS = L.cols; }
-const twSave = () => ({ cols: TW_COLS, cards: _today.layout });
+const twSnap = () => JSON.stringify({ cols: TW_COLS, cards: _today.desk, phone: _today.phone });
+function twUse(L) { _today.desk = L.cards; TW_COLS = L.cols; _today.phone = L.phone ?? null; }
+// Telefonens layout sparas bara om den skiljer sig från den som följer datorn.
+function twSave() {
+  const ph = _today.phone && twPhoneKey(_today.phone) !== twPhoneKey(twPhoneFrom(_today.desk)) ? _today.phone : null;
+  return { v: 2, cols: TW_COLS, cards: _today.desk, ...(ph ? { phone: { cards: ph } } : {}) };
+}
+// Startsidans tillstånd. layout = kortlistan för plattformen man står i; telefonens skapas ur datorns första gången den redigeras.
+function twInit(d) {
+  _today = { d, edit: false, open: null, desk: [], phone: null };
+  Object.defineProperty(_today, 'layout', {
+    get() { return twIsPhone() ? (this.phone || (this.edit ? (this.phone = twPhoneFrom(this.desk)) : twPhoneFrom(this.desk))) : this.desk; },
+    set(v) { if (twIsPhone()) this.phone = v; else this.desk = v; }
+  });
+}
 // Ny upplösning: platser och storlekar skalas med kvoten och krockar läggs om där korten först får plats.
 function twRescale(cols) {
   cols = Math.min(TW_MAXCOLS, Math.max(1, Math.round(cols) || 3));
   if (cols === TW_COLS) return;
   const f = cols / TW_COLS;
-  for (const c of _today.layout) {
+  for (const c of _today.desk) {
     c.w = Math.min(cols, Math.max(1, Math.round(c.w * f))); c.h = Math.min(TW_MAXH, Math.max(1, Math.round(c.h * f)));
     if (c.x != null) { c.x = Math.min(cols - c.w, Math.floor(c.x * f)); c.y = Math.round(c.y * f); }
   }
@@ -203,24 +238,24 @@ function twShrink(w, h) {
   return out.sort((p, q) => q[0] * q[1] - p[0] * p[1] || q[0] - p[0]);
 }
 
-// Ger alla synliga kort en plats: först de som har en giltig plats (i layoutens ordning), sedan övriga där de först får plats.
+// Ger alla synliga kort en plats: först de som har en plats (uppifrån och ned; krockar kortet med ett kort ovanför skjuts det
+// nedåt i samma kolumn, t.ex. när ett kort med automatisk höjd vuxit), sedan övriga där de först får plats.
 function twPlace(shown) {
   const placed = [], rest = [];
-  for (const c of shown) {
-    if (c.x != null && twFits(twOccupied(placed), c.x, c.y, c.w, c.h)) placed.push(c);
-    else { delete c.x; delete c.y; rest.push(c); }
+  const ok = c => c.x != null && c.x >= 0 && c.y >= 0 && c.x + c.w <= TW_COLS;
+  for (const c of shown) if (!ok(c)) { delete c.x; delete c.y; rest.push(c); }
+  for (const c of twReading(shown.filter(ok))) {
+    const occ = twOccupied(placed);
+    while (!twFits(occ, c.x, c.y, c.w, c.h)) c.y++;
+    placed.push(c);
   }
   for (const c of rest) { Object.assign(c, twFirstFree(twOccupied(placed), c.w, c.h)); placed.push(c); }
-}
-function twRepack(order) {
-  for (const c of order) { delete c.x; delete c.y; }
-  twPlace(order);
 }
 const twReading = cards => [...cards].sort((a, b) => a.y - b.y || a.x - b.x);
 const twPx = h => Math.round(h * (645 / TW_COLS) + (h - 1) * TW_GAP);   // smal skärm: kortets största höjd
 
 function drawToday(root, d) {
-  _today = { d, edit: false, open: null };
+  twInit(d);
   twUse(twLayout(d.me.todayLayout, d.me.todayTemplate));
   const first = (d.me.displayName || '').split(' ')[0];
   root.innerHTML = `
@@ -246,9 +281,11 @@ function drawToday(root, d) {
 let _twResize = 0;
 addEventListener('resize', () => {
   clearTimeout(_twResize);
-  _twResize = setTimeout(() => { if (_today && el('tw-grid') && twPlacedMode() !== _today.placed) drawTw(); }, 150);
+  _twResize = setTimeout(() => { if (_today && el('tw-grid') && twPlacedMode() !== _today.placed) { _today.open = null; drawTw(); } }, 150);
 });
-const twPlacedMode = () => (el('tw-grid')?.parentElement?.clientWidth || 0) >= TW_PLACED_MIN;
+// Plattform: telefon (pekskärm med liten skärm) eller ett smalt fönster ger telefonens startsida.
+const twIsPhone = () => TW_PHONE || (el('view')?.clientWidth || innerWidth) < TW_PLACED_MIN;
+const twPlacedMode = () => !twIsPhone();
 
 // Kortets innehåll med inställningarna, eller null när kortet inte gäller personen. När admin redigerar en mall visas kort som
 // inte gäller admin själv med ett exempel, så att hela mallen går att lägga.
@@ -264,13 +301,13 @@ function twRender(c) {
 const twMissing = id => ({ stgrupp: _today.d.progress === undefined, dopsinbox: _today.d.dopsReq === undefined, samtal: _today.d.talks === undefined,
   utbildning: !!_today.d.edu && !_today.d.edu.loaded })[id] || false;
 
-function drawTw() {
+function drawTw(depth = 0) {
   const { layout, edit, open } = _today, me = _today.d.me;
   const placed = _today.placed = twPlacedMode();
   el('tw-actions').innerHTML = edit
     ? `<button type="button" class="btn-ghost" data-act="gallery">+ Lägg till kort</button>
       <details class="tw-more"><summary class="btn-ghost">⋯ Mer</summary><div class="tw-more-pop">
-        <label class="tw-colsl" title="Rutnätets upplösning: fler kolumner ger mindre rutor">Rutnät <input type="number" id="tw-cols" min="1" max="${TW_MAXCOLS}" value="${TW_COLS}"> kolumner</label>
+        ${placed ? `<label class="tw-colsl" title="Rutnätets upplösning: fler kolumner ger mindre rutor">Rutnät <input type="number" id="tw-cols" min="1" max="${TW_MAXCOLS}" value="${TW_COLS}"> kolumner</label>` : ''}
         ${me.isAdmin ? `<label class="tw-colsl">Redigera <select id="tw-target" title="Vilken startsida du redigerar"><option value="">Min startsida</option>${TW_ROLES.map(([k, l]) => `<option value="${k}"${_today.tpl === k ? ' selected' : ''}>Mall: ${esc(l)}${(me.todayTemplateRoles || []).includes(k) ? '' : ' (ingen än)'}</option>`).join('')}</select></label>` : ''}
         ${me.isAdmin && !_today.tpl ? '<button type="button" class="btn-ghost" data-act="template" title="Gör den här layouten till utgångsläge för en yrkesroll">Spara som mall…</button>' : ''}
         <button type="button" class="btn-ghost" data-act="reset">Återställ</button></div></details>
@@ -279,12 +316,12 @@ function drawTw() {
   const hint = el('tw-hint');
   hint.classList.toggle('hidden', !edit);
   hint.classList.toggle('tw-tplhint', !!_today.tpl);
-  hint.textContent = (_today.tpl ? `Du redigerar mallen för ${TW_ROLES.find(r => r[0] === _today.tpl)[1]} — Klar sparar mallen. ` : '') + (placed ? 'Dra i ⠿ och släpp kortet på valfri ruta; får det inte plats fälls det ihop. Dra i hörnet ◢ för att ändra storleken. ⚙ för innehåll, ✕ för att dölja. Tryck Klar för att spara.'
-    : 'Dra i ⠿ för att flytta kortet i ordningen. Storleken (⚙) styr här bara hur högt kortet får bli. På en större skärm lägger du korten fritt i rutnätet. Tryck Klar för att spara.');
+  hint.textContent = (_today.tpl ? `Du redigerar mallen för ${TW_ROLES.find(r => r[0] === _today.tpl)[1]} (${placed ? 'dator' : 'telefon'}) — Klar sparar mallen. ` : '') + (placed ? 'Du anpassar startsidan för dator; telefonen har en egen. Dra i ⠿ och släpp kortet på valfri ruta; får det inte plats fälls det ihop. Dra i hörnet ◢ för att ändra storleken. ⚙ för innehåll, ✕ för att dölja. Tryck Klar för att spara.'
+    : 'Du anpassar startsidan för telefon; datorn har en egen. Dra i ⠿ för att flytta kortet i ordningen. Korten är alltid i full bredd och visar som standard hela innehållet (höjden ställer du in under ⚙). Tryck Klar för att spara.');
   const shown = [], hidden = [];
   for (const c of layout) { const r = twRender(c); if (r) (c.on ? shown : hidden).push([c, r]); }
-  twPlace(shown.map(([c]) => c));
-  const order = placed ? shown : twReading(shown.map(([c]) => c)).map(c => shown.find(s => s[0] === c));
+  if (placed) twPlace(shown.map(([c]) => c));
+  const order = shown;   // telefon: listans ordning
   const grid = el('tw-grid');
   grid.classList.toggle('editing', edit);
   grid.classList.toggle('placed', placed);
@@ -294,8 +331,8 @@ function drawTw() {
     TW_ROW = Math.max(56, Math.round(colW * (TW_COLS <= 3 ? 0.48 : 0.6)));   // tre kolumner: 215 px på en bred skärm
     grid.style.gridTemplateColumns = `repeat(${TW_COLS}, minmax(0, 1fr))`; grid.style.gridAutoRows = TW_ROW + 'px';
   } else { grid.style.gridTemplateColumns = ''; grid.style.gridAutoRows = ''; }
-  const occ = twOccupied(shown.map(([c]) => c));
-  const bottom = Math.max(0, ...shown.map(([c]) => c.y + c.h));
+  const occ = placed ? twOccupied(shown.map(([c]) => c)) : new Set();
+  const bottom = placed ? Math.max(0, ...shown.map(([c]) => c.y + c.h)) : 0;
   const rows = edit ? bottom + 2 : bottom;
   const cells = placed && edit ? Array.from({ length: rows * TW_COLS }, (_, i) => { const x = i % TW_COLS, y = Math.floor(i / TW_COLS);
     return occ.has(x + ',' + y) ? '' : `<div class="tw-cell" style="grid-column:${x + 1};grid-row:${y + 1}"></div>`; }).join('') : '';
@@ -303,17 +340,41 @@ function drawTw() {
     const w = twDef(c.id), o = twOpts(w, c);
     const bar = edit ? `<div class="tw-bar">
         <button type="button" class="tw-handle" data-drag="${c.id}" aria-label="Flytta ${esc(r.title)} (piltangenter; skift + pil ändrar storleken)" title="Dra för att flytta">⠿</button>
-        <span class="tw-dim" title="Bredd × höjd i rutor">${c.w} × ${c.h}</span>
+        <span class="tw-dim" title="Bredd × höjd i rutor (auto = efter innehållet)">${twDimText(c)}</span>
         <button type="button" class="tw-ico${open === c.id ? ' on' : ''}" data-opts="${c.id}" title="Storlek och innehåll" aria-expanded="${open === c.id}">⚙</button>
         <button type="button" class="tw-ico" data-hide="${c.id}" title="Dölj kortet">✕</button>
       </div>` : '';
     const body = edit && open === c.id ? twOptsForm(w, c) : `<div class="tw-body"><h2>${esc(r.title)}</h2>${r.body}${r.link ? `<p class="tw-link"><a href="${r.link[0]}">${r.link[1]} →</a></p>` : ''}</div>`;
-    const style = placed ? `grid-column:${c.x + 1} / span ${c.w};grid-row:${c.y + 1} / span ${c.h}` : `max-height:${twPx(c.h)}px`;
+    const style = placed ? `grid-column:${c.x + 1} / span ${c.w};grid-row:${c.y + 1} / span ${c.h}` : c.mh ? `max-height:${c.mh * TW_MROW}px` : '';
     const resize = edit && placed ? `<span class="tw-resize" data-resize="${c.id}" title="Dra för att ändra storleken" aria-hidden="true">◢</span>` : '';
     return `<section class="card today-card tw${o.compact ? ' tw-compact' : ''}" data-id="${c.id}" style="${style}">${bar}${body}${resize}</section>`;
   }).join('') + (shown.length ? '' : `<div class="card tw-empty"><p class="muted" style="margin:0">${edit ? 'Alla kort är dolda. Lägg tillbaka dem nedan.' : 'Inget att visa här än.'}</p></div>`);
   el('tw-hidden').innerHTML = edit && hidden.length ? `<div class="tw-tray"><h3 class="today-sub" style="margin-top:0">Dolda kort</h3>
       ${hidden.map(([c, r]) => `<button type="button" class="btn-ghost" data-show="${c.id}">+ ${esc(r.title)}</button>`).join(' ')}</div>` : '';
+  if (placed) twAutoFit(depth);
+}
+const twDimText = c => _today.placed ? `${c.w} × ${c.auto ? 'auto' : c.h}` : c.mh ? `högst ${c.mh} rader` : 'hela innehållet';
+
+// Automatisk höjd (dator): mäter innehållets naturliga höjd i varje auto-kort och ger kortet så många rader som behövs. Ändras
+// något ritas rutnätet om (korten under skjuts ned). Kortet vars inställningar är öppna mäts inte.
+function twAutoFit(depth) {
+  if (depth > 2) return;
+  const grid = el('tw-grid'), items = [];
+  for (const sec of grid.querySelectorAll('.tw[data-id]')) {
+    const c = twFind(sec.dataset.id), body = sec.querySelector('.tw-body');
+    if (!c?.auto || !body || _today.open === c.id) continue;
+    body.style.flex = 'none'; body.style.overflow = 'visible';
+    items.push([c, sec, body]);
+  }
+  let changed = false;
+  for (const [c, sec, body] of items) {
+    const cs = getComputedStyle(sec);
+    const need = body.getBoundingClientRect().bottom - sec.getBoundingClientRect().top + parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth) + 2;
+    const h = Math.min(TW_MAXH, Math.max(1, Math.ceil((need + TW_GAP) / (TW_ROW + TW_GAP))));
+    if (h !== c.h) { c.h = h; changed = true; }
+  }
+  for (const [, , body] of items) { body.style.flex = ''; body.style.overflow = ''; }
+  if (changed) drawTw(depth + 1);
 }
 
 function twOptsForm(w, c) {
@@ -326,9 +387,15 @@ function twOptsForm(w, c) {
     ? `<label class="tw-opt">${esc(d.label)} <span class="muted">(${d.min}–${d.max})</span><input type="number" inputmode="numeric" min="${d.min}" max="${d.max}" step="1" value="${esc(o[d.k])}" data-opt="${d.k}" data-id="${c.id}"></label>`
     : `<label class="tw-opt tw-check"><input type="checkbox" data-opt="${d.k}" data-id="${c.id}"${o[d.k] ? ' checked' : ''}> ${esc(d.label)}</label>`;
   return `<div class="tw-body tw-form"><h2>${esc(w.title)}</h2>
+    ${_today.placed ? `<h3 class="today-sub" style="margin-top:4px">Storlek på dator</h3>
     <div class="tw-dims"><label class="tw-opt">Bredd <span class="muted">(1–${TW_COLS})</span><input type="number" min="1" max="${TW_COLS}" value="${c.w}" data-dim="w" data-id="${c.id}"></label>
-      <label class="tw-opt">Höjd <span class="muted">(1–${TW_MAXH})</span><input type="number" min="1" max="${TW_MAXH}" value="${c.h}" data-dim="h" data-id="${c.id}"></label></div>
-    <p class="hint" id="tw-dim-msg" style="margin:0"></p>
+      <label class="tw-opt">Höjd <span class="muted">(1–${TW_MAXH})</span><input type="number" min="1" max="${TW_MAXH}" value="${c.h}" data-dim="h" data-id="${c.id}"${c.auto ? ' disabled' : ''}></label></div>
+    <label class="tw-opt tw-check"><input type="checkbox" data-dim="auto" data-id="${c.id}"${c.auto ? ' checked' : ''}> Höjd efter innehållet</label>
+    <p class="hint" id="tw-dim-msg" style="margin:0"></p>` : `<h3 class="today-sub" style="margin-top:4px">Storlek på telefon</h3>
+    <p class="hint" style="margin:0">Alltid full bredd.</p>
+    <label class="tw-opt tw-check"><input type="checkbox" data-dim="mauto" data-id="${c.id}"${c.mh ? '' : ' checked'}> Visa hela innehållet</label>
+    <label class="tw-opt">Största höjd <span class="muted">(rader à 100 px, 1–${TW_MAXH})</span><input type="number" min="1" max="${TW_MAXH}" value="${c.mh || 3}" data-dim="mh" data-id="${c.id}"${c.mh ? '' : ' disabled'}></label>`}
+    <h3 class="today-sub">Innehåll</h3>
     ${w.opts.map(opt).join('')}
     <p class="row" style="margin:10px 0 0;gap:8px"><button type="button" class="btn-ghost" data-opts="${c.id}">Visa kortet</button><button type="button" class="btn-ghost" data-hide="${c.id}">Dölj kortet</button></p></div>`;
 }
@@ -344,12 +411,12 @@ async function onTwAction(e) {
   else if (act === 'gallery') return twGallery();
   else if (act === 'reset') {
     if (_today.tpl) {
-      if (!confirm('Återställa mallen till den inbyggda standarden?')) return;
-      twUse(twLayout(null, null)); _today.open = null; drawTw(); return;
+      if (!confirm(`Återställa mallens ${twIsPhone() ? 'telefonlayout (den följer då datorns)' : 'datorlayout'} till den inbyggda standarden?`)) return;
+      twResetPlatform(twLayout(null, null)); _today.open = null; drawTw(); return;
     }
-    const msg = _today.d.me.todayTemplate ? 'Återställa startsidan till klinikens mall för din yrkesroll?' : 'Återställa startsidan till standardlayouten?';
-    if (!confirm(msg + ' Placering, storlekar och inställningar för korten försvinner.')) return;
-    twUse(twBase()); _today.reset = true; _today.open = null;
+    const msg = _today.d.me.todayTemplate ? `Återställa startsidan för ${twIsPhone() ? 'telefon' : 'dator'} till klinikens mall för din yrkesroll?` : `Återställa startsidan för ${twIsPhone() ? 'telefon' : 'dator'} till standardlayouten?`;
+    if (!confirm(msg + ' Ordning, storlekar och inställningar för korten försvinner.')) return;
+    twResetPlatform(twBase()); _today.reset = true; _today.open = null;
   } else if (act === 'save' && _today.tpl) {
     b.disabled = true;
     try {
@@ -361,7 +428,7 @@ async function onTwAction(e) {
   } else if (act === 'save') {
     b.disabled = true;
     try {
-      const base = twBase(), plain = twStrip(TW_COLS, _today.layout) === twStrip(base.cols, base.cards);
+      const base = twBase(), plain = twStrip(TW_COLS, _today.desk) === twStrip(base.cols, base.cards) && JSON.stringify(twSave().phone || null) === JSON.stringify(base.phone ? { cards: base.phone } : null);
       const r = await api('/profile/today-layout', { method: 'PUT', body: { layout: _today.reset && plain ? null : twSave() } });
       _today.d.me.todayLayout = r.layout;
       _today.edit = false; _today.open = null; _today.reset = false;
@@ -372,9 +439,14 @@ async function onTwAction(e) {
   drawTw();
 }
 function twNeedsReload() {
-  const d = _today.d;
-  if (['utbildning', 'stgrupp', 'dopsinbox', 'samtal'].some(id => twFind(id)?.on && twDef(id).can(d) && twMissing(id))) return true;
-  return !!d.sch && twWeeksNeeded(_today.layout) > d.sch.window.weeks.length;
+  const d = _today.d, all = [..._today.desk, ...(_today.phone || [])];
+  if (['utbildning', 'stgrupp', 'dopsinbox', 'samtal'].some(id => all.some(c => c.id === id && c.on) && twDef(id).can(d) && twMissing(id))) return true;
+  return !!d.sch && Math.max(twWeeksNeeded(_today.desk), _today.phone ? twWeeksNeeded(_today.phone) : 0) > d.sch.window.weeks.length;
+}
+// Återställ gäller plattformen man står i: datorns layout och rutnät, eller telefonens (som då följer mallens eller datorns).
+function twResetPlatform(L) {
+  if (twIsPhone()) _today.phone = L.phone ? JSON.parse(JSON.stringify(L.phone)) : null;
+  else { _today.desk = L.cards; TW_COLS = L.cols; }
 }
 
 // Admin väljer i redigeringsläget vilken startsida som redigeras: sin egen eller klinikens mall för en yrkesroll. Mallen öppnas
@@ -483,14 +555,22 @@ function onTwGrid(e) {
 // Ändrar storleken om den får plats där kortet ligger (fri placering); annars den största som får plats i den riktningen.
 function twResizeTo(c, w, h) {
   w = Math.min(TW_COLS, Math.max(1, w)); h = Math.min(TW_MAXH, Math.max(1, h));
-  if (!_today.placed) { c.w = w; c.h = h; return true; }
+  const set = () => { if (h !== c.h) c.auto = false; c.w = w; c.h = h; return true; };   // en vald höjd slår av auto
+  if (!_today.placed) return set();
   const occ = twOccupied(twShownCards(), c);
-  if (twFits(occ, c.x, c.y, w, h)) { c.w = w; c.h = h; return true; }
-  return false;
+  return twFits(occ, c.x, c.y, w, h) ? set() : false;
 }
 
 function onTwOpt(e) {
   const dim = e.target.closest('[data-dim]');
+  if (dim && ['auto', 'mauto', 'mh'].includes(dim.dataset.dim)) {
+    const c = twFind(dim.dataset.id);
+    if (dim.dataset.dim === 'auto') c.auto = dim.checked;
+    else if (dim.dataset.dim === 'mauto') { if (dim.checked) delete c.mh; else c.mh = 3; }
+    else c.mh = Math.min(TW_MAXH, Math.max(1, Math.round(Number(dim.value)) || 3));
+    drawTw();
+    return;
+  }
   if (dim) {
     const c = twFind(dim.dataset.id), want = Math.round(Number(dim.value)) || 1;
     const ok = dim.dataset.dim === 'w' ? twResizeTo(c, want, c.h) : twResizeTo(c, c.w, want);
@@ -503,7 +583,7 @@ function onTwOpt(e) {
     dim.value = dim.dataset.dim === 'w' ? c.w : c.h;
     const card = el('tw-grid').querySelector(`.tw[data-id="${c.id}"]`);
     if (_today.placed) { card.style.gridColumn = `${c.x + 1} / span ${c.w}`; card.style.gridRow = `${c.y + 1} / span ${c.h}`; }
-    card.querySelector('.tw-dim').textContent = `${c.w} × ${c.h}`;
+    card.querySelector('.tw-dim').textContent = twDimText(c);
     return;
   }
   const i = e.target.closest('[data-opt]'); if (!i) return;
@@ -523,15 +603,15 @@ function onTwKey(e) {
   if (!dx && !dy) return;
   e.preventDefault();
   const c = twFind(h.dataset.drag), cards = twShownCards();
-  if (e.shiftKey) { if (!twResizeTo(c, c.w + dx, c.h + dy)) return; }
+  if (e.shiftKey) { if (!_today.placed || !twResizeTo(c, c.w + dx, c.h + dy)) return; }
   else if (_today.placed) {
     if (!twFits(twOccupied(cards, c), c.x + dx, c.y + dy, c.w, c.h)) return;
     c.x += dx; c.y += dy;
   } else {
-    const order = twReading(cards), i = order.indexOf(c), j = i + (dx || dy);
-    if (j < 0 || j >= order.length) return;
-    [order[i], order[j]] = [order[j], order[i]];
-    twRepack(order);
+    const i = cards.indexOf(c), j = i + (dx || dy);
+    if (j < 0 || j >= cards.length) return;
+    const list = _today.layout, a = list.indexOf(cards[i]), b = list.indexOf(cards[j]);
+    [list[a], list[b]] = [list[b], list[a]];
   }
   drawTw();
   el('tw-grid').querySelector(`[data-drag="${c.id}"]`)?.focus();
@@ -589,7 +669,7 @@ function onTwDragStart(e) {
     removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
     if (raf) cancelAnimationFrame(raf);
     if (_today.placed) { if (target) Object.assign(c, target); }
-    else twRepack([...grid.querySelectorAll('.tw')].map(n => twFind(n.dataset.id)));
+    else { const now = [...grid.querySelectorAll('.tw')].map(n => twFind(n.dataset.id)); _today.layout = [...now, ..._today.layout.filter(x => !now.includes(x))]; }
     drawTw();
   };
   addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
