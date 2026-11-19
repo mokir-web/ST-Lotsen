@@ -33,7 +33,7 @@ async function renderAdmin(root, mode = 'users') {
     if (mode === 'clinic') _admin.retention = await api('/admin/retention').catch(err => ({ error: err.message }));
     if (mode === 'system') _admin.dops = await api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message }));
     if (mode === 'errors') _admin.errors = await api('/error-reports').catch(() => null);
-    if (mode === 'users' && (me.modules || []).includes('dops')) await loadDopsUsers();
+    if (mode === 'users' && ((me.modules || []).includes('dops') || me.isGlobalAdmin)) await loadDopsUsers();
     if (mode === 'users' && (me.modules || []).some(m => m === 'schema' || m === 'mal')) _admin.frameworks = (await api('/goals/frameworks').catch(() => ({ frameworks: [] }))).frameworks;
     drawAdmin(root);
   } catch (err) {
@@ -798,7 +798,7 @@ async function saveModules() {
   try {
     await api('/admin/clinic', { method: 'PUT', body: { modules } });
     _admin.dopsUsers = null;
-    if (modules.includes('dops')) await loadDopsUsers();
+    if (modules.includes('dops') || _admin.me.isGlobalAdmin) await loadDopsUsers();
     await reloadAdmin();
     setMenuForUser(_admin.me);
     showStatus(el('mod-status'), 'Modulerna är sparade.', true);
@@ -878,15 +878,34 @@ async function saveDopsClinic(sel) {
 const DOPS_DIFF = { namn: 'Namn skiljer', epost: 'E-post skiljer', admin: 'Admin skiljer', studierektor: 'Studierektor skiljer',
   aktiv: 'Aktiv/inaktiv skiljer', klinik: 'Annan klinik i DOPS', saknas: 'Finns inte i DOPS' };
 
+// Global admin kan visa alla klinikers konton i kopplingen (båda systemen), t.ex. när kliniken skiljer mellan dem.
+// Valet sparas i webbläsaren.
+function dopsAll() { try { return !!_admin.me?.isGlobalAdmin && localStorage.getItem('dopsLinkAll') === '1'; } catch { return false; } }
+const dopsQ = () => dopsAll() ? '?all=1' : '';
+async function setDopsAll(on) {
+  try { localStorage.setItem('dopsLinkAll', on ? '1' : '0'); } catch {}
+  await loadDopsUsers();
+  drawAdmin(el('view'));
+}
 async function loadDopsUsers() {
-  _admin.dopsUsers = await api('/dops/users').catch(err => ({ error: err.message }));
+  _admin.dopsUsers = await api('/dops/users' + dopsQ()).catch(err => ({ error: err.message }));
+}
+function dopsScopeBar() {
+  if (!_admin.me?.isGlobalAdmin) return '';
+  const all = dopsAll();
+  return `<div class="row" style="gap:6px;margin:0 0 10px;flex-wrap:wrap" role="group" aria-label="Visa konton">
+      <button class="${all ? 'btn-ghost' : 'btn'}" id="dops-scope-clinic" onclick="setDopsAll(false)">Den här kliniken</button>
+      <button class="${all ? 'btn' : 'btn-ghost'}" id="dops-scope-all" onclick="setDopsAll(true)">Alla kliniker</button>
+      <span class="muted" style="font-size:13px;align-self:center">Bara global admin</span></div>`;
 }
 
 function dopsUsersCard() {
   const d = _admin.dopsUsers;
-  if (d.error) return `<div class="card"><h2>DOPS-konton</h2><p class="err" style="margin:0">${esc(d.error)}</p></div>`;
-  const who = u => `<strong>${esc(u.displayName)}</strong> <span class="muted">${esc(u.username)}${u.email ? ' · ' + esc(u.email) : ' · ingen e-post'}${u.active ? '' : ' · inaktiv'}</span>`;
-  const them = x => `${esc(x.name)} <span class="muted">${esc(x.email || 'ingen e-post')}${x.jobRole ? ' · ' + esc(x.jobRole) : ''}${x.admin ? ' · Administratör' : ''}${x.director ? ' · Studierektor' : ''}${x.inactive ? ' · inaktiverad' : ''}${x.pending ? ' · ej aktiverad' : ''}</span>`;
+  if (d.error) return `<div class="card"><h2>DOPS-konton</h2>${dopsScopeBar()}<p class="err" style="margin:0">${esc(d.error)}</p></div>`;
+  const all = !!d.all;
+  const where = c => all ? ` · <em>${esc(c || 'okänd klinik')}</em>` : '';
+  const who = u => `<strong>${esc(u.displayName)}</strong> <span class="muted">${esc(u.username)}${u.email ? ' · ' + esc(u.email) : ' · ingen e-post'}${u.active ? '' : ' · inaktiv'}${where(u.clinicName)}</span>`;
+  const them = x => `${esc(x.name)} <span class="muted">${esc(x.email || 'ingen e-post')}${x.jobRole ? ' · ' + esc(x.jobRole) : ''}${x.admin ? ' · Administratör' : ''}${x.director ? ' · Studierektor' : ''}${x.inactive ? ' · inaktiverad' : ''}${x.pending ? ' · ej aktiverad' : ''}${all ? ` · <em>DOPS: ${esc(x.clinicName || 'okänd klinik')}</em>` : ''}</span>`;
   const tags = ds => ds.map(k => `<span class="chip" style="font-size:12px;padding:0 8px">${DOPS_DIFF[k] || esc(k)}</span>`).join('');
   const row = (left, right, actions) => `<div class="pass-card dops-row"><div><div>${left}</div>${right ? `<div style="font-size:14px">↔ ${right}</div>` : ''}</div><div class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">${actions}</div></div>`;
   const btn = (label, call, ghost = true) => `<button class="${ghost ? 'btn-ghost' : 'btn'}" onclick="${call}">${label}</button>`;
@@ -897,25 +916,34 @@ function dopsUsersCard() {
     btn('Koppla loss', `dopsUnlink('${x.user.id}')`))).join('');
   const sugg = d.suggestions.map(x => row(who(x.user), them(x.dops) + ` <span class="muted">(${x.by === 'email' ? 'samma e-post' : 'samma namn — kontrollera'})</span> ` + tags(x.diffs),
     btn('Koppla', `dopsLink([['${x.user.id}','${x.dops.id}']])`, false))).join('');
-  const opts = d.onlyDops.map(x => `<option value="${esc(x.id)}">${esc(x.name)}${x.email ? ' — ' + esc(x.email) : ''}</option>`).join('');
+  const opt = x => `<option value="${esc(x.id)}">${esc(x.name)}${x.email ? ' — ' + esc(x.email) : ''}</option>`;
+  let opts = d.onlyDops.map(opt).join('');
+  if (all) {   // grupperat per DOPS-klinik
+    const groups = new Map();
+    for (const x of d.onlyDops) { const k = x.clinicName || 'Okänd klinik'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x); }
+    opts = [...groups].sort((a, b) => a[0].localeCompare(b[0], 'sv')).map(([k, xs]) => `<optgroup label="${esc(k)}">${xs.map(opt).join('')}</optgroup>`).join('');
+  }
   const onlyL = d.onlyLotsen.map(u => row(who(u), '', d.onlyDops.length
     ? `<select id="dp-${esc(u.id)}" style="max-width:220px"><option value="">Välj DOPS-konto…</option>${opts}</select>${btn('Koppla', `dopsLinkPick('${u.id}')`)}`
     : '<span class="muted">Inga okopplade DOPS-konton</span>')).join('');
-  const onlyD = d.onlyDops.map(x => row(`<label style="display:flex;gap:8px;align-items:flex-start;margin:0;font-weight:normal"><input type="checkbox" data-dops-new="${esc(x.id)}" style="margin-top:4px">${'<span>' + them(x) + '</span>'}</label>`, '',
+  const onlyD = d.onlyDops.map(x => all ? row(them(x), '', '') : row(`<label style="display:flex;gap:8px;align-items:flex-start;margin:0;font-weight:normal"><input type="checkbox" data-dops-new="${esc(x.id)}" style="margin-top:4px">${'<span>' + them(x) + '</span>'}</label>`, '',
     btn('Skapa konto', `dopsCreateAccounts(['${x.id}'])`))).join('');
   const emailSugg = d.suggestions.filter(x => x.by === 'email');
   const sec = (title, n, body, open, extra = '') => `<details class="dops-sec"${open ? ' open' : ''}><summary><strong>${title} (${n})</strong></summary>${extra}${body || '<p class="muted">Inga.</p>'}</details>`;
 
   return `<div class="card">
       <h2>DOPS-konton</h2>
-      <p class="hint" style="margin-top:0">Kopplar klinikens ST-Lotsen-konton till kontona i DOPS (${esc(d.clinicName)}). DOPS är källan för namn och e-post och ändras inte härifrån. Inloggningen i ST-Lotsen påverkas inte.</p>
+      ${dopsScopeBar()}
+      <p class="hint" style="margin-top:0">${all
+        ? 'Visar alla klinikers konton i båda systemen. Förslag och val för hand gäller oavsett klinik; kliniken visas vid varje konto och <em>Annan klinik i DOPS</em> markerar när den skiljer sig från den kopplade DOPS-kliniken.'
+        : `Kopplar klinikens ST-Lotsen-konton till kontona i DOPS (${esc(d.clinicName)}).`} DOPS är källan för namn och e-post och ändras inte härifrån. Inloggningen i ST-Lotsen påverkas inte.</p>
       ${sec('Förslag att godkänna', d.suggestions.length, sugg, d.suggestions.length > 0,
         emailSugg.length > 1 ? `<div class="row" style="margin:6px 0">${btn(`Koppla alla ${emailSugg.length} med samma e-post`, 'dopsLinkAllEmail()', false)}</div>` : '')}
       ${sec('Bara i ST-Lotsen', d.onlyLotsen.length, onlyL, d.suggestions.length === 0 && d.onlyLotsen.length > 0,
         '<p class="hint">Saknar träff i DOPS, oftast för att e-post saknas eller skiljer sig. Välj rätt konto för hand, eller lämna okopplat (t.ex. konton som inte bedömer).</p>')}
       ${sec('Bara i DOPS', d.onlyDops.length, onlyD, false,
-        '<p class="hint">Har inget ST-Lotsen-konto. <strong>Skapa konto</strong> hämtar namn och e-post från DOPS, kopplar kontot och ger en tillfällig PIN som visas en gång. Kontot blir vanlig användare; roller sätts sedan under Användare. Personen kan logga in med användarnamnet eller e-postadressen.</p>'
-        + (d.onlyDops.length > 1 ? `<div class="row" style="margin:6px 0;gap:8px"><button class="btn-ghost" onclick="document.querySelectorAll('[data-dops-new]').forEach(c=>c.checked=true)">Markera alla</button>${btn('Skapa konton för markerade', 'dopsCreateChecked()', false)}</div>` : ''))}
+        all ? '<p class="hint">Har inget kopplat ST-Lotsen-konto. Konton skapas från läget <em>Den här kliniken</em> (de hamnar på den kliniken).</p>' : '<p class="hint">Har inget ST-Lotsen-konto. <strong>Skapa konto</strong> hämtar namn och e-post från DOPS, kopplar kontot och ger en tillfällig PIN som visas en gång. Kontot blir vanlig användare; roller sätts sedan under Användare. Personen kan logga in med användarnamnet eller e-postadressen.</p>'
+        + (d.onlyDops.length > 1 && !all ? `<div class="row" style="margin:6px 0;gap:8px"><button class="btn-ghost" onclick="document.querySelectorAll('[data-dops-new]').forEach(c=>c.checked=true)">Markera alla</button>${btn('Skapa konton för markerade', 'dopsCreateChecked()', false)}</div>` : ''))}
       ${sec('Kopplade', d.linked.length, linked, false,
         d.linked.some(x => x.diffs.length) ? '<p class="hint">Skillnader visas men rättas inte automatiskt. Namn och e-post kan hämtas från DOPS; roller och inaktivering ändras i respektive system.</p>' : '')}
     </div>`;
@@ -928,7 +956,7 @@ async function dopsAfter(msg) {
 }
 async function dopsLink(pairs) {
   try {
-    await api('/dops/users/links', { method: 'PUT', body: { links: pairs.map(([userId, dopsUserId]) => ({ userId, dopsUserId })) } });
+    await api('/dops/users/links' + dopsQ(), { method: 'PUT', body: { links: pairs.map(([userId, dopsUserId]) => ({ userId, dopsUserId })) } });
     await dopsAfter(pairs.length === 1 ? 'Kontot är kopplat.' : `${pairs.length} konton är kopplade.`);
   } catch (err) { toast(err.message, 'err'); }
 }
@@ -963,11 +991,11 @@ async function dopsCreateAccounts(ids) {
 }
 async function dopsUnlink(userId) {
   if (!confirm('Koppla loss kontot från DOPS? Inget raderas i något av systemen.')) return;
-  try { await api('/dops/users/' + encodeURIComponent(userId) + '/link', { method: 'DELETE' }); await dopsAfter('Kopplingen är borttagen.'); }
+  try { await api('/dops/users/' + encodeURIComponent(userId) + '/link' + dopsQ(), { method: 'DELETE' }); await dopsAfter('Kopplingen är borttagen.'); }
   catch (err) { toast(err.message, 'err'); }
 }
 async function dopsPull(userId, what) {
-  try { await api('/dops/users/' + encodeURIComponent(userId) + '/pull', { method: 'POST', body: what }); await dopsAfter(what.name ? 'Namnet är hämtat från DOPS.' : 'E-posten är hämtad från DOPS.'); }
+  try { await api('/dops/users/' + encodeURIComponent(userId) + '/pull' + dopsQ(), { method: 'POST', body: what }); await dopsAfter(what.name ? 'Namnet är hämtat från DOPS.' : 'E-posten är hämtad från DOPS.'); }
   catch (err) { toast(err.message, 'err'); }
 }
 
