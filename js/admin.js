@@ -365,7 +365,10 @@ function drawUserPanel() {
         ${mods().includes('dops') ? dopsUserSection(u) : ''}
         <h3>Moduler som personen ser</h3>
         <p class="hint" style="margin:0 0 4px">Stäng av en modul för att ta bort den ur personens menyer och startsida (t.ex. ST-utbildning för en handledare som bara ska se sina adepter under Handledning).</p>
-        ${MODULE_INFO.filter(([id]) => mods().includes(id)).map(([id, name]) => `<label class="role-row"><span><strong>${name}</strong></span>${sw(`data-hidemod="${id}"`, !(u.hiddenModules || []).includes(id), locked)}</label>`).join('')}`,
+        ${MODULE_INFO.filter(([id]) => mods().includes(id)).map(([id, name]) => `<label class="role-row"><span><strong>${name}</strong></span>${sw(`data-hidemod="${id}"`, !(u.hiddenModules || []).includes(id), locked)}</label>`).join('')}
+        <h3>Startsidans mall</h3>
+        <select id="up-tpl"${locked ? ' disabled' : ''}>${twTemplateOptions(u.todayTemplate, u.jobRole || (u.isSt ? 'ST' : ''), _admin.me.todayTemplateRoles || [])}</select>
+        <p class="hint">Vilken av klinikens startsidesmallar personen utgår från. Förval: mallen för personens yrkesroll. Har personen anpassat sin startsida gäller anpassningen tills hen trycker Återställ; personen kan också välja mall själv.</p>`,
       konto: `
         ${roleRow('Aktiv', 'Ett inaktivt konto kan inte logga in. Bokningar och historik ligger kvar.', 'active', u.active, fixed, why)}
         <h3>PIN</h3>
@@ -411,6 +414,7 @@ function drawUserPanel() {
       const hidden = new Set(u.hiddenModules || []); hm.checked ? hidden.delete(hm.dataset.hidemod) : hidden.add(hm.dataset.hidemod);
       panelAction(id => api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { hiddenModules: [...hidden] } }), 'Sparat.');
     }
+    if (e.target.id === 'up-tpl') panelAction(() => api('/admin/users/' + encodeURIComponent(_admin.panel.id), { method: 'PATCH', body: { todayTemplate: e.target.value || null } }), 'Mallen är sparad.');
     if (e.target.id === 'up-jobrole') panelAction(() => api('/admin/users/' + encodeURIComponent(_admin.panel.id), { method: 'PATCH', body: { jobRole: e.target.value } }), 'Yrkesrollen är sparad.');
     if (e.target.id === 'up-dopsrole') panelAction(() => api('/dops/app/users/' + encodeURIComponent(e.target.dataset.dops), { method: 'PATCH', body: { userRole: e.target.value } }), 'Sparat i DOPS.');
     if (e.target.name === 'mg-keep') { _admin.panel.keep = e.target.value; drawUserPanel(); }

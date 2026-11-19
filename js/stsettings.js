@@ -173,6 +173,9 @@ function openReqPanel(id, year) {
         <div><label for="rp-loc">Ort</label><input type="text" id="rp-loc" maxlength="60" value="${esc(r.location || '')}"></div>
         <div><label for="rp-weeks">Veckor</label><input type="number" id="rp-weeks" min="1" max="104" value="${r.weeks ?? ''}"></div>
       </div>
+      <label for="rp-host">Klinik där randningen görs</label>
+      <select id="rp-host" data-cur="${esc(r.hostClinicId || '')}"><option value="">${r.hostClinicId ? 'Laddar…' : '– Ingen vald –'}</option></select>
+      <p class="hint">Den som har randningen bokad (inte Ev.) den aktuella veckan finns med bland klinikens personer när man registrerar en DOPS-bedömning, så att handledarna där kan bedöma hen. Klinikerna är DOPS-appens.</p>
       <label for="rp-effect">Räknas i "I tjänst" som</label>
       <select id="rp-effect">${effectOptions(r.serviceEffect, true)}</select>
       <p class="hint">Lämna "Ärv från typen" om inte just detta krav ska räknas annorlunda (t.ex. Randning Kolo på egna kliniken = i tjänst).</p>
@@ -192,6 +195,18 @@ function openReqPanel(id, year) {
   });
   document.body.appendChild(root);
   (id ? root.querySelector('.sidepanel') : el('rp-cat')).focus?.();
+  fillHostClinics();
+}
+
+// DOPS-appens kliniker till väljaren (hämtas en gång per sidvisning). Utan DOPS-anslutning visas bara ett redan sparat val.
+async function fillHostClinics() {
+  const sel = el('rp-host'); if (!sel) return;
+  if (!_sts.hostClinics) { try { _sts.hostClinics = await api('/dops/clinic-options'); } catch { _sts.hostClinics = { clinics: [], unavailable: true }; } }
+  const s = el('rp-host'); if (!s) return;
+  const cur = s.dataset.cur, list = _sts.hostClinics.clinics;
+  s.innerHTML = `<option value="">– Ingen vald –</option>${list.map(c => `<option value="${esc(c.id)}"${c.id === cur ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
+    ${cur && !list.some(c => c.id === cur) ? `<option value="${esc(cur)}" selected>Sparad klinik (DOPS kan inte nås)</option>` : ''}`;
+  if (_sts.hostClinics.unavailable && !cur) s.insertAdjacentHTML('afterend', '<p class="hint err" style="margin:2px 0 0">DOPS kan inte nås just nu, så kliniken kan inte väljas.</p>');
 }
 
 function closeReqPanel() { el('sheet-root')?.remove(); }
@@ -203,7 +218,8 @@ function filterReqGoals(q) {
 async function saveReqPanel(id) {
   const yb = document.querySelector('#rp-year button.on');
   const body = { category: el('rp-cat').value, name: el('rp-name').value, mandatory: el('rp-mand').checked, away: el('rp-away').checked,
-    location: el('rp-loc').value, weeks: el('rp-weeks').value, serviceEffect: el('rp-effect').value, stYear: yb && yb.dataset.y ? Number(yb.dataset.y) : null };
+    location: el('rp-loc').value, weeks: el('rp-weeks').value, serviceEffect: el('rp-effect').value, stYear: yb && yb.dataset.y ? Number(yb.dataset.y) : null,
+    hostClinicId: el('rp-host').value || null };
   if (id) body.active = el('rp-active').checked;
   const picks = document.querySelectorAll('.goalpick [data-goal]');
   const own = new Set([...picks].map(c => c.dataset.goal));

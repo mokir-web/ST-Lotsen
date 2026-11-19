@@ -309,6 +309,7 @@ function drawTw(depth = 0) {
       <details class="tw-more"><summary class="btn-ghost">⋯ Mer</summary><div class="tw-more-pop">
         ${placed ? `<label class="tw-colsl" title="Rutnätets upplösning: fler kolumner ger mindre rutor">Rutnät <input type="number" id="tw-cols" min="1" max="${TW_MAXCOLS}" value="${TW_COLS}"> kolumner</label>` : ''}
         ${me.isAdmin ? `<label class="tw-colsl">Redigera <select id="tw-target" title="Vilken startsida du redigerar"><option value="">Min startsida</option>${TW_ROLES.map(([k, l]) => `<option value="${k}"${_today.tpl === k ? ' selected' : ''}>Mall: ${esc(l)}${(me.todayTemplateRoles || []).includes(k) ? '' : ' (ingen än)'}</option>`).join('')}</select></label>` : ''}
+        ${!_today.tpl && (me.todayTemplateRoles || []).length ? `<label class="tw-colsl">Mall <select id="tw-mytpl" title="Vilken av klinikens mallar din startsida utgår från">${twTemplateOptions(me.todayTemplateKey, me.todayTemplateRole, me.todayTemplateRoles)}</select></label>` : ''}
         ${me.isAdmin && !_today.tpl ? '<button type="button" class="btn-ghost" data-act="template" title="Gör den här layouten till utgångsläge för en yrkesroll">Spara som mall…</button>' : ''}
         <button type="button" class="btn-ghost" data-act="reset">Återställ</button></div></details>
       <button type="button" class="btn-ghost" data-act="cancel">Avbryt</button><button type="button" class="btn" data-act="save">Klar</button>`
@@ -453,6 +454,7 @@ function twResetPlatform(L) {
 // (eller den inbyggda standarden om rollen saknar mall) och Klar sparar den; den egna layouten väntar under tiden.
 async function onTwTarget(e) {
   if (e.target.id === 'tw-cols') { twRescale(Number(e.target.value)); return; }
+  if (e.target.id === 'tw-mytpl') { twPickTemplate(e.target); return; }
   if (e.target.id !== 'tw-target') return;
   const role = e.target.value || null;
   const dirty = twSnap() !== (_today.tpl ? _today.tplBefore : _today.before);
@@ -468,6 +470,24 @@ async function onTwTarget(e) {
     if (!role) _today.before = _today.own;
     drawTw();
   } catch (err) { alert(err.message); e.target.value = _today.tpl || ''; }
+}
+
+// Mallväljare: '' = mallen för yrkesrollen (förval), annars en av klinikens mallar. Mallar som inte finns visas inte (utom ett sparat val).
+function twTemplateOptions(cur, role, have) {
+  const name = k => TW_ROLES.find(r => r[0] === k)?.[1] || k;
+  const roleLabel = role && have.includes(role) ? name(role) : 'Alla utan egen mall';
+  return `<option value="">Yrkesrollens mall (${esc(roleLabel)})</option>` + TW_ROLES.filter(([k]) => have.includes(k) || k === cur)
+    .map(([k, l]) => `<option value="${k}"${k === cur ? ' selected' : ''}>${esc(l)}${have.includes(k) ? '' : ' (finns inte längre)'}</option>`).join('');
+}
+// Personen byter mall själv: startsidan utgår då från den mallen och den egna anpassningen (dator och telefon) ersätts.
+async function twPickTemplate(sel) {
+  const me = _today.d.me, prev = me.todayTemplateKey || '';
+  const label = sel.options[sel.selectedIndex].text;
+  if (!confirm(`Utgå från mallen "${label}"? Din anpassade startsida (dator och telefon) ersätts av mallen.`)) { sel.value = prev; return; }
+  try {
+    await api('/profile/today-template', { method: 'PUT', body: { template: sel.value || null, resetLayout: true } });
+    renderToday(el('view'));
+  } catch (err) { alert(err.message); sel.value = prev; }
 }
 
 // Mall för yrkesroller (admin): den aktuella layouten (som den ser ut i redigeringsläget) blir utgångsläge för valda roller.

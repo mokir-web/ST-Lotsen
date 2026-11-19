@@ -42,6 +42,11 @@
     h2 { font-size: 19px; }
     button { font: inherit; cursor: pointer; }
     .hidden { display: none !important; }
+    /* Sidbyte som tar tid: förra sidan (#view-ghost) ligger kvar och en rad överst visar att den nya laddas. */
+    #view-ghost { z-index: 5; pointer-events: none; background: var(--bg, #eef1f3); }
+    body.view-loading::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 50; background: linear-gradient(90deg, transparent, #e8a35c, transparent);
+      background-size: 50% 100%; background-repeat: no-repeat; animation: view-load 1s linear infinite; }
+    @keyframes view-load { from { background-position: -50% 0; } to { background-position: 150% 0; } }
     .muted { color: var(--ink-soft); }
     .err { color: var(--danger); font-weight: bold; }
     .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -1026,7 +1031,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.50.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.51.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1136,7 +1141,41 @@
       } catch (err) { box.textContent = 'Kunde inte skicka: ' + err.message; box.className = 'status err'; }
     }
 
+    // Snabba sidbyten (0.51.0): GET-svar sparas i minnet (bara i den här fliken; töms vid utloggning och vid varje ändring).
+    // Finns ett svar visas det direkt och hämtas om i bakgrunden; skiljer sig det nya, och sidan använde det, ritas sidan om tyst
+    // (samma rullningsläge) — utom när man håller på att skriva eller redigera.
+    const _apiCache = new Map(), _apiInflight = new Map(), API_FRESH_MS = 5000;
+    let _routeKeys = new Set(), _swrTimer = 0;
+    const apiKey = path => (state.acting?.id || '') + ' ' + path;
+    function apiCacheClear() { _apiCache.clear(); _apiInflight.clear(); }
+    function apiRevalidate(key, path) {
+      if (_apiInflight.has(key)) return _apiInflight.get(key);
+      const prev = _apiCache.get(key);
+      const p = apiFetch(path, {}).then(data => {
+        const json = JSON.stringify(data);
+        _apiCache.set(key, { data, json, at: Date.now() });
+        if (prev && prev.json !== json && _routeKeys.has(key)) {
+          clearTimeout(_swrTimer);
+          _swrTimer = setTimeout(() => { if (!busyEditing()) route({ silent: true }); }, 150);
+        }
+        return data;
+      }).finally(() => _apiInflight.delete(key));
+      _apiInflight.set(key, p);
+      return p;
+    }
     async function api(path, opts = {}) {
+      const method = opts.method || 'GET';
+      if (method !== 'GET') { const data = await apiFetch(path, opts); if (!opts.keepCache) apiCacheClear(); return data; }   // keepCache: t.ex. användningsstatistik, som inte ändrar något man ser
+      const key = apiKey(path), hit = _apiCache.get(key);
+      _routeKeys.add(key);
+      if (hit) {
+        if (Date.now() - hit.at > API_FRESH_MS) apiRevalidate(key, path).catch(() => {});
+        return JSON.parse(hit.json);   // en egen kopia: sidorna får ändra i svaret
+      }
+      return JSON.parse(JSON.stringify(await apiRevalidate(key, path)));
+    }
+
+    async function apiFetch(path, opts = {}) {
       const headers = { 'Content-Type': 'application/json' };
       if (state.token) headers.Authorization = 'Bearer ' + state.token;
       if (state.acting) headers['X-Clinic-Id'] = state.acting.id;
@@ -1161,6 +1200,7 @@
     }
 
     function saveSession(token, scope, clinicName) {
+      apiCacheClear();
       state.token = token; state.scope = scope; state.clinicName = clinicName || '';
       localStorage.setItem('opjour_token', token);
       localStorage.setItem('opjour_scope', scope);
@@ -1168,6 +1208,7 @@
     }
 
     function logout() {
+      apiCacheClear();
       localStorage.removeItem('opjour_acting');
       localStorage.removeItem('opjour_token');
       localStorage.removeItem('opjour_scope');
@@ -1237,7 +1278,7 @@
     function trackUsage(eventType, panel) {
       if (state.scope !== 'user') return;
       if (eventType === 'panel_view') { if (panel === usageLast) return; usageLast = panel; }
-      try { api('/usage', { method: 'POST', body: { sessionId: usageSession, eventType, panel } }).catch(() => {}); } catch {}
+      try { api('/usage', { method: 'POST', keepCache: true, body: { sessionId: usageSession, eventType, panel } }).catch(() => {}); } catch {}
     }
     const usagePanel = h => (h || '#/').replace(/\/[0-9a-f-]{36}.*$/i, '/:id') || '#/';
 
@@ -1255,60 +1296,90 @@
     }
 
     // Personlig vy: #/ (kalender), #/settings, #/admin. Visningsskärmen har ingen navigation.
-    function route() {
+    // silent = samma sida ritas om med nyare data (api-minnet): inga menyer stängs, ingen sidvisning räknas och rullningsläget behålls.
+    // Annars ligger en bild av den förra sidan kvar ovanpå tills den nya är ritad (bara om det tar tid, t.ex. kallstart).
+    function route(arg) {
       if (state.scope !== 'user') return;
-      closeMenu();
-      closeNavTree();
-      el('sheet-root')?.remove();
-      if (typeof _app !== 'undefined' && _app) _app.sheet = null;
-      if (typeof _sch !== 'undefined' && _sch) _sch.sheet = null;
-      if (typeof _ov !== 'undefined' && _ov) _ov.sheet = null;
+      const silent = arg?.silent === true, y = scrollY;
       const h = location.hash;
-      markNav(h);
-      trackUsage('panel_view', usagePanel(h));
       const root = el('view');
+      _routeKeys = new Set();
+      if (!silent) {
+        closeMenu();
+        closeNavTree();
+        el('sheet-root')?.remove();
+        if (typeof _app !== 'undefined' && _app) _app.sheet = null;
+        if (typeof _sch !== 'undefined' && _sch) _sch.sheet = null;
+        if (typeof _ov !== 'undefined' && _ov) _ov.sheet = null;
+        markNav(h);
+        trackUsage('panel_view', usagePanel(h));
+        viewGhost(root);
+      }
+      const done = Promise.resolve(renderRoute(h, root)).catch(() => {});
+      if (silent) done.then(() => scrollTo(0, y));
+      else { window.scrollTo(0, 0); done.then(() => { if (location.hash === h) viewGhostOff(); }); }
+    }
+
+    // Bild av förra sidan (utan id:n och klick) som täcker den nya tills den är ritad, med en laddningsrad överst. Visas först efter
+    // 120 ms, så att snabba sidbyten (svaren finns redan i minnet) inte blinkar. Tas bort senast efter 12 s.
+    let _ghostTimer = 0;
+    function viewGhost(root) {
+      viewGhostOff();
+      if (!root.firstElementChild) return;
+      const g = root.cloneNode(true);
+      g.removeAttribute('id'); g.id = 'view-ghost';
+      g.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+      g.setAttribute('aria-hidden', 'true'); g.inert = true;
+      const r = root.getBoundingClientRect();
+      Object.assign(g.style, { position: 'absolute', left: r.left + scrollX + 'px', top: r.top + scrollY + 'px', width: r.width + 'px', display: 'none' });
+      document.body.appendChild(g);
+      _ghostTimer = setTimeout(() => { const x = el('view-ghost'); if (x) { x.style.display = ''; document.body.classList.add('view-loading'); } }, 120);
+      setTimeout(() => viewGhostOff(), 12000);
+    }
+    function viewGhostOff() { clearTimeout(_ghostTimer); el('view-ghost')?.remove(); document.body.classList.remove('view-loading'); }
+
+    function renderRoute(h, root) {
       // Gamla adresser till inställningarna (före 0.38.0) → modulen Inställningar.
       const old = { '#/settings': '#/installningar/konto', '#/admin': '#/installningar/anvandare', '#/opjour-settings': '#/installningar/opjour',
         '#/schema/installningar': '#/installningar/planering', '#/installningar': '#/installningar/konto', '#/kalender': '#/opjour',
         '#/installningar/st': '#/installningar/utbildningsplan', '#/installningar/st/krav': '#/installningar/utbildningsplan',
         '#/installningar/st/delmal': '#/installningar/malbeskrivning', '#/installningar/st/personer': '#/installningar/anvandare' };
-      if (old[h]) { location.replace(old[h]); return; }
-      if (h === '#/st' || h.startsWith('#/st/')) { location.replace(old['#/installningar/st' + h.slice(4)] || '#/installningar/utbildningsplan'); return; }
-      if (h.startsWith('#/dops/installningar')) { location.replace('#/installningar/dops' + h.slice('#/dops/installningar'.length)); return; }
+      if (old[h]) return location.replace(old[h]);
+      if (h === '#/st' || h.startsWith('#/st/')) return location.replace(old['#/installningar/st' + h.slice(4)] || '#/installningar/utbildningsplan');
+      if (h.startsWith('#/dops/installningar')) return location.replace('#/installningar/dops' + h.slice('#/dops/installningar'.length));
       const narrow = ['#/installningar/konto', '#/installningar/klinik', '#/installningar/opjour', '#/installningar/system', '#/installningar/felanmalan', '#/stats'];
       root.classList.toggle('wide', !narrow.includes(h) && worldOf(h) !== 'today');   // bred vy för kalendern, schemat och ST-inställningarna
       root.classList.toggle('roomy', worldOf(h) === 'today');
-      if (h === '#/installningar/konto') renderSettings(root);
-      else if (h === '#/installningar/anvandare') renderAdmin(root, 'users');
-      else if (h === '#/installningar/klinik') renderAdmin(root, 'clinic');
-      else if (h === '#/installningar/system') renderAdmin(root, 'system');
-      else if (h === '#/installningar/anvandning') renderUsage(root);
-      else if (h === '#/installningar/felanmalan') renderAdmin(root, 'errors');
-      else if (h === '#/installningar/opjour') renderOpSettings(root);
-      else if (h === '#/installningar/planering') renderStSettings(root, 'typer', 'plan');
-      else if (h === '#/installningar/utbildningsplan') renderStSettings(root, 'krav');
-      else if (h === '#/installningar/malbeskrivning') renderStSettings(root, 'delmal');
-      else if (h === '#/installningar/handledning') renderHlSettings(root);
-      else if (h === '#/installningar/dops' || h.startsWith('#/installningar/dops/')) renderDopsSettings(root, h.split('/')[3]);
-      else if (h === '#/opjour') renderApp(root);
-      else if (h === '#/stats') renderStats(root);
-      else if (h === '#/schema') renderSchema(root);
-      else if (h === '#/oversikt') renderOversikt(root);
-      else if (h === '#/bedomningar') location.replace('#/dops/progress');   // gammal adress (0.33.0)
-      else if (h === '#/dops') renderDopsOverview(root);
-      else if (h === '#/dops/mina') renderDopsMine(root);
-      else if (h === '#/dops/registrera') renderDopsRegister(root);
-      else if (h === '#/dops/inkorg') renderDopsInbox(root);
-      else if (h === '#/dops/progress') renderBedomningar(root);
-      else if (h === '#/dops/kliniken') renderDopsClinic(root);
-      else if (h === '#/dops/statistik') renderDopsStats(root);
-      else if (h === '#/dops/tavling') renderDopsCompetition(root);
-      else if (h === '#/dops/dokument') location.replace('#/dops');   // Dokument är borttaget (0.48.0); användaröverenskommelser kommer under Inställningar
-      else if (h === '#/plan' || h.startsWith('#/plan/')) renderPlan(root, h.slice('#/plan/'.length) || 'me');
-      else if (h === '#/utbildning' || h.startsWith('#/utbildning/')) renderEdu(root, h.slice('#/utbildning/'.length) || '');
-      else if (h === '#/handledning' || h.startsWith('#/handledning/')) renderHandledning(root, h.slice('#/handledning/'.length) || '');
-      else renderToday(root);
-      window.scrollTo(0, 0);
+      if (h === '#/installningar/konto') return renderSettings(root);
+      else if (h === '#/installningar/anvandare') return renderAdmin(root, 'users');
+      else if (h === '#/installningar/klinik') return renderAdmin(root, 'clinic');
+      else if (h === '#/installningar/system') return renderAdmin(root, 'system');
+      else if (h === '#/installningar/anvandning') return renderUsage(root);
+      else if (h === '#/installningar/felanmalan') return renderAdmin(root, 'errors');
+      else if (h === '#/installningar/opjour') return renderOpSettings(root);
+      else if (h === '#/installningar/planering') return renderStSettings(root, 'typer', 'plan');
+      else if (h === '#/installningar/utbildningsplan') return renderStSettings(root, 'krav');
+      else if (h === '#/installningar/malbeskrivning') return renderStSettings(root, 'delmal');
+      else if (h === '#/installningar/handledning') return renderHlSettings(root);
+      else if (h === '#/installningar/dops' || h.startsWith('#/installningar/dops/')) return renderDopsSettings(root, h.split('/')[3]);
+      else if (h === '#/opjour') return renderApp(root);
+      else if (h === '#/stats') return renderStats(root);
+      else if (h === '#/schema') return renderSchema(root);
+      else if (h === '#/oversikt') return renderOversikt(root);
+      else if (h === '#/bedomningar') return location.replace('#/dops/progress');   // gammal adress (0.33.0)
+      else if (h === '#/dops') return renderDopsOverview(root);
+      else if (h === '#/dops/mina') return renderDopsMine(root);
+      else if (h === '#/dops/registrera') return renderDopsRegister(root);
+      else if (h === '#/dops/inkorg') return renderDopsInbox(root);
+      else if (h === '#/dops/progress') return renderBedomningar(root);
+      else if (h === '#/dops/kliniken') return renderDopsClinic(root);
+      else if (h === '#/dops/statistik') return renderDopsStats(root);
+      else if (h === '#/dops/tavling') return renderDopsCompetition(root);
+      else if (h === '#/dops/dokument') return location.replace('#/dops');   // Dokument är borttaget (0.48.0); användaröverenskommelser kommer under Inställningar
+      else if (h === '#/plan' || h.startsWith('#/plan/')) return renderPlan(root, h.slice('#/plan/'.length) || 'me');
+      else if (h === '#/utbildning' || h.startsWith('#/utbildning/')) return renderEdu(root, h.slice('#/utbildning/'.length) || '');
+      else if (h === '#/handledning' || h.startsWith('#/handledning/')) return renderHandledning(root, h.slice('#/handledning/'.length) || '');
+      else return renderToday(root);
     }
     window.addEventListener('hashchange', route);
 
