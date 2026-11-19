@@ -28,7 +28,9 @@ async function renderAdmin(root, mode = 'users') {
     setMenuForUser(me);
     if (mode === 'users' && !me.isAdmin && me.isDirector) { renderStSettings(root, 'personer', 'users'); return; }   // studierektor: ST-läkare och handledare
     if (!me.isAdmin || (['system', 'errors'].includes(mode) && !me.isGlobalAdmin)) { location.hash = '#/installningar/konto'; return; }
-    _admin = { me, mode, draw: drawAdmin, open: new Set(), filter: 'alla', q: '', panel: null, notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false };
+    _admin = { me, mode, draw: drawAdmin, open: new Set(), filter: 'alla', q: '', panel: null, notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false,
+      clinicOpen: mode === 'system' && !!window._openNewClinic };   // ＋ Ny klinik… i headerns klinikväljare
+    window._openNewClinic = false;
     if (mode === 'system' || (mode === 'clinic' && me.isGlobalAdmin)) _admin.clinics = (await api('/admin/clinics')).clinics;
     if (mode === 'clinic') _admin.retention = await api('/admin/retention').catch(err => ({ error: err.message }));
     if (mode === 'system') _admin.dops = await api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message }));
@@ -142,7 +144,7 @@ function drawAdmin(root) {
 
   const mode = _admin.mode || 'users';
   if (mode === 'clinic') {
-    root.innerHTML = `<h1 class="page">Klinik</h1>${noticeCard()}${me.isGlobalAdmin && _admin.clinics ? clinicPickCard() : ''}${moduleCard()}${retentionCard()}${me.isGlobalAdmin && _admin.clinics ? importCard() : ''}`;
+    root.innerHTML = `<h1 class="page">Klinik</h1>${noticeCard()}${moduleCard()}${retentionCard()}${me.isGlobalAdmin && _admin.clinics ? importCard() : ''}`;
     return;
   }
   if (mode === 'system') {
@@ -1009,8 +1011,8 @@ function clinicCard() {
       </span></div>`).join('');
   return `<div class="card">
       <h2>Kliniker</h2>
-      <p class="hint" style="margin-top:0">Du är global admin och kan lägga upp, byta namn på och radera kliniker. Varje klinik får en egen admin, som sedan lägger till klinikens övriga användare.
-        Med <strong>Arbeta här</strong> ser du hela ST-Lotsen som admin på kliniken och kan ändra dess inställningar (även under Inställningar → Klinik). En klinik med ett globalt adminkonto kan inte raderas.</p>
+      <p class="hint" style="margin-top:0">Du är global admin och kan lägga upp, byta namn på och radera kliniker.
+        Välj klinik i headern (eller <strong>Arbeta här</strong>) för att se hela ST-Lotsen som admin på kliniken: användare, bedömningar och alla inställningar. En klinik med ett globalt adminkonto kan inte raderas.</p>
       ${rows}
       <details style="margin-top:12px"${_admin.clinicOpen ? ' open' : ''} ontoggle="_admin.clinicOpen=this.open">
         <summary style="cursor:pointer;font-weight:bold">Ny klinik</summary>
@@ -1018,8 +1020,8 @@ function clinicCard() {
           <label for="nc-name" style="margin-top:0">Klinikens namn</label>
           <input type="text" id="nc-name" maxlength="80" required>
           <div class="field-row">
-            <div><label for="nc-aname">Adminens fullständiga namn</label>
-              <input type="text" id="nc-aname" maxlength="60" required oninput="onNcName(this.value)"></div>
+            <div><label for="nc-aname">Adminens fullständiga namn (valfritt)</label>
+              <input type="text" id="nc-aname" maxlength="60" oninput="onNcName(this.value)"></div>
             <div><label for="nc-aemail">Adminens e-post</label>
               <input type="email" id="nc-aemail" maxlength="120" autocapitalize="none" spellcheck="false" oninput="if(!_admin.clinicUserTouched)el('nc-auser').value=this.value.trim().toLowerCase()"></div>
           </div>
@@ -1029,7 +1031,7 @@ function clinicCard() {
             <div><label for="nc-aphone">Adminens telefon (valfritt)</label>
               <input type="tel" id="nc-aphone" maxlength="30" inputmode="tel" placeholder="070-123 45 67"></div>
           </div>
-          <p class="hint">En tillfällig PIN slumpas och visas en gång när kliniken är skapad.</p>
+          <p class="hint">Med admin: en tillfällig PIN slumpas och visas en gång när kliniken är skapad. Utan admin: du hamnar direkt i den nya kliniken och gör grundinställningarna och lägger till användare själv.</p>
           <div class="row" style="margin-top:8px"><button type="submit" class="btn">Skapa klinik</button></div>
           <div id="nc-status" class="status err"></div>
         </form>
@@ -1049,6 +1051,14 @@ async function addClinic(e) {
       name: el('nc-name').value.trim(), adminName: el('nc-aname').value.trim(),
       adminUsername: el('nc-auser').value.trim(), adminEmail: el('nc-aemail').value.trim(), adminPhone: el('nc-aphone').value
     } });
+    clinicSwitchReset();
+    if (!r.admin) {   // ingen admin: arbeta direkt i den nya kliniken
+      _admin.clinicOpen = false;
+      toast(`Kliniken ${r.clinic.name} är skapad. Du arbetar nu i den.`);
+      history.replaceState(null, '', '#/installningar/klinik');
+      setActingClinic(r.clinic);
+      return false;
+    }
     _admin.notice = { tone: 'ok', html:
       `Kliniken <strong>${esc(r.clinic.name)}</strong> är skapad.<br>`
       + `Admin: <strong>${esc(r.admin.displayName)}</strong> · användarnamn <strong>${esc(r.admin.username)}</strong> · PIN <strong>${esc(r.admin.pin)}</strong><br>`
@@ -1062,17 +1072,6 @@ async function addClinic(e) {
 }
 
 // ── Global admin: arbeta i en annan klinik, byt namn, radera, importera inställningar ──
-function clinicPickCard() {
-  const me = _admin.me;
-  return `<div class="card">
-      <h2>Klinik att arbeta i</h2>
-      <p class="hint" style="margin-top:0">Som global admin kan du ändra inställningar åt andra kliniker. Valet gäller hela ST-Lotsen tills du byter tillbaka.</p>
-      <select id="cp-pick" onchange="workInClinic(this.value)" style="max-width:360px">
-        ${_admin.clinics.map(c => `<option value="${esc(c.id)}"${c.id === me.clinicId ? ' selected' : ''}>${esc(c.name)}${c.id === me.homeClinicId ? ' (din klinik)' : ''}</option>`).join('')}
-      </select>
-    </div>`;
-}
-
 function workInClinic(id) {
   const c = _admin.clinics.find(x => x.id === id);
   if (!c) return;
@@ -1085,6 +1084,7 @@ async function renameClinic(id) {
   if (name == null || !name.trim() || name.trim() === c.name) return;
   try {
     await api('/admin/clinics/' + encodeURIComponent(id), { method: 'PATCH', body: { name: name.trim() } });
+    clinicSwitchReset();
     if (state.acting && state.acting.id === id) setActingClinic({ id, name: name.trim() });
     if (id === _admin.me.homeClinicId) { state.clinicName = name.trim(); localStorage.setItem('opjour_clinic', state.clinicName); }
     _admin.notice = { tone: 'ok', html: `Kliniken heter nu <strong>${esc(name.trim())}</strong>.` };
@@ -1099,6 +1099,7 @@ async function deleteClinic(id) {
   if (typed !== c.name) { alert('Namnet stämde inte. Inget raderades.'); return; }
   try {
     const r = await api('/admin/clinics/' + encodeURIComponent(id), { method: 'DELETE', body: { confirmName: typed } });
+    clinicSwitchReset();
     if (state.acting && state.acting.id === id) { setActingClinic(null); }
     _admin.notice = { tone: 'warn', html: `Kliniken <strong>${esc(r.deleted)}</strong> är raderad (${r.usersRemoved} konton).` };
     await renderAdmin(el('view'), _admin.mode);

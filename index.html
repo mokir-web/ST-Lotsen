@@ -62,6 +62,13 @@
     header .brand-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
     header .brand-name { font-weight: bold; font-size: 17px; letter-spacing: 0.2px; }
     header .clinic { font-size: 12px; color: #9fb2c0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Global admin: klinikväljaren i headern ersätter kliniknamnet under loggan. Orange när du arbetar i en annan klinik. */
+    body.gadmin header .clinic { display: none; }
+    #clinic-switch { flex: 0 1 auto; min-width: 0; max-width: 240px; background: rgba(255,255,255,0.12); color: #eef1f3; border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 5px; padding: 6px 8px; font-size: 14px; margin: 0; width: auto; }
+    #clinic-switch.acting { background: rgba(232,163,92,0.22); border-color: #e8a35c; color: #fff; font-weight: 600; }
+    #clinic-switch option { color: #1d2731; background: #fff; font-weight: normal; }
+    @media (max-width: 760px) { #clinic-switch { max-width: 130px; font-size: 13px; padding: 5px 6px; } }
     /* Navigering (hybrid): modulflikar i headern, modulens undersidor i en vänsterspalt (mobil: vågrät rad under headern). */
     #worlds { display: flex; gap: 2px; align-self: stretch; margin: -12px 0 -12px 8px; }
     /* Aktiv modul: färgad ram runt fliken. */
@@ -933,6 +940,7 @@
         <img src="icons/logo.svg" width="34" height="34" alt="">
         <span class="brand-text"><span class="brand-name">ST-Lotsen</span><span class="clinic" id="app-clinic"></span></span>
       </a>
+      <select id="clinic-switch" class="hidden" aria-label="Klinik du arbetar i" title="Klinik du arbetar i (global admin)" onchange="switchClinic(this)"></select>
       <button type="button" id="nav-btn" onclick="toggleNavTree(event)" aria-haspopup="true" aria-expanded="false" aria-controls="navtree">Meny</button>
       <nav id="worlds" class="hidden" aria-label="Moduler">
         <a href="#/" id="world-home">Startsida</a>
@@ -1031,7 +1039,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.52.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.53.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1210,6 +1218,7 @@
     function logout() {
       apiCacheClear();
       localStorage.removeItem('opjour_acting');
+      clinicSwitchReset();
       localStorage.removeItem('opjour_token');
       localStorage.removeItem('opjour_scope');
       localStorage.removeItem('opjour_clinic');
@@ -1262,7 +1271,41 @@
       state.acting = c && c.id ? { id: c.id, name: c.name } : null;
       try { state.acting ? localStorage.setItem('opjour_acting', JSON.stringify(state.acting)) : localStorage.removeItem('opjour_acting'); } catch {}
       el('app-clinic').textContent = state.acting ? state.acting.name : state.clinicName;
+      // DOPS-sidornas valda klinik (Kliniken, Statistik, Tävling) börjar om från den nya klinikens.
+      try { _dco = null; _dst = null; _dcp = null; } catch {}
       route();
+    }
+    // Klinikväljaren i headern (bara global admin): samma sak som Arbeta här under Inställningar → System.
+    let _clinicSwitch = { uid: null, list: null, me: null };
+    async function drawClinicSwitch(me) {
+      const sel = el('clinic-switch');
+      document.body.classList.toggle('gadmin', !!me.isGlobalAdmin);
+      if (!me.isGlobalAdmin) { sel.classList.add('hidden'); return; }
+      if (_clinicSwitch.uid !== me.userId) _clinicSwitch = { uid: me.userId, list: null, me };
+      _clinicSwitch.me = me;
+      if (!_clinicSwitch.list) {
+        try { _clinicSwitch.list = (await api('/admin/clinics')).clinics; } catch { sel.classList.add('hidden'); return; }
+      }
+      const opts = _clinicSwitch.list.map(c => `<option value="${esc(c.id)}"${c.id === me.clinicId ? ' selected' : ''}>${esc(c.name)}${c.id === me.homeClinicId ? ' (din klinik)' : ''}</option>`).join('');
+      sel.innerHTML = opts + '<option value="__new">＋ Ny klinik…</option>';
+      sel.value = me.clinicId;
+      sel.classList.toggle('acting', !!me.acting);
+      sel.classList.remove('hidden');
+    }
+    function clinicSwitchReset() { _clinicSwitch.list = null; }   // efter ny klinik, namnbyte eller radering
+    function switchClinic(sel) {
+      const me = _clinicSwitch.me;
+      if (sel.value === '__new') {
+        sel.value = me.clinicId;
+        window._openNewClinic = true;
+        if (location.hash === '#/installningar/system') route(); else location.hash = '#/installningar/system';
+        return;
+      }
+      const c = (_clinicSwitch.list || []).find(x => x.id === sel.value);
+      if (!c || c.id === me.clinicId) return;
+      // Sidor för ett visst objekt (id i adressen) finns inte i den andra kliniken: gå till startsidan.
+      if (/[0-9a-f]{8}-[0-9a-f]{4}-/i.test(location.hash)) history.replaceState(null, '', '#/');
+      setActingClinic(c.id === me.homeClinicId ? null : c);
     }
     function drawActingBar(me) {
       let bar = el('acting-bar');
@@ -1559,6 +1602,7 @@
       show('nav-set-errors', !!me.isGlobalAdmin);
       if (me.startPage !== undefined) { try { localStorage.setItem('opjour_start', me.startPage || ''); } catch {} }
       drawActingBar(me);
+      drawClinicSwitch(me);
       el('menu-name').textContent = me.displayName || 'Konto';
       fitSubnav();
       fitNav();
