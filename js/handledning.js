@@ -159,25 +159,28 @@ function hlDoneDialog(d) {
 
 // ── Specialistkollegium ──────────────────────────────────────────────────
 // Per ST-läkare: senaste självskattning och rapport ur DOPS-appen. En rapport som är äldre än tre månader kan ersättas av en ny
-// (specialister och handledare); studierektor ber om självskattning. Båda kräver att ST-Lotsen får skriva i DOPS — till dess visas
-// knapparna men är avstängda.
+// (specialister och handledare); studierektor ber om självskattning. Sedan 0.54.0 görs båda i ST-Lotsens bedömningsdel (DOPS):
+// rapporten öppnar Registrera med formulär och person ifyllda, självskattningen går via Förfrågningar.
 function drawKollegium(root, d) {
   const old = iso => !iso || (Date.now() - Date.parse(iso)) / 864e5 > 91;
-  const locked = 'Öppnas när ST-Lotsen får skriva i DOPS-appens databas — fyll i formuläret i DOPS-appen så länge.';
   root.innerHTML = `
     <div class="tw-head"><div><h1 class="page" style="margin-bottom:2px">Specialistkollegium</h1>
       <p class="muted" style="margin:0">Senaste <em>${esc(d.forms.self)}</em> och <em>${esc(d.forms.report)}</em> per ST-läkare, ur DOPS-appen.</p></div>
-      <div class="tw-actions">${d.lead ? `<button class="btn" disabled title="${esc(locked)}">Be om självskattning…</button>` : ''}</div></div>
+      <div class="tw-actions">${d.lead ? `<a class="btn" href="#/dops/inkorg">Be om självskattning…</a>` : ''}</div></div>
     ${d.dops ? '' : '<div class="card notice warn">DOPS är inte anslutet — datumen kan inte hämtas.</div>'}
     <div class="card"><div class="sch-scroll"><table class="dst-table hl-kol">
       <tr><th>ST-läkare</th><th>Senaste självskattning</th><th>Senaste rapport</th><th></th></tr>
-      ${d.people.map(p => `<tr><td>${esc(p.displayName)}${p.linked ? '' : ' <span class="tagchip" title="Inget kopplat DOPS-konto">ej i DOPS</span>'}</td>
+      ${d.people.map((p, i) => `<tr><td>${esc(p.displayName)}</td>
         <td>${p.lastSelf ? esc(hlDate(p.lastSelf)) + (p.selfCount > 1 ? ` <span class="muted">(${p.selfCount})</span>` : '') : '<span class="muted">ingen</span>'}</td>
         <td class="${old(p.lastReport) ? 'hl-old' : ''}">${p.lastReport ? esc(hlDate(p.lastReport)) + (p.reportCount > 1 ? ` <span class="muted">(${p.reportCount})</span>` : '') : '<span class="muted">ingen</span>'}</td>
-        <td>${d.canReport && old(p.lastReport) ? `<button class="btn-ghost" disabled title="${esc(locked)}">Fyll i ny rapport</button>` : ''}</td></tr>`).join('')}
+        <td>${d.canReport && old(p.lastReport) && p.dopsName ? `<button class="btn-ghost" data-kreport="${i}">Fyll i ny rapport</button>` : ''}</td></tr>`).join('')}
     </table></div>
     <p class="hint">Röd = senaste rapporten är äldre än tre månader (eller saknas); då kan specialister och handledare fylla i en ny.
-      ${esc(locked)}</p></div>`;
+      Rapporter och självskattningar görs i DOPS och sparas i ST-Lotsen; de från DOPS-appen räknas också.</p></div>`;
+  root.querySelectorAll('[data-kreport]').forEach(b => b.onclick = () => {
+    window._dregPrefill = { recipient: d.people[+b.dataset.kreport].dopsName, form: d.forms.report };
+    location.hash = '#/dops/registrera';
+  });
 }
 
 // ── Inställningar → Handledning (studierektor och admin) ─────────────────

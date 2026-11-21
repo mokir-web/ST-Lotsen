@@ -33,7 +33,8 @@ async function renderAdmin(root, mode = 'users') {
     window._openNewClinic = false;
     if (mode === 'system' || (mode === 'clinic' && me.isGlobalAdmin)) _admin.clinics = (await api('/admin/clinics')).clinics;
     if (mode === 'clinic') _admin.retention = await api('/admin/retention').catch(err => ({ error: err.message }));
-    if (mode === 'system') _admin.dops = await api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message }));
+    if (mode === 'system') [_admin.dops, _admin.dopsImport] = await Promise.all([api('/dops/status').catch(err => ({ configured: true, ok: false, error: err.message })),
+      api('/dops/import').catch(() => null)]);
     if (mode === 'errors') _admin.errors = await api('/error-reports').catch(() => null);
     if (mode === 'users' && ((me.modules || []).includes('dops') || me.isGlobalAdmin)) await loadDopsUsers();
     if (mode === 'users' && (me.modules || []).some(m => m === 'schema' || m === 'mal')) _admin.frameworks = (await api('/goals/frameworks').catch(() => ({ frameworks: [] }))).frameworks;
@@ -266,25 +267,21 @@ function roleRow(title, info, attr, checked, disabled, why) {
   return `<label class="role-row"${why ? ` title="${esc(why)}"` : ''}><span><strong>${title}</strong><small>${info}</small></span>${sw(`data-r="${attr}"`, checked, disabled)}</label>`;
 }
 
-// DOPS i användarpanelen: kopplingen till DOPS-kontot och personens användarroll i DOPS (vad hen gör där). Klinikroller och yrkesroll
-// sätts ovan och gäller även DOPS; under parallellkörningen visas DOPS-appens värden och skillnader, och ändringar där är låsta
-// tills ST-Lotsen får skriva i DOPS-appens databas.
+// DOPS i användarpanelen: personens användarroll i bedömningsdelen (vad hen gör där) och kopplingen till DOPS-appens konto.
+// Sedan 0.54.0 styr ST-Lotsen allt: klinikroller och yrkesroll ovan gäller även DOPS, och användarrollen sparas i ST-Lotsen.
+// Kopplingen behövs bara för att få med personens bedömningar från DOPS-appen.
 function dopsUserSection(u) {
-  const d = _admin.dopsUsers;
-  if (!d || d.error) return `<h3>DOPS</h3><p class="hint">${d?.error ? esc(d.error) : 'Kopplingen till DOPS är inte inläst.'}</p>`;
-  const link = d.linked.find(x => x.user.id === u.id), sugg = d.suggestions.find(x => x.user.id === u.id);
-  if (!link) return `<h3>DOPS</h3><p class="hint">Inte kopplat till något DOPS-konto.${sugg ? ` Förslag: <strong>${esc(sugg.dops.name)}</strong> (${sugg.by === 'email' ? 'samma e-post' : 'samma namn'}).` : ''} Kopplas i listan <em>DOPS-konton</em> på sidan Användare.</p>`;
-  const x = link.dops;
-  if (!x) return `<h3>DOPS</h3><p class="err">Kopplat DOPS-konto finns inte längre.</p>`;
-  const diff = [];
-  if (link.diffs.includes('admin')) diff.push(`Admin: ${x.admin ? 'ja' : 'nej'} i DOPS`);
-  if (link.diffs.includes('studierektor')) diff.push(`Studierektor: ${x.director ? 'ja' : 'nej'} i DOPS`);
-  if ((u.jobRole || '') !== (x.jobRole || '')) diff.push(`Yrkesroll i DOPS: ${esc(x.jobRole || '–')}`);
-  return `<h3>DOPS</h3>
-    <div class="role-info"><strong>Kopplat till</strong><small>${esc(x.name)} · ${esc(x.email || 'ingen e-post')}</small></div>
-    <label class="role-row"><span><strong>Användarroll i DOPS</strong><small>Blandbild registrerar och tar emot, Registrerare bara registrerar, Mottagare bara tar emot.</small></span>
-      <select id="up-dopsrole" data-dops="${esc(x.id)}" style="max-width:140px">${['Blandbild', 'Registrerare', 'Mottagare'].map(r => `<option${r === x.userRole ? ' selected' : ''}>${r}</option>`).join('')}</select></label>
-    ${diff.length ? `<p class="hint">Skiljer sig i DOPS-appen: ${diff.join(' · ')}. Förs över när ST-Lotsen får skriva i DOPS-appens databas.</p>` : ''}`;
+  const d = _admin.dopsUsers, role = _admin.dopsRoles?.[u.id] || 'Blandbild';
+  const roleRowHtml = `<label class="role-row"><span><strong>Användarroll i DOPS</strong><small>Blandbild registrerar och tar emot, Registrerare bara registrerar, Mottagare bara tar emot.</small></span>
+      <select id="up-dopsrole" data-user="${esc(u.id)}" style="max-width:140px">${['Blandbild', 'Registrerare', 'Mottagare'].map(r => `<option${r === role ? ' selected' : ''}>${r}</option>`).join('')}</select></label>`;
+  let link = '';
+  if (d && !d.error) {
+    const l = d.linked.find(x => x.user.id === u.id), sugg = d.suggestions.find(x => x.user.id === u.id);
+    link = !l ? `<p class="hint">Inte kopplat till något konto i DOPS-appen.${sugg ? ` Förslag: <strong>${esc(sugg.dops.name)}</strong> (${sugg.by === 'email' ? 'samma e-post' : 'samma namn'}).` : ''} Koppla i listan <em>DOPS-konton</em> på sidan Användare för att få med personens bedömningar därifrån.</p>`
+      : !l.dops ? '<p class="err">Kopplat konto i DOPS-appen finns inte längre.</p>'
+      : `<div class="role-info"><strong>Kopplat till DOPS-appen</strong><small>${esc(l.dops.name)} · ${esc(l.dops.email || 'ingen e-post')}</small></div>`;
+  }
+  return `<h3>DOPS</h3>${roleRowHtml}${link}`;
 }
 
 function drawUserPanel() {
@@ -418,7 +415,7 @@ function drawUserPanel() {
     }
     if (e.target.id === 'up-tpl') panelAction(() => api('/admin/users/' + encodeURIComponent(_admin.panel.id), { method: 'PATCH', body: { todayTemplate: e.target.value || null } }), 'Mallen är sparad.');
     if (e.target.id === 'up-jobrole') panelAction(() => api('/admin/users/' + encodeURIComponent(_admin.panel.id), { method: 'PATCH', body: { jobRole: e.target.value } }), 'Yrkesrollen är sparad.');
-    if (e.target.id === 'up-dopsrole') panelAction(() => api('/dops/app/users/' + encodeURIComponent(e.target.dataset.dops), { method: 'PATCH', body: { userRole: e.target.value } }), 'Sparat i DOPS.');
+    if (e.target.id === 'up-dopsrole') panelAction(async () => { await api('/dops/people/' + encodeURIComponent(e.target.dataset.user) + '/role', { method: 'PUT', body: { userRole: e.target.value } }); (_admin.dopsRoles ||= {})[e.target.dataset.user] = e.target.value; }, 'Sparat.');
     if (e.target.name === 'mg-keep') { _admin.panel.keep = e.target.value; drawUserPanel(); }
   });
   document.body.appendChild(root);
@@ -779,12 +776,12 @@ const MODULE_INFO = [
   ['mal', 'ST-utbildning', 'Måluppfyllelse, individuella utbildningsplaner, krav per ST-år och delmål. Status hämtas ur veckoschemat och det som anges för hand.'],
   ['handledning', 'Handledning', 'Handledningstillfällen med anteckningar (gemensam för ST-läkaren och handledaren, och var sin egen som bara skribenten ser), status mot klinikens intervall och specialistkollegium (ur DOPS).'],
   ['utbildning', 'Utbildningsmaterial', 'Klinikens länksamling med utbildningsmaterial (artiklar, videor, kurser) i områden. Admin redigerar; alla kan föreslå ändringar som admin godkänner.'],
-  ['dops', 'DOPS', 'Bedömningar (DOPS, Mini-CEX m.fl.): fliken DOPS med progress, och kopplingen av klinikens konton (Inställningar → Användare). Under parallellkörningen läses DOPS-appens databas; registrering slås på senare.']
+  ['dops', 'DOPS', 'Bedömningar (DOPS, Mini-CEX m.fl.): registrera, förfrågningar, progress, statistik, formulär. Sparas i ST-Lotsen; bedömningar från DOPS-appen (moradops.se) läses in för kliniker som är kopplade dit (global admin, Inställningar → System).']
 ];
 
 function moduleCard() {
   const on = _admin.me.clinicModules || _admin.me.modules || ['opjour'];
-  const shown = MODULE_INFO.filter(([id]) => id !== 'dops' || _admin.me.dopsLinked || on.includes('dops'));   // bara kliniker kopplade till DOPS
+  const shown = MODULE_INFO;   // DOPS kräver inte längre koppling till DOPS-appen (0.54.0)
   return `<div class="card">
       <h2>Moduler</h2>
       <p class="muted" style="margin:0 0 6px">Vilka delar av ST-Lotsen kliniken använder. Minst en måste vara påslagen.</p>
@@ -840,8 +837,35 @@ async function setClientErrorResolved(id, resolved) {
   catch (err) { const b = el('er-status'); b.textContent = err.message; b.className = 'status err'; }
 }
 
-// ── DOPS-anslutningen (endast global admin, dops_plan.md fas 1) ──
-// Visar att ST-Lotsen når DOPS databas och att rollen bara kan läsa. Inget i DOPS ändras härifrån.
+// ── DOPS-anslutningen (endast global admin, dops_plan.md fas 1 och §0) ──
+// Visar att ST-Lotsen når DOPS-appens databas och att rollen bara kan läsa, och inläsningen därifrån (0.54.0). Inget i DOPS-appen ändras härifrån.
+const DOPS_IMPORT_NAMES = { clinics: 'kliniker', users: 'personer', form_types: 'formulär', form_questions: 'frågor', assessments: 'bedömningar',
+  requests: 'förfrågningar', ai_summaries: 'AI-sammanställningar', ai_followups: 'följdfrågor', competition_rounds: 'tävlingsomgångar', documents: 'dokument',
+  usage_events: 'användningshändelser' };
+function dopsImportBlock() {
+  const st = _admin.dopsImport;
+  if (!st?.configured) return '';
+  const sum = c => Object.entries(c || {}).filter(([k, v]) => DOPS_IMPORT_NAMES[k] && (v.nya || v.andrade || v.borttagna))
+    .map(([k, v]) => `${DOPS_IMPORT_NAMES[k]} ${[v.nya && `+${v.nya}`, v.andrade && `${v.andrade} ändrade`, v.borttagna && `−${v.borttagna}`].filter(Boolean).join(', ')}`).join(' · ');
+  const last = st.last, ok = st.lastOk;
+  return `<h3 style="margin:14px 0 4px">Inläsning till ST-Lotsen</h3>
+    <p class="hint" style="margin-top:0">Bedömningar, formulär och personer läses in från DOPS-appen var tionde minut när någon använder DOPS i ST-Lotsen
+      (DEMO-kliniken utesluts). Allt som görs i ST-Lotsen sparas här; DOPS-appens databas ändras aldrig.</p>
+    ${last && !last.ok ? `<p class="err" style="margin:0 0 6px">Senaste inläsningen misslyckades ${esc(fmtTime(last.at))}: ${esc(last.error || '')}</p>` : ''}
+    <p style="margin:0 0 6px">${ok ? `Senast inläst ${esc(fmtTime(ok.at))}${sum(ok.counts) ? ': ' + esc(sum(ok.counts)) : ' — inga ändringar'}.` : 'Inte inläst än.'}</p>
+    <div class="row"><button class="btn-ghost" id="dops-import-now" onclick="dopsImportNow(this)">Hämta nu</button></div>`;
+}
+async function dopsImportNow(btn) {
+  btn.disabled = true; btn.textContent = 'Hämtar…';
+  try {
+    const r = await api('/dops/import', { method: 'POST', body: { force: true } });
+    if (r.ok === false) toast('Inläsningen misslyckades: ' + r.error, 'err');
+    else if (r.skipped === 'running') toast('En inläsning pågår redan.');
+    else toast('Inläst från DOPS-appen.');
+  } catch (err) { toast(err.message, 'err'); }
+  _admin.dopsImport = await api('/dops/import').catch(() => _admin.dopsImport);
+  drawAdmin(el('view'));
+}
 function dopsCard() {
   const d = _admin.dops, s = d.safety || {};
   const safe = s.readOnly && !s.pinHashReadable && !s.canWriteUsers;
@@ -852,16 +876,18 @@ function dopsCard() {
         : '<strong class="err">Varning: rollen har fler rättigheter än planen säger' + (s.readOnly ? '' : ' (inte skrivskyddad)') + (s.pinHashReadable ? ' (kan läsa pin_hash)' : '') + (s.canWriteUsers ? ' (kan skriva i users)' : '') + '.</strong>'}</p>
       ${d.clinics.map(c => `<div class="pass-card"><span><strong>${esc(c.name)}</strong> <span class="muted">· ${c.active} aktiva${c.demo ? ' · demo' : ''}</span></span></div>`).join('')}
       <h3 style="margin:14px 0 4px">Klinikkoppling</h3>
-      <p class="hint" style="margin-top:0">Vilken DOPS-klinik varje ST-Lotsen-klinik motsvarar. Därefter kan klinikens admin slå på modulen DOPS och koppla ihop kontona.</p>
+      <p class="hint" style="margin-top:0">Vilken klinik i DOPS-appen varje ST-Lotsen-klinik motsvarar: dess bedömningar och inställningar läses in till kliniken.
+        En klinik utan koppling har en egen bedömningsdel i ST-Lotsen. Kopplas den senare följer det som gjorts med.</p>
       ${(d.lotsenClinics || []).map(lc => `<div class="pass-card"><strong>${esc(lc.name)}</strong>
         <select data-dops-clinic="${esc(lc.id)}" onchange="saveDopsClinic(this)" style="max-width:220px">
           <option value="">Ingen koppling</option>
           ${d.clinics.map(c => `<option value="${esc(c.id)}"${c.id === lc.dopsClinicId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}
         </select></div>`).join('')}
+      ${dopsImportBlock()}
       <div class="status" id="dops-status"></div>`;
   return `<div class="card">
       <h2>DOPS</h2>
-      <p class="hint" style="margin-top:0">Läsanslutning till DOPS databas under parallellkörningen. DOPS ändras inte.</p>
+      <p class="hint" style="margin-top:0">Läsanslutning till DOPS-appens databas (moradops.se) under övergången. DOPS-appen ändras inte.</p>
       ${body}
     </div>`;
 }
@@ -871,7 +897,7 @@ async function saveDopsClinic(sel) {
     await api('/dops/clinics/' + encodeURIComponent(sel.dataset.dopsClinic), { method: 'PUT', body: { dopsClinicId: sel.value || null } });
     _admin.dops = await api('/dops/status');
     await reloadAdmin();
-    toast(sel.value ? 'Kliniken är kopplad till DOPS.' : 'Kopplingen är borttagen och modulen avslagen.');
+    toast(sel.value ? 'Kliniken är kopplad till DOPS-appen.' : 'Kopplingen är borttagen. Inlästa data ligger kvar; nya läses inte in.');
   } catch (err) { toast(err.message, 'err'); _admin.dops = await api('/dops/status').catch(() => _admin.dops); drawAdmin(el('view')); }
 }
 
@@ -890,7 +916,8 @@ async function setDopsAll(on) {
   drawAdmin(el('view'));
 }
 async function loadDopsUsers() {
-  _admin.dopsUsers = await api('/dops/users' + dopsQ()).catch(err => ({ error: err.message }));
+  [_admin.dopsUsers, _admin.dopsRoles] = await Promise.all([api('/dops/users' + dopsQ()).catch(err => ({ error: err.message })),
+    api('/dops/people/roles').then(r => r.roles).catch(() => ({}))]);
 }
 function dopsScopeBar() {
   if (!_admin.me?.isGlobalAdmin) return '';

@@ -3,7 +3,7 @@
 //
 // Som DOPS-appens bedömningsformulär och inkorg, mot DOPS-appens backend under /dops/app. Formuläret visar ett avsnitt i taget;
 // "Fortsätt" går till avsnittets nästa avsnitt, eller dit en hoppregel pekar ("Assistent→Feedback", "<=:2→Stöd", flera med komma).
-// Att skicka bedömningen och förfrågningar skriver i DOPS-appens databas: låst tills skrivrätt ges (servern svarar 423, visas som besked).
+// Bedömningen och förfrågningar sparas i ST-Lotsens egen bedömningsdatabas (0.54.0, dops_plan.md §0). Inga mejl skickas än.
 
 let _dreg = null;
 
@@ -159,7 +159,7 @@ function drawDregSection(root) {
 
 // ── Inkorg ────────────────────────────────────────────────────────────────
 // Förfrågningar till mig (be om bedömning) och mina skickade. "Bedöm nu" öppnar formuläret ifyllt; markera läst/utförd och ny
-// förfrågan skriver i DOPS-appens databas (låst tills vidare).
+// förfrågan sparas i ST-Lotsen (utan mejl). Förfrågningar från DOPS-appen markeras bara här.
 async function renderDopsInbox(root) {
   try {
     await dopsStart(root);

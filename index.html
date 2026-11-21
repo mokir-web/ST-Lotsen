@@ -1039,7 +1039,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.53.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.54.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1412,7 +1412,7 @@
       else if (h === '#/bedomningar') return location.replace('#/dops/progress');   // gammal adress (0.33.0)
       else if (h === '#/dops') return renderDopsOverview(root);
       else if (h === '#/dops/mina') return renderDopsMine(root);
-      else if (h === '#/dops/registrera') return renderDopsRegister(root);
+      else if (h === '#/dops/registrera') { const pre = window._dregPrefill; window._dregPrefill = null; return renderDopsRegister(root, pre); }   // förifyllt från t.ex. specialistkollegium
       else if (h === '#/dops/inkorg') return renderDopsInbox(root);
       else if (h === '#/dops/progress') return renderBedomningar(root);
       else if (h === '#/dops/kliniken') return renderDopsClinic(root);

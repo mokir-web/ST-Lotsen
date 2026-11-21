@@ -4,14 +4,23 @@
 //
 // Sidorna motsvarar DOPS-appens Min översikt, Mina bedömningar och Klinikens bedömningar (dops/js/overview.js, my-assessments.js,
 // clinic-assessments.js i DOPS-appen) och läser samma data via DOPS-appens kopierade backend under /dops/app — samma regler.
-// Det som skriver (dölja formulärtyp, ta bort bedömning) är låst tills skrivrätt ges: servern svarar 423 och det visas som besked.
+// Allt sparas i ST-Lotsens egen bedömningsdatabas (0.54.0). Det som lästs in från DOPS-appen är låst: servern svarar 423, visas som besked.
 
 let _dme = null;   // det kopplade DOPS-kontot (/dops/app/me), hämtas en gång per sidvisning
 const dopsApi = (path, opts) => api('/dops/app' + path, opts);
 const dopsPriv = me => (me.privileges || []).some(p => p.privilege === 'Studierektor' || p.privilege === 'Administratör');
 
+// Inläsning från DOPS-appen (0.54.0): när bedömningsdelen öppnas ber webbläsaren om en inläsning i bakgrunden. Servern gör den bara om
+// den senaste är äldre än 10 minuter. Högst en förfrågan per 5 minuter och flik; svaret används inte (nästa visning har det nya).
+let _dopsImportAt = 0;
+function dopsImportTick() {
+  if (Date.now() - _dopsImportAt < 5 * 60e3) return;
+  _dopsImportAt = Date.now();
+  api('/dops/import', { method: 'POST', body: {} }).catch(() => {});
+}
 async function dopsStart(root, title) {
   root.innerHTML = '<p class="muted">Laddar…</p>';
+  dopsImportTick();
   const [me, dme] = await Promise.all([api('/me'), dopsApi('/me')]);
   setMenuForUser(me);
   _dme = dme;
@@ -39,7 +48,7 @@ function dopsNav(dme) {
   dopsCompetitionNav(dme);
 }
 const dopsFail = (root, title, err) => { root.innerHTML = `<h1 class="page">${title}</h1><p class="err">${esc(err.message)}</p>`; };
-// Låst (423) och andra fel visas som besked; inget ändras.
+// Låst (423, inläst från DOPS-appen) och andra fel visas som besked; inget ändras.
 async function dopsWrite(fn, okMsg) {
   try { await fn(); if (okMsg) toast(okMsg); return true; }
   catch (err) { toast(err.message, 'err'); return false; }
@@ -179,7 +188,7 @@ function dovSvgChart(title, byDayFt, start, colorOf) {
 }
 
 // ── Mina bedömningar ──────────────────────────────────────────────────────
-// Mottagna och skickade, filter på datum och formulärtyp. Ta bort egen skickad bedömning är låst tills skrivrätt ges.
+// Mottagna och skickade, filter på datum och formulärtyp. Ta bort egen skickad bedömning går för dem som gjorts i ST-Lotsen.
 let _dmi = null;
 
 async function renderDopsMine(root) {

@@ -11,6 +11,7 @@ const bedDate = iso => new Date(iso).toLocaleDateString('sv-SE');
 
 async function renderBedomningar(root) {
   root.innerHTML = '<p class="muted">Laddar…</p>';
+  dopsImportTick();
   try {
     const [me, people] = await Promise.all([api('/me'), api('/dops/assessments/people')]);
     setMenuForUser(me);
