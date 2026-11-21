@@ -29,7 +29,7 @@ async function renderAdmin(root, mode = 'users') {
     if (mode === 'users' && !me.isAdmin && me.isDirector) { renderStSettings(root, 'personer', 'users'); return; }   // studierektor: ST-läkare och handledare
     if (!me.isAdmin || (['system', 'errors'].includes(mode) && !me.isGlobalAdmin)) { location.hash = '#/installningar/konto'; return; }
     _admin = { me, mode, draw: drawAdmin, open: new Set(), filter: 'alla', q: '', panel: null, notice: null, pin: randomPin(), userTouched: false, plan: null, clinics: null, clinicUserTouched: false,
-      clinicOpen: mode === 'system' && !!window._openNewClinic };   // ＋ Ny klinik… i headerns klinikväljare
+      clinicOpen: mode === 'system' && !!window._openNewClinic };   // ＋ Ny klinik… på sidan Välj klinik
     window._openNewClinic = false;
     if (mode === 'system' || (mode === 'clinic' && me.isGlobalAdmin)) _admin.clinics = (await api('/admin/clinics')).clinics;
     if (mode === 'clinic') _admin.retention = await api('/admin/retention').catch(err => ({ error: err.message }));
@@ -919,7 +919,7 @@ async function saveDopsClinic(sel) {
 const DOPS_DIFF = { namn: 'Namn skiljer', epost: 'E-post skiljer', admin: 'Admin skiljer', studierektor: 'Studierektor skiljer',
   aktiv: 'Aktiv/inaktiv skiljer', klinik: 'Annan klinik i DOPS', saknas: 'Finns inte i DOPS' };
 
-// 0.55.0: läget Alla kliniker är borttaget — kliniken styrs bara av väljaren i headern. Global admin kan i stället välja konton på andra
+// 0.55.0: läget Alla kliniker är borttaget — kliniken styrs bara av Välj klinik (Inställningar). Global admin kan i stället välja konton på andra
 // kliniker i DOPS-appen för hand (otherDops).
 function dopsAll() { return false; }
 const dopsQ = () => dopsAll() ? '?all=1' : '';
@@ -1043,7 +1043,7 @@ function clinicCard() {
   return `<div class="card">
       <h2>Kliniker</h2>
       <p class="hint" style="margin-top:0">Du är global admin och kan lägga upp, byta namn på och radera kliniker.
-        Välj klinik i headern (eller <strong>Arbeta här</strong>) för att se hela ST-Lotsen som admin på kliniken: användare, bedömningar och alla inställningar. En klinik med ett globalt adminkonto kan inte raderas.</p>
+        Välj klinik under Inställningar → <strong>Välj klinik</strong> (eller <strong>Arbeta här</strong>) för att se hela ST-Lotsen som admin på kliniken: användare, bedömningar och alla inställningar. En klinik med ett globalt adminkonto kan inte raderas.</p>
       ${rows}
       <details style="margin-top:12px"${_admin.clinicOpen ? ' open' : ''} ontoggle="_admin.clinicOpen=this.open">
         <summary style="cursor:pointer;font-weight:bold">Ny klinik</summary>

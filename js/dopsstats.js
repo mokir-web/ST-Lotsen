@@ -11,7 +11,7 @@ const dopsDur = s => { s = Math.round(s); return s >= 60 ? `${Math.floor(s / 60)
 const dopsAdmin = me => (me.privileges || []).some(p => p.privilege === 'Administratör');
 const dopsPrivClinics = me => (me.privileges || []).filter(p => ['Studierektor', 'Administratör'].includes(p.privilege)).map(p => p.klinikId);
 
-// Kliniken styrs bara av väljaren i headern (0.55.0); sidorna visar den klinik man arbetar i (_dme.klinikId).
+// Kliniken är den man arbetar i (global admin: Inställningar → Välj klinik); sidorna visar den klinik man arbetar i (_dme.klinikId).
 async function dopsClinicChoice() { return ''; }
 
 // ── Statistik ─────────────────────────────────────────────────────────────
@@ -20,12 +20,8 @@ let _dst = null;
 async function renderDopsStats(root) {
   try {
     await dopsStart(root);
-    // Kvartalstävlingen ligger överst (0.55.0, tidigare egen sida). Utan Studierektor/Administratör visas bara den.
-    if (!dopsPriv(_dme)) {
-      root.innerHTML = '<h1 class="page">Statistik</h1><div id="dst-comp"><p class="muted">Laddar…</p></div>';
-      _dcp = { klinik: _dme.klinikId };
-      return loadDopsCompetition(el('dst-comp'));
-    }
+    // Kvartalstävlingen ligger överst (0.55.0). Alla ser klinikens statistik (0.58.0); delarna med personuppgifter (måluppfyllelse,
+    // utan bedömning, spridning, förfrågningar, tidsåtgång, fritext) skickar servern bara till studierektor och admin.
     _dst = { klinik: _dme.klinikId, from: '', to: '', types: new Set(), showFilter: false, idleWeeks: 8, idleSpec: false };
     await loadDopsStats(root);
   } catch (err) { dopsFail(root, 'Statistik', err); }
@@ -34,9 +30,10 @@ async function renderDopsStats(root) {
 async function loadDopsStats(root) {
   const d = _dst;
   const q = new URLSearchParams({ clinicId: d.klinik, dateFrom: d.from, dateTo: d.to });
+  const priv = dopsPriv(_dme);
   [d.stats, d.trainees, d.requests, d.choice] = await Promise.all([
-    dopsApi('/statistics?' + q), dopsApi('/statistics/trainees?' + q).catch(() => null),
-    dopsApi('/requests/stats?clinicId=' + encodeURIComponent(d.klinik)).catch(() => null), dopsClinicChoice(d)
+    dopsApi('/statistics?' + q), priv ? dopsApi('/statistics/trainees?' + q).catch(() => null) : null,
+    priv ? dopsApi('/requests/stats?clinicId=' + encodeURIComponent(d.klinik)).catch(() => null) : null, dopsClinicChoice(d)
   ]);
   drawDopsStats(root);
 }

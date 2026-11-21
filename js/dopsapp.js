@@ -27,21 +27,13 @@ async function dopsStart(root, title) {
   dopsNav(dme);
   return me;
 }
-// Statistik (med tävlingen överst) visas för Studierektor/Administratör, och för övriga när en tävlingsomgång pågår. Svaret sparas för sessionen.
-let _dopsCompetitionOn = null;
-async function dopsCompetitionNav(dme) {
-  const nav = el('nav-dops-statistik');
-  if (!nav) return;
-  if (dopsPriv(dme)) { nav.classList.remove('hidden'); return; }
-  if (_dopsCompetitionOn === null) {
-    try { _dopsCompetitionOn = !!(await dopsApi('/competition?clinicId=' + encodeURIComponent(dme.klinikId))).current; } catch { _dopsCompetitionOn = false; }
-  }
-  nav.classList.toggle('hidden', !_dopsCompetitionOn);
-  fitSubnav();
-}
-// Undersidor som beror på behörigheten i DOPS (Studierektor/Administratör).
+// Undersidor som beror på behörigheten (studierektor/admin) och användarrollen. Statistik (med tävlingen överst) ser alla sedan 0.58.0;
+// personuppgifterna där (måluppfyllelse per person, förfrågningar m.m.) bara studierektor och admin. Progress gäller den som tar emot
+// bedömningar, så Registrerare ser den inte.
+function dopsCompetitionNav() { el('nav-dops-statistik')?.classList.remove('hidden'); }
 function dopsNav(dme) {
   el('nav-dops-registrera')?.classList.toggle('hidden', dme.userRole === 'Mottagare');
+  el('nav-dops-progress')?.classList.toggle('hidden', dme.userRole === 'Registrerare');
   el('nav-dops-kliniken')?.classList.toggle('hidden', !dopsPriv(dme));
   el('nav-dops-installningar')?.classList.toggle('hidden', !dopsPriv(dme));
   dopsCompetitionNav(dme);
@@ -277,7 +269,7 @@ async function renderDopsClinic(root) {
   try {
     await dopsStart(root);
     if (!dopsPriv(_dme)) { root.innerHTML = '<h1 class="page">Klinikens bedömningar</h1><p class="muted">Kräver Studierektor eller Administratör i DOPS.</p>'; return; }
-    _dco = { klinik: _dme.klinikId,   // kliniken styrs av väljaren i headern (0.55.0)
+    _dco = { klinik: _dme.klinikId,   // kliniken man arbetar i (Välj klinik för global admin)
       from: '', to: '', category: '', recipient: '', types: new Set(), list: [], showFilter: false };
     await loadDopsClinic(root);
   } catch (err) { dopsFail(root, 'Klinikens bedömningar', err); }

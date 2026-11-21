@@ -252,6 +252,16 @@ function twPlace(shown) {
   for (const c of rest) { Object.assign(c, twFirstFree(twOccupied(placed), c.w, c.h)); placed.push(c); }
 }
 const twReading = cards => [...cards].sort((a, b) => a.y - b.y || a.x - b.x);
+// Visning (0.58.0): kort i mallen som inte gäller personen (t.ex. I tjänst för den som inte är studierektor) döljs. Då flyttas korten
+// under uppåt så långt det går, i läsordning, så att det inte blir tomma luckor. Bara vid visning; redigeringen visar mallen som den är.
+function twCompact(cards) {
+  const placed = [];
+  for (const c of twReading(cards)) {
+    const occ = twOccupied(placed);
+    while (c.y > 0 && twFits(occ, c.x, c.y - 1, c.w, c.h)) c.y--;
+    placed.push(c);
+  }
+}
 const twPx = h => Math.round(h * (645 / TW_COLS) + (h - 1) * TW_GAP);   // smal skärm: kortets största höjd
 
 function drawToday(root, d) {
@@ -321,7 +331,11 @@ function drawTw(depth = 0) {
     : 'Du anpassar startsidan för telefon; datorn har en egen. Dra i ⠿ för att flytta kortet i ordningen. Korten är alltid i full bredd och visar som standard hela innehållet (höjden ställer du in under ⚙). Tryck Klar för att spara.');
   const shown = [], hidden = [];
   for (const c of layout) { const r = twRender(c); if (r) (c.on ? shown : hidden).push([c, r]); }
-  if (placed) twPlace(shown.map(([c]) => c));
+  if (placed) {
+    twPlace(shown.map(([c]) => c));
+    const ids = new Set(shown.map(([c]) => c.id));
+    if (!edit && layout.some(c => c.on && !ids.has(c.id))) twCompact(shown.map(([c]) => c));
+  }
   const order = shown;   // telefon: listans ordning
   const grid = el('tw-grid');
   grid.classList.toggle('editing', edit);
