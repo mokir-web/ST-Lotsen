@@ -50,13 +50,23 @@ async function reloadAdmin() {
   (_admin.draw || drawAdmin)(el('view'));
 }
 
+// Yrkesroll för alla (0.55.0), roller och varningar för det som saknas (gula lappar): ST-läkare utan handledare eller ST-start,
+// och konton utan e-post (behövs för inloggning med e-post och som mottagare i DOPS).
+const JOB_LABEL = { ST: 'ST', BT: 'BT', AT: 'AT', Spec: 'Specialist', Annan: 'Annan' };
 function adminChips(u) {
+  const stDone = u.isSt && u.stEnd && String(u.stEnd).slice(0, 10) <= todayStockholm();
+  const job = u.isSt ? 'ST' : u.jobRole;
+  const warn = t => `<span class="tagchip warn">${t}</span>`;
+  const active = u.active && !u.isDisplay;
   return [
     u.isDisplay ? '<span class="tagchip admin">Visning</span>' : '',
     u.isGlobalAdmin ? '<span class="tagchip admin">Global admin</span>' : '',
     u.isAdmin && !u.isGlobalAdmin ? '<span class="tagchip admin">Admin</span>' : '',
     u.isDirector ? '<span class="tagchip">Studierektor</span>' : '',
-    u.isSt ? `<span class="tagchip">ST${u.stEnd && String(u.stEnd).slice(0, 10) <= todayStockholm() ? ' klar' : ''}</span>` : '',
+    job && JOB_LABEL[job] ? `<span class="tagchip">${JOB_LABEL[job]}${stDone ? ' klar' : ''}</span>` : '',
+    active && u.isSt && !stDone && !(u.supervisorIds || []).length ? warn('Ingen handledare') : '',
+    active && u.isSt && !stDone && !u.stStart ? warn('Inget startdatum') : '',
+    active && !u.email ? warn('Ingen e-post') : '',
     !u.isDisplay && !u.isAdmin && u.canSeeStats ? '<span class="tagchip">Statistik</span>' : '',
     !u.active ? '<span class="tagchip off">Inaktiv</span>' : '',
     u.active && u.availableReserve && !u.isDisplay ? '<span class="tagchip">Reserv</span>' : ''
@@ -906,31 +916,17 @@ async function saveDopsClinic(sel) {
 const DOPS_DIFF = { namn: 'Namn skiljer', epost: 'E-post skiljer', admin: 'Admin skiljer', studierektor: 'Studierektor skiljer',
   aktiv: 'Aktiv/inaktiv skiljer', klinik: 'Annan klinik i DOPS', saknas: 'Finns inte i DOPS' };
 
-// Global admin kan visa alla klinikers konton i kopplingen (båda systemen), t.ex. när kliniken skiljer mellan dem.
-// Valet sparas i webbläsaren.
-function dopsAll() { try { return !!_admin.me?.isGlobalAdmin && localStorage.getItem('dopsLinkAll') === '1'; } catch { return false; } }
+// 0.55.0: läget Alla kliniker är borttaget — kliniken styrs bara av väljaren i headern. Global admin kan i stället välja konton på andra
+// kliniker i DOPS-appen för hand (otherDops).
+function dopsAll() { return false; }
 const dopsQ = () => dopsAll() ? '?all=1' : '';
-async function setDopsAll(on) {
-  try { localStorage.setItem('dopsLinkAll', on ? '1' : '0'); } catch {}
-  await loadDopsUsers();
-  drawAdmin(el('view'));
-}
 async function loadDopsUsers() {
   [_admin.dopsUsers, _admin.dopsRoles] = await Promise.all([api('/dops/users' + dopsQ()).catch(err => ({ error: err.message })),
     api('/dops/people/roles').then(r => r.roles).catch(() => ({}))]);
 }
-function dopsScopeBar() {
-  if (!_admin.me?.isGlobalAdmin) return '';
-  const all = dopsAll();
-  return `<div class="row" style="gap:6px;margin:0 0 10px;flex-wrap:wrap" role="group" aria-label="Visa konton">
-      <button class="${all ? 'btn-ghost' : 'btn'}" id="dops-scope-clinic" onclick="setDopsAll(false)">Den här kliniken</button>
-      <button class="${all ? 'btn' : 'btn-ghost'}" id="dops-scope-all" onclick="setDopsAll(true)">Alla kliniker</button>
-      <span class="muted" style="font-size:13px;align-self:center">Bara global admin</span></div>`;
-}
-
 function dopsUsersCard() {
   const d = _admin.dopsUsers;
-  if (d.error) return `<div class="card"><h2>DOPS-konton</h2>${dopsScopeBar()}<p class="err" style="margin:0">${esc(d.error)}</p></div>`;
+  if (d.error) return `<div class="card"><h2>DOPS-konton</h2><p class="err" style="margin:0">${esc(d.error)}</p></div>`;
   const all = !!d.all;
   const where = c => all ? ` · <em>${esc(c || 'okänd klinik')}</em>` : '';
   const who = u => `<strong>${esc(u.displayName)}</strong> <span class="muted">${esc(u.username)}${u.email ? ' · ' + esc(u.email) : ' · ingen e-post'}${u.active ? '' : ' · inaktiv'}${where(u.clinicName)}</span>`;
@@ -952,7 +948,13 @@ function dopsUsersCard() {
     for (const x of d.onlyDops) { const k = x.clinicName || 'Okänd klinik'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x); }
     opts = [...groups].sort((a, b) => a[0].localeCompare(b[0], 'sv')).map(([k, xs]) => `<optgroup label="${esc(k)}">${xs.map(opt).join('')}</optgroup>`).join('');
   }
-  const onlyL = d.onlyLotsen.map(u => row(who(u), '', d.onlyDops.length
+  if (!all && (d.otherDops || []).length) {   // global admin: konton på andra kliniker i DOPS-appen
+    const groups = new Map();
+    for (const x of d.otherDops) { const k = x.clinicName || 'Okänd klinik'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x); }
+    opts = (opts ? `<optgroup label="${esc(d.clinicName)}">${opts}</optgroup>` : '')
+      + [...groups].sort((a, b) => a[0].localeCompare(b[0], 'sv')).map(([k, xs]) => `<optgroup label="Annan klinik: ${esc(k)}">${xs.map(opt).join('')}</optgroup>`).join('');
+  }
+  const onlyL = d.onlyLotsen.map(u => row(who(u), '', opts
     ? `<select id="dp-${esc(u.id)}" style="max-width:220px"><option value="">Välj DOPS-konto…</option>${opts}</select>${btn('Koppla', `dopsLinkPick('${u.id}')`)}`
     : '<span class="muted">Inga okopplade DOPS-konton</span>')).join('');
   const onlyD = d.onlyDops.map(x => all ? row(them(x), '', '') : row(`<label style="display:flex;gap:8px;align-items:flex-start;margin:0;font-weight:normal"><input type="checkbox" data-dops-new="${esc(x.id)}" style="margin-top:4px">${'<span>' + them(x) + '</span>'}</label>`, '',
@@ -962,10 +964,9 @@ function dopsUsersCard() {
 
   return `<div class="card">
       <h2>DOPS-konton</h2>
-      ${dopsScopeBar()}
       <p class="hint" style="margin-top:0">${all
         ? 'Visar alla klinikers konton i båda systemen. Förslag och val för hand gäller oavsett klinik; kliniken visas vid varje konto och <em>Annan klinik i DOPS</em> markerar när den skiljer sig från den kopplade DOPS-kliniken.'
-        : `Kopplar klinikens ST-Lotsen-konton till kontona i DOPS (${esc(d.clinicName)}).`} DOPS är källan för namn och e-post och ändras inte härifrån. Inloggningen i ST-Lotsen påverkas inte.</p>
+        : `Kopplar klinikens ST-Lotsen-konton till kontona i DOPS-appen (${esc(d.clinicName)}), så att deras bedömningar därifrån kommer med.`} DOPS-appen ändras inte härifrån. Inloggning och behörighet styrs av ST-Lotsen.${_admin.me?.isGlobalAdmin ? ' Som global admin kan du välja ett konto på en annan klinik i DOPS-appen för hand.' : ''}</p>
       ${sec('Förslag att godkänna', d.suggestions.length, sugg, d.suggestions.length > 0,
         emailSugg.length > 1 ? `<div class="row" style="margin:6px 0">${btn(`Koppla alla ${emailSugg.length} med samma e-post`, 'dopsLinkAllEmail()', false)}</div>` : '')}
       ${sec('Bara i ST-Lotsen', d.onlyLotsen.length, onlyL, d.suggestions.length === 0 && d.onlyLotsen.length > 0,
@@ -974,7 +975,7 @@ function dopsUsersCard() {
         all ? '<p class="hint">Har inget kopplat ST-Lotsen-konto. Konton skapas från läget <em>Den här kliniken</em> (de hamnar på den kliniken).</p>' : '<p class="hint">Har inget ST-Lotsen-konto. <strong>Skapa konto</strong> hämtar namn och e-post från DOPS, kopplar kontot och ger en tillfällig PIN som visas en gång. Kontot blir vanlig användare; roller sätts sedan under Användare. Personen kan logga in med användarnamnet eller e-postadressen.</p>'
         + (d.onlyDops.length > 1 && !all ? `<div class="row" style="margin:6px 0;gap:8px"><button class="btn-ghost" onclick="document.querySelectorAll('[data-dops-new]').forEach(c=>c.checked=true)">Markera alla</button>${btn('Skapa konton för markerade', 'dopsCreateChecked()', false)}</div>` : ''))}
       ${sec('Kopplade', d.linked.length, linked, false,
-        d.linked.some(x => x.diffs.length) ? '<p class="hint">Skillnader visas men rättas inte automatiskt. Namn och e-post kan hämtas från DOPS; roller och inaktivering ändras i respektive system.</p>' : '')}
+        d.linked.some(x => x.diffs.length) ? '<p class="hint">Skillnader visas men rättas inte automatiskt. Namn och e-post kan hämtas från DOPS-appen.</p>' : '')}
     </div>`;
 }
 

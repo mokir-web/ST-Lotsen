@@ -163,7 +163,8 @@ function drawDregSection(root) {
 async function renderDopsInbox(root) {
   try {
     await dopsStart(root);
-    const [r, ref] = await Promise.all([dopsApi('/requests'), dopsApi('/reference-data?clinicId=' + encodeURIComponent(_dme.klinikId))]);
+    const [r, ref, all] = await Promise.all([dopsApi('/requests'), dopsApi('/reference-data?clinicId=' + encodeURIComponent(_dme.klinikId)),
+      dopsPriv(_dme) ? dopsApi('/requests/clinic?clinicId=' + encodeURIComponent(_dme.klinikId)).catch(() => null) : null]);
     const status = q => q.status === 'done' ? 'Utförd' : q.status === 'expired' ? 'Inaktuell' : q.read ? 'Läst' : 'Ny';
     const item = (q, out) => `<div class="bed-free">
         <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><strong>${esc(out ? 'Till ' + (q.toName || q.to) : 'Från ' + (q.fromName || q.from))}</strong>
@@ -183,9 +184,15 @@ async function renderDopsInbox(root) {
       <div class="card"><h2 style="margin-top:0">Be om en bedömning</h2>
         <div class="field-row"><div><label for="dib-to" style="margin-top:0">Bedömare</label><select id="dib-to"><option value="">Välj…</option>${people.map(n => `<option>${esc(n)}</option>`).join('')}</select></div>
           <div><label for="dib-form" style="margin-top:0">Formulär</label><select id="dib-form"><option value="">Valfritt</option>${myForms.map(f => `<option>${esc(f)}</option>`).join('')}</select></div></div>
-        <label for="dib-msg">Meddelande</label><textarea id="dib-msg" rows="2" placeholder="T.ex. vilken operation det gäller"></textarea>
+        <label for="dib-msg">Meddelande</label><textarea id="dib-msg" rows="6" style="width:100%;box-sizing:border-box;min-height:140px;resize:vertical;font:inherit" placeholder="T.ex. vilken operation det gäller och när"></textarea>
         <div class="row" style="margin-top:10px"><button class="btn" id="dib-send">Skicka förfrågan</button></div></div>
-      <div class="card"><h2 style="margin-top:0">Skickade (${r.outbox.length})</h2>${r.outbox.map(q => item(q, true)).join('') || '<p class="muted" style="margin:0">Inga.</p>'}</div>`;
+      <div class="card"><h2 style="margin-top:0">Skickade (${r.outbox.length})</h2>${r.outbox.map(q => item(q, true)).join('') || '<p class="muted" style="margin:0">Inga.</p>'}</div>
+      ${all ? `<div class="card"><h2 style="margin-top:0">Aktiva förfrågningar på kliniken (${all.requests.length})</h2>
+        <p class="hint" style="margin-top:0">Alla förfrågningar som inte är utförda, för ${esc(_dme.clinic)}. Syns för studierektor och admin.</p>
+        ${all.requests.map(q => `<div class="bed-free"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px">
+            <strong>${esc(q.fromName || '?')} → ${esc(q.toName || '?')}</strong><span class="muted">${esc(q.timestamp)} · ${q.read ? 'Läst' : 'Ny'}${q.dueDate ? ' · senast ' + esc(q.dueDate) : ''}${q.source === 'dops' ? ' · från DOPS-appen' : ''}</span></div>
+          ${q.formType ? `<div>${esc(q.formType)}${q.subjectName && q.subjectName !== q.fromName ? ` · gäller ${esc(q.subjectName)}` : ''}</div>` : ''}
+          ${q.message ? `<p style="margin:4px 0;white-space:pre-wrap">${esc(q.message)}</p>` : ''}</div>`).join('') || '<p class="muted" style="margin:0">Inga aktiva förfrågningar.</p>'}</div>` : ''}`;
     const reload = () => renderDopsInbox(root);
     root.querySelectorAll('[data-read]').forEach(b => b.onclick = async () => { if (await dopsWrite(() => dopsApi('/requests/' + b.dataset.read + '/read', { method: 'PATCH' }))) reload(); });
     root.querySelectorAll('[data-done]').forEach(b => b.onclick = async () => { if (await dopsWrite(() => dopsApi('/requests/' + b.dataset.done + '/done', { method: 'PATCH' }), 'Markerad som utförd.')) reload(); });

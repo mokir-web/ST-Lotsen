@@ -42,8 +42,8 @@
     h2 { font-size: 19px; }
     button { font: inherit; cursor: pointer; }
     .hidden { display: none !important; }
-    /* Sidbyte som tar tid: förra sidan (#view-ghost) ligger kvar och en rad överst visar att den nya laddas. */
-    #view-ghost { z-index: 5; pointer-events: none; background: var(--bg, #eef1f3); }
+    /* Sidbyte (0.55.0): den nya sidan är tom med "Laddar…" tills den är ritad, och en rad överst visar att något pågår. */
+    .view-loading-msg { color: #6b7a86; padding: 8px 0; }
     body.view-loading::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 50; background: linear-gradient(90deg, transparent, #e8a35c, transparent);
       background-size: 50% 100%; background-repeat: no-repeat; animation: view-load 1s linear infinite; }
     @keyframes view-load { from { background-position: -50% 0; } to { background-position: 150% 0; } }
@@ -535,6 +535,7 @@
     .tagchip { display: inline-block; font-size: 11px; font-weight: bold; padding: 1px 8px; border-radius: 9px; background: #eef1f3; color: var(--ink-soft); border: 1px solid var(--line); }
     .tagchip.admin { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
     .tagchip.off { background: #f6e3df; color: var(--danger); border-color: #e3b3ab; }
+    .tagchip.warn { background: #fbf0d9; color: #8a5a12; border-color: #e6c98a; }
     .tagchip.ok { background: #d7ecdf; color: #1f5a3a; border-color: #9ccbad; } .tagchip.no { background: #f6e3df; color: var(--danger); border-color: #e3b3ab; }
     /* Utbildningsmaterial */
     .edu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
@@ -1000,9 +1001,8 @@
           <a href="#/dops/inkorg" data-route="#/dops/inkorg">Förfrågningar</a>
           <a href="#/dops/mina" data-route="#/dops/mina">Mina bedömningar</a>
           <a href="#/dops/progress" data-route="#/dops/progress">Progress</a>
-          <a href="#/dops/kliniken" data-route="#/dops/kliniken" id="nav-dops-kliniken" class="hidden">Kliniken</a>
+          <a href="#/dops/kliniken" data-route="#/dops/kliniken" id="nav-dops-kliniken" class="hidden">Klinikens bedömningar</a>
           <a href="#/dops/statistik" data-route="#/dops/statistik" id="nav-dops-statistik" class="hidden">Statistik</a>
-          <a href="#/dops/tavling" data-route="#/dops/tavling" id="nav-dops-tavling" class="hidden">Tävling</a>
         </div>
         <div data-world="hl" class="hidden">
           <div class="sn-title">Handledning</div>
@@ -1039,7 +1039,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.54.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.55.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1340,7 +1340,8 @@
 
     // Personlig vy: #/ (kalender), #/settings, #/admin. Visningsskärmen har ingen navigation.
     // silent = samma sida ritas om med nyare data (api-minnet): inga menyer stängs, ingen sidvisning räknas och rullningsläget behålls.
-    // Annars ligger en bild av den förra sidan kvar ovanpå tills den nya är ritad (bara om det tar tid, t.ex. kallstart).
+    // Annars töms sidan direkt och visar "Laddar…" tills den nya är ritad (0.55.0, i stället för en bild av den förra sidan). Finns svaren
+    // redan i minnet ritas sidan innan webbläsaren hinner visa texten, så snabba sidbyten blinkar inte.
     function route(arg) {
       if (state.scope !== 'user') return;
       const silent = arg?.silent === true, y = scrollY;
@@ -1356,30 +1357,23 @@
         if (typeof _ov !== 'undefined' && _ov) _ov.sheet = null;
         markNav(h);
         trackUsage('panel_view', usagePanel(h));
-        viewGhost(root);
+        viewLoading(root);
       }
       const done = Promise.resolve(renderRoute(h, root)).catch(() => {});
       if (silent) done.then(() => scrollTo(0, y));
-      else { window.scrollTo(0, 0); done.then(() => { if (location.hash === h) viewGhostOff(); }); }
+      else { window.scrollTo(0, 0); done.then(() => { if (location.hash === h) viewLoadingOff(); }); }
     }
 
-    // Bild av förra sidan (utan id:n och klick) som täcker den nya tills den är ritad, med en laddningsrad överst. Visas först efter
-    // 120 ms, så att snabba sidbyten (svaren finns redan i minnet) inte blinkar. Tas bort senast efter 12 s.
-    let _ghostTimer = 0;
-    function viewGhost(root) {
-      viewGhostOff();
-      if (!root.firstElementChild) return;
-      const g = root.cloneNode(true);
-      g.removeAttribute('id'); g.id = 'view-ghost';
-      g.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
-      g.setAttribute('aria-hidden', 'true'); g.inert = true;
-      const r = root.getBoundingClientRect();
-      Object.assign(g.style, { position: 'absolute', left: r.left + scrollX + 'px', top: r.top + scrollY + 'px', width: r.width + 'px', display: 'none' });
-      document.body.appendChild(g);
-      _ghostTimer = setTimeout(() => { const x = el('view-ghost'); if (x) { x.style.display = ''; document.body.classList.add('view-loading'); } }, 120);
-      setTimeout(() => viewGhostOff(), 12000);
+    // Tom sida med "Laddar…" och laddningsraden överst (efter 120 ms, så att den inte blinkar till vid snabba sidbyten). Tas bort när
+    // sidan är ritad, senast efter 12 s.
+    let _loadTimer = 0;
+    function viewLoading(root) {
+      viewLoadingOff();
+      root.innerHTML = '<p class="view-loading-msg" role="status">Laddar…</p>';
+      _loadTimer = setTimeout(() => document.body.classList.add('view-loading'), 120);
+      setTimeout(() => viewLoadingOff(), 12000);
     }
-    function viewGhostOff() { clearTimeout(_ghostTimer); el('view-ghost')?.remove(); document.body.classList.remove('view-loading'); }
+    function viewLoadingOff() { clearTimeout(_loadTimer); document.body.classList.remove('view-loading'); }
 
     function renderRoute(h, root) {
       // Gamla adresser till inställningarna (före 0.38.0) → modulen Inställningar.
@@ -1417,7 +1411,7 @@
       else if (h === '#/dops/progress') return renderBedomningar(root);
       else if (h === '#/dops/kliniken') return renderDopsClinic(root);
       else if (h === '#/dops/statistik') return renderDopsStats(root);
-      else if (h === '#/dops/tavling') return renderDopsCompetition(root);
+      else if (h === '#/dops/tavling') return location.replace('#/dops/statistik');   // Tävling ligger överst på Statistik (0.55.0)
       else if (h === '#/dops/dokument') return location.replace('#/dops');   // Dokument är borttaget (0.48.0); användaröverenskommelser kommer under Inställningar
       else if (h === '#/plan' || h.startsWith('#/plan/')) return renderPlan(root, h.slice('#/plan/'.length) || 'me');
       else if (h === '#/utbildning' || h.startsWith('#/utbildning/')) return renderEdu(root, h.slice('#/utbildning/'.length) || '');

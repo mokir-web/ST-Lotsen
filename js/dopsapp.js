@@ -27,10 +27,10 @@ async function dopsStart(root, title) {
   dopsNav(dme);
   return me;
 }
-// Tävling visas när en omgång pågår, och alltid för Studierektor/Administratör (som lägger upp omgångarna). Svaret sparas för sessionen.
+// Statistik (med tävlingen överst) visas för Studierektor/Administratör, och för övriga när en tävlingsomgång pågår. Svaret sparas för sessionen.
 let _dopsCompetitionOn = null;
 async function dopsCompetitionNav(dme) {
-  const nav = el('nav-dops-tavling');
+  const nav = el('nav-dops-statistik');
   if (!nav) return;
   if (dopsPriv(dme)) { nav.classList.remove('hidden'); return; }
   if (_dopsCompetitionOn === null) {
@@ -43,7 +43,6 @@ async function dopsCompetitionNav(dme) {
 function dopsNav(dme) {
   el('nav-dops-registrera')?.classList.toggle('hidden', dme.userRole === 'Mottagare');
   el('nav-dops-kliniken')?.classList.toggle('hidden', !dopsPriv(dme));
-  el('nav-dops-statistik')?.classList.toggle('hidden', !dopsPriv(dme));
   el('nav-dops-installningar')?.classList.toggle('hidden', !dopsPriv(dme));
   dopsCompetitionNav(dme);
 }
@@ -277,13 +276,11 @@ let _dco = null;
 async function renderDopsClinic(root) {
   try {
     await dopsStart(root);
-    if (!dopsPriv(_dme)) { root.innerHTML = '<h1 class="page">Kliniken</h1><p class="muted">Kräver Studierektor eller Administratör i DOPS.</p>'; return; }
-    const clinics = _dme.privileges.filter(p => ['Studierektor', 'Administratör'].includes(p.privilege)).map(p => p.klinikId);
-    const ref = await dopsApi('/reference-data?clinicId=' + encodeURIComponent(_dme.klinikId));
-    _dco = { klinik: _dco?.klinik || _dme.klinikId, global: clinics.includes('*'), clinicIds: ref.klinikIdMap || {},
+    if (!dopsPriv(_dme)) { root.innerHTML = '<h1 class="page">Klinikens bedömningar</h1><p class="muted">Kräver Studierektor eller Administratör i DOPS.</p>'; return; }
+    _dco = { klinik: _dme.klinikId,   // kliniken styrs av väljaren i headern (0.55.0)
       from: '', to: '', category: '', recipient: '', types: new Set(), list: [], showFilter: false };
     await loadDopsClinic(root);
-  } catch (err) { dopsFail(root, 'Kliniken', err); }
+  } catch (err) { dopsFail(root, 'Klinikens bedömningar', err); }
 }
 
 async function loadDopsClinic(root) {
@@ -297,11 +294,8 @@ async function loadDopsClinic(root) {
 
 function drawDopsClinic(root) {
   const d = _dco;
-  const clinicOpts = Object.entries(d.clinicIds).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
   root.innerHTML = `
     <h1 class="page">Klinikens bedömningar</h1>
-    ${d.global && clinicOpts.length ? `<div class="card"><label for="dco-klinik" style="margin-top:0">Klinik</label>
-      <select id="dco-klinik" style="max-width:320px">${clinicOpts.map(([n, id]) => `<option value="${esc(id)}"${id === d.klinik ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>` : ''}
     <div class="row" style="gap:8px;margin-bottom:12px"><button class="btn-ghost" id="dco-ftoggle">${d.showFilter ? 'Dölj filter' : 'Filtrera'}</button><span class="muted">${d.list.length} st</span></div>
     ${dopsExportRow(d.list.length)}
     <div class="card${d.showFilter ? '' : ' hidden'}">
@@ -315,7 +309,6 @@ function drawDopsClinic(root) {
     </div>
     <div class="card">${d.list.length ? d.list.map(a => dopsAssessmentCard(a, `${dopsWho(a.registrar)} → ${dopsWho(a.recipient)}`)).join('') : '<p class="muted" style="margin:0">Inga bedömningar.</p>'}</div>`;
 
-  el('dco-klinik')?.addEventListener('change', e => { d.klinik = e.target.value; d.types.clear(); d.allTypes = null; d.categories = null; loadDopsClinic(root); });
   el('dco-ftoggle').onclick = () => { d.showFilter = !d.showFilter; drawDopsClinic(root); };
   wireDopsExport(root, () => ({ name: d.recipient || 'Klinikens bedömningar', clinic: Object.entries(d.clinicIds).find(([, id]) => id === d.klinik)?.[0] || _dme.clinic, period: dopsPeriod(d.from, d.to) }));
   el('dco-apply').onclick = () => {

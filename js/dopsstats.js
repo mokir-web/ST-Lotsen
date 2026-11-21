@@ -1,4 +1,4 @@
-// ── DOPS-modulen: Statistik, Tävling, Dokument och Word-export (#/dops/statistik, #/dops/tavling, #/dops/dokument) ──
+// ── DOPS-modulen: Statistik med tävlingen överst, Dokument och Word-export (#/dops/statistik, #/dops/dokument) ──
 // Klassiskt script. Beror på index.html och js/dopsapp.js (dopsStart, dopsApi, dopsPriv, dopsFail, dopsWrite, DOV_COLORS) och js/dopscharts.js (diagrammen).
 //
 // Motsvarar DOPS-appens Klinikens statistik + Förfrågningsöversikt (statistics.js, request-stats.js), Kvartalstävling
@@ -11,14 +11,8 @@ const dopsDur = s => { s = Math.round(s); return s >= 60 ? `${Math.floor(s / 60)
 const dopsAdmin = me => (me.privileges || []).some(p => p.privilege === 'Administratör');
 const dopsPrivClinics = me => (me.privileges || []).filter(p => ['Studierektor', 'Administratör'].includes(p.privilege)).map(p => p.klinikId);
 
-// Klinikväljare för global behörighet ('*'), annars den egna kliniken.
-async function dopsClinicChoice(state) {
-  if (!dopsPrivClinics(_dme).includes('*')) return '';
-  const ref = await dopsApi('/reference-data?clinicId=' + encodeURIComponent(_dme.klinikId));
-  const opts = Object.entries(ref.klinikIdMap || {}).sort((a, b) => a[0].localeCompare(b[0], 'sv'));
-  return `<div class="card"><label for="dst-klinik" style="margin-top:0">Klinik</label>
-    <select id="dst-klinik" style="max-width:320px">${opts.map(([n, id]) => `<option value="${esc(id)}"${id === state.klinik ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>`;
-}
+// Kliniken styrs bara av väljaren i headern (0.55.0); sidorna visar den klinik man arbetar i (_dme.klinikId).
+async function dopsClinicChoice() { return ''; }
 
 // ── Statistik ─────────────────────────────────────────────────────────────
 let _dst = null;
@@ -26,8 +20,13 @@ let _dst = null;
 async function renderDopsStats(root) {
   try {
     await dopsStart(root);
-    if (!dopsPriv(_dme)) { root.innerHTML = '<h1 class="page">Statistik</h1><p class="muted">Kräver Studierektor eller Administratör i DOPS.</p>'; return; }
-    _dst = { klinik: _dst?.klinik || _dme.klinikId, from: '', to: '', types: new Set(), showFilter: false, idleWeeks: 8, idleSpec: false };
+    // Kvartalstävlingen ligger överst (0.55.0, tidigare egen sida). Utan Studierektor/Administratör visas bara den.
+    if (!dopsPriv(_dme)) {
+      root.innerHTML = '<h1 class="page">Statistik</h1><div id="dst-comp"><p class="muted">Laddar…</p></div>';
+      _dcp = { klinik: _dme.klinikId };
+      return loadDopsCompetition(el('dst-comp'));
+    }
+    _dst = { klinik: _dme.klinikId, from: '', to: '', types: new Set(), showFilter: false, idleWeeks: 8, idleSpec: false };
     await loadDopsStats(root);
   } catch (err) { dopsFail(root, 'Statistik', err); }
 }
@@ -74,7 +73,7 @@ function drawDopsStats(root) {
 
   root.innerHTML = `
     <h1 class="page">Statistik</h1>
-    ${d.choice}
+    <div id="dst-comp">${_dcp?.html || ''}</div>
     <div class="row" style="gap:8px;margin-bottom:12px"><button class="btn-ghost" id="dst-ftoggle">${d.showFilter ? 'Dölj filter' : 'Filtrera'}</button>
       <span class="muted">${d.from || d.to ? `${esc(d.from || '…')} – ${esc(d.to || 'idag')}` : 'Hela perioden'}</span></div>
     <div class="card${d.showFilter ? '' : ' hidden'}">
@@ -123,7 +122,8 @@ function drawDopsStats(root) {
     </div>` : ''}`;
 
   dchartMount(root);
-  el('dst-klinik')?.addEventListener('change', e => { d.klinik = e.target.value; loadDopsStats(root); });
+  if (!_dcp || _dcp.klinik !== d.klinik || !_dcp.html) { _dcp = { klinik: d.klinik }; loadDopsCompetition(el('dst-comp')).catch(() => {}); }
+  else wireDopsCompetition(el('dst-comp'));
   el('dst-ftoggle').onclick = () => { d.showFilter = !d.showFilter; drawDopsStats(root); };
   el('dst-apply').onclick = () => {
     const from = el('dst-from').value, to = el('dst-to').value, refetch = from !== d.from || to !== d.to;
@@ -135,21 +135,16 @@ function drawDopsStats(root) {
   el('dst-spec')?.addEventListener('change', e => { d.idleSpec = e.target.checked; drawDopsStats(root); });
 }
 
-// ── Tävling ───────────────────────────────────────────────────────────────
-// Kvartalstävlingen: flest registrerade och flest mottagna bedömningar under en omgång (3 månader).
+// ── Tävling (överst på Statistik sedan 0.55.0) ───────────────────────────
+// Kvartalstävlingen: flest registrerade och flest mottagna bedömningar under en omgång (3 månader). Ritas i en egen ruta (box) på
+// statistiksidan; html sparas så att filterändringar på sidan inte hämtar den igen.
 let _dcp = null;
 
-async function renderDopsCompetition(root) {
-  try {
-    await dopsStart(root);
-    _dcp = { klinik: _dcp?.klinik || _dme.klinikId };
-    await loadDopsCompetition(root);
-  } catch (err) { dopsFail(root, 'Tävling', err); }
-}
+async function renderDopsCompetition() { location.replace('#/dops/statistik'); }   // gammal adress
 
-async function loadDopsCompetition(root) {
+async function loadDopsCompetition(box) {
   const d = _dcp;
-  [d.data, d.choice] = await Promise.all([dopsApi('/competition?clinicId=' + encodeURIComponent(d.klinik)), dopsClinicChoice(d)]);
+  d.data = await dopsApi('/competition?clinicId=' + encodeURIComponent(d.klinik));
   const c = d.data;
   const medal = p => ['🥇', '🥈', '🥉'][p.place - 1] || `${p.place}.`;
   const board = (title, list) => `<div><h3 style="margin:8px 0 4px">${title}</h3>${list.length ? `<table class="bed-ans">${list.map(p =>
@@ -157,23 +152,27 @@ async function loadDopsCompetition(root) {
   const round = (r, title) => `<div class="dsec">${title}</div><div class="card">
     <p class="muted" style="margin-top:0">${esc(r.startDate)} – ${esc(r.endDate)}${r.daysLeft != null ? ` · ${r.daysLeft} dagar kvar` : ''}${r.endedEarly ? ' · avslutad i förtid' : ''}</p>
     <div class="dcp-boards">${board('Flest registrerade', r.registrars || r.podium?.registrars || [])}${board('Flest mottagna', r.recipients || r.podium?.recipients || [])}</div></div>`;
-  root.innerHTML = `
-    <h1 class="page">Kvartalstävling</h1>
-    <p class="hint" style="margin:-4px 0 14px">Flest registrerade och flest mottagna bedömningar under en omgång på tre månader. När en omgång är slut mejlar DOPS-appen resultatet till klinikens studierektorer och administratörer.</p>
-    ${d.choice}
+  d.html = `
+    <h2 style="margin:4px 0 2px">Kvartalstävling</h2>
+    <p class="hint" style="margin:0 0 10px">Flest registrerade och flest mottagna bedömningar under en omgång på tre månader.</p>
     ${c.current ? round(c.current, 'Pågående omgång') : '<div class="card"><p class="muted" style="margin:0">Ingen pågående omgång.</p></div>'}
     ${c.upcoming ? `<div class="card"><p style="margin:0">Nästa omgång: ${esc(c.upcoming.startDate)} – ${esc(c.upcoming.endDate)}</p></div>` : ''}
-    ${c.privileged ? `<div class="dsec">Omgångar</div><div class="card">
-      <div class="row" style="gap:8px;flex-wrap:wrap"><input type="date" id="dcp-start" style="max-width:180px"><button class="btn" id="dcp-new">Starta omgång</button>
-      ${c.current ? `<button class="btn-ghost" id="dcp-del" data-id="${esc(c.current.id)}">Avsluta pågående</button>` : ''}</div></div>` : ''}
-    ${(c.history || []).map(h => round(h, 'Avslutad omgång')).join('')}`;
-  el('dst-klinik')?.addEventListener('change', e => { d.klinik = e.target.value; loadDopsCompetition(root); });
-  if (el('dcp-new')) el('dcp-new').onclick = async () => {
-    if (await dopsWrite(() => dopsApi('/competition/rounds', { method: 'POST', body: { clinicId: d.klinik, startDate: el('dcp-start').value } }), 'Omgången är startad.')) loadDopsCompetition(root);
+    ${c.privileged ? `<details class="card"><summary><strong>Omgångar och tidigare resultat</strong></summary>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><input type="date" id="dcp-start" style="max-width:180px"><button class="btn" id="dcp-new">Starta omgång</button>
+      ${c.current ? `<button class="btn-ghost" id="dcp-del" data-id="${esc(c.current.id)}">Avsluta pågående</button>` : ''}</div>
+      ${(c.history || []).map(h => round(h, 'Avslutad omgång')).join('')}</details>` : (c.history || []).slice(0, 1).map(h => round(h, 'Senaste omgången')).join('')}
+    ${dopsPriv(_dme) ? '<div class="dsec">Bedömningar</div>' : ''}`;
+  if (box && document.body.contains(box)) { box.innerHTML = d.html; wireDopsCompetition(box); }
+}
+function wireDopsCompetition(box) {
+  const d = _dcp, again = () => { d.html = null; loadDopsCompetition(box); };
+  const nw = box.querySelector('#dcp-new'), del = box.querySelector('#dcp-del');
+  if (nw) nw.onclick = async () => {
+    if (await dopsWrite(() => dopsApi('/competition/rounds', { method: 'POST', body: { clinicId: d.klinik, startDate: box.querySelector('#dcp-start').value } }), 'Omgången är startad.')) again();
   };
-  if (el('dcp-del')) el('dcp-del').onclick = async () => {
+  if (del) del.onclick = async () => {
     if (!confirm('Avsluta den pågående omgången?')) return;
-    if (await dopsWrite(() => dopsApi('/competition/rounds/' + encodeURIComponent(el('dcp-del').dataset.id), { method: 'DELETE' }), 'Omgången är avslutad.')) loadDopsCompetition(root);
+    if (await dopsWrite(() => dopsApi('/competition/rounds/' + encodeURIComponent(del.dataset.id), { method: 'DELETE' }), 'Omgången är avslutad.')) again();
   };
 }
 
