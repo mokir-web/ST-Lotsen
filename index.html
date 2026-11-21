@@ -345,6 +345,9 @@
     /* Global admin i annan klinik */
     #acting-bar { background: #fbf1d9; color: #6b5317; border-bottom: 1px solid #e8d49a; padding: 8px 16px; font-size: 14px; text-align: center; }
     #acting-bar .link-btn { margin-left: 6px; font-weight: 600; }
+    #viewas-bar { background: #e3ecf7; color: #1f3f66; border-bottom: 1px solid #b7cbe5; padding: 8px 16px; font-size: 14px; text-align: center; position: sticky; top: 0; z-index: 30; }
+    #viewas-bar .link-btn { margin-left: 6px; font-weight: 600; }
+    body.viewas #clinic-switch { display: none; }
 
     /* Startsidan Idag (js/today.js) */
     .dg-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; margin-bottom: 4px; }
@@ -552,6 +555,10 @@
     .edu-kind { display: inline-block; width: 20px; text-align: center; font-size: 13px; color: var(--accent); }
     .edu-host { font-size: 13px; }
     .edu-note { margin: 4px 0 0 24px; font-size: 14px; overflow-wrap: anywhere; }
+    .doc-link { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 2px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; }
+    .doc-link:last-child { border-bottom: 0; } .doc-link:hover strong { text-decoration: underline; }
+    .doc-body { line-height: 1.55; max-width: 760px; } .doc-body h2 { font-size: 18px; margin: 18px 0 6px; } .doc-body h3 { font-size: 16px; margin: 14px 0 4px; }
+    .doc-body p { margin: 0 0 10px; } .doc-body ul, .doc-body ol { margin: 0 0 10px; padding-left: 22px; }
     .edu-rel { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 12px 0 0; } .edu-rel legend { font-weight: bold; font-size: 14px; padding: 0 4px; }
     .edu-rel-dates .tagchip { margin-right: 2px; }
     .edu-meta { margin: 6px 0 0 24px; font-size: 12px; }
@@ -1029,6 +1036,7 @@
           <a href="#/installningar/system" data-route="#/installningar/system" id="nav-set-system" class="hidden">System</a>
           <a href="#/installningar/anvandning" data-route="#/installningar/anvandning" id="nav-set-usage" class="hidden">Användning</a>
           <a href="#/installningar/felanmalan" data-route="#/installningar/felanmalan" id="nav-set-errors" class="hidden">Felrapporter</a>
+          <a href="#/installningar/dokument" data-route="#/installningar/dokument" id="nav-set-docs">Dokument</a>
         </div>
       </nav>
       <main id="view"></main>
@@ -1041,7 +1049,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.56.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.57.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1049,6 +1057,7 @@
 
     const state = {
       acting: (() => { try { return JSON.parse(localStorage.getItem('opjour_acting') || 'null'); } catch { return null; } })(),   // global admin: { id, name }
+      viewAs: (() => { try { return JSON.parse(sessionStorage.getItem('opjour_viewas') || 'null'); } catch { return null; } })(),   // global admin, läsläge: { id, name }
       token: localStorage.getItem('opjour_token') || null,
       scope: localStorage.getItem('opjour_scope') || null,
       clinicName: localStorage.getItem('opjour_clinic') || ''
@@ -1188,7 +1197,8 @@
     async function apiFetch(path, opts = {}) {
       const headers = { 'Content-Type': 'application/json' };
       if (state.token) headers.Authorization = 'Bearer ' + state.token;
-      if (state.acting) headers['X-Clinic-Id'] = state.acting.id;
+      if (state.viewAs) headers['X-View-As'] = state.viewAs.id;   // läsläge: servern nekar allt utom GET
+      else if (state.acting) headers['X-Clinic-Id'] = state.acting.id;
       const res = await fetch(API_BASE + path, {
         method: opts.method || 'GET',
         headers,
@@ -1220,6 +1230,7 @@
     function logout() {
       apiCacheClear();
       localStorage.removeItem('opjour_acting');
+      try { sessionStorage.removeItem('opjour_viewas'); } catch {}
       clinicSwitchReset();
       localStorage.removeItem('opjour_token');
       localStorage.removeItem('opjour_scope');
@@ -1309,6 +1320,26 @@
       if (/[0-9a-f]{8}-[0-9a-f]{4}-/i.test(location.hash)) history.replaceState(null, '', '#/');
       setActingClinic(c.id === me.homeClinicId ? null : c);
     }
+    // Visa som (0.57.0): global admin ser appen som en annan användare, i läsläge. Gäller bara den här fliken (sessionStorage).
+    // Servern nekar allt utom läsning och tar inte hänsyn till klinikväljaren; personens egen klinik och roller gäller.
+    function startViewAs(u) {
+      state.viewAs = { id: u.id, name: u.name };
+      try { sessionStorage.setItem('opjour_viewas', JSON.stringify(state.viewAs)); } catch {}
+      apiCacheClear(); location.hash = '#/'; route();
+    }
+    function stopViewAs() {
+      state.viewAs = null;
+      try { sessionStorage.removeItem('opjour_viewas'); } catch {}
+      apiCacheClear(); clinicSwitchReset(); location.hash = '#/installningar/anvandare'; route();
+    }
+    function drawViewAsBar(me) {
+      let bar = el('viewas-bar');
+      if (!state.viewAs) { bar?.remove(); document.body.classList.remove('viewas'); return; }
+      if (!bar) { bar = document.createElement('div'); bar.id = 'viewas-bar'; el('app').insertBefore(bar, el('app').children[1]); }
+      document.body.classList.add('viewas');
+      bar.innerHTML = `👁 Du ser ST-Lotsen som <strong>${esc(me.displayName || state.viewAs.name)}</strong> (${esc(me.clinicName || '')}) — läsläge, inget kan ändras.
+        <button class="link-btn" onclick="stopViewAs()">Avsluta</button>`;
+    }
     function drawActingBar(me) {
       let bar = el('acting-bar');
       if (!me.acting) { bar?.remove(); return; }
@@ -1396,6 +1427,7 @@
       else if (h === '#/installningar/system') return renderAdmin(root, 'system');
       else if (h === '#/installningar/anvandning') return renderUsage(root);
       else if (h === '#/installningar/felanmalan') return renderAdmin(root, 'errors');
+      else if (h === '#/installningar/dokument' || h.startsWith('#/installningar/dokument/')) return renderDocs(root, h.split('/')[3]);   // 0.57.0
       else if (h === '#/installningar/opjour') return renderOpSettings(root);
       else if (h === '#/installningar/planering') return renderStSettings(root, 'typer', 'plan');
       else if (h === '#/installningar/utbildningsplan') return renderStSettings(root, 'krav');
@@ -1588,6 +1620,7 @@
       const lead = me.isDirector || me.isAdmin;
       show('nav-set-users', me.isAdmin || (me.isDirector && (schema || mal)));   // studierektor: ST-läkare och handledare
       show('nav-set-clinic', me.isAdmin);
+      el('nav-set-docs').textContent = me.isAdmin || me.isDirector ? 'Dokument' : 'Om ST-Lotsen';   // alla ser Om ST-Lotsen
       show('nav-set-opjour', me.isAdmin && cm.includes('opjour'));
       show('nav-set-plan', cschema && lead);
       show('nav-set-st', (cschema || cmal) && lead);
@@ -1599,6 +1632,7 @@
       show('nav-set-errors', !!me.isGlobalAdmin);
       if (me.startPage !== undefined) { try { localStorage.setItem('opjour_start', me.startPage || ''); } catch {} }
       drawActingBar(me);
+      drawViewAsBar(me);
       drawClinicSwitch(me);
       el('menu-name').textContent = me.displayName || 'Konto';
       fitSubnav();
@@ -1779,6 +1813,7 @@
   <script src="js/usage.js"></script>
   <script src="js/edu.js"></script>
   <script src="js/handledning.js"></script>
+  <script src="js/docs.js"></script>
   <script src="js/help.js"></script>
 </body>
 </html>

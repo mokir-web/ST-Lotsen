@@ -388,6 +388,9 @@ function drawUserPanel() {
           <button class="btn-ghost" onclick="resetUserPin()">Slumpa tillfällig PIN…</button></div>
         <label class="row" style="gap:8px;font-weight:normal;margin-top:6px"><input type="checkbox" id="up-mustchange"> Personen ska byta PIN vid nästa inloggning</label>
         <p class="hint">Ange en PIN som gäller direkt (${u.isAdmin || u.isDirector ? '6 siffror för admin och studierektor' : '4 eller 6 siffror'}), eller slumpa en tillfällig som personen byter vid nästa inloggning. Alla enheter loggas ut.</p>`}
+        ${_admin.me.isGlobalAdmin && !isSelf && u.active && !u.isDisplay ? `<h3>Läsläge</h3>
+          <p class="hint" style="margin-top:0">Se ST-Lotsen som ${esc(u.displayName)} ser den — menyer, sidor och behörigheter — utan att kunna ändra något. Gäller den här fliken tills du avslutar.</p>
+          <button class="btn-ghost" data-viewas="${esc(u.id)}" data-name="${esc(u.displayName)}" onclick="startViewAs({ id: this.dataset.viewas, name: this.dataset.name })">👁 Visa appen som ${esc(u.displayName)}</button>` : ''}
         <h3>Slå ihop</h3>
         <div class="row" style="gap:8px;flex-wrap:nowrap"><select id="up-merge" style="flex:1;min-width:0"><option value="">Välj dubblett…</option>${sortedRoster()
           .filter(x => !x.isDisplay && x.id !== u.id).sort((x, y) => (normName(y.displayName) === normName(u.displayName)) - (normName(x.displayName) === normName(u.displayName)))
