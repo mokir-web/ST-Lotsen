@@ -158,29 +158,65 @@ function hlDoneDialog(d) {
 }
 
 // ── Specialistkollegium ──────────────────────────────────────────────────
-// Per ST-läkare: senaste självskattning och rapport ur DOPS-appen. En rapport som är äldre än tre månader kan ersättas av en ny
-// (specialister och handledare); studierektor ber om självskattning. Sedan 0.54.0 görs båda i ST-Lotsens bedömningsdel (DOPS):
-// rapporten öppnar Registrera med formulär och person ifyllda, självskattningen går via Förfrågningar.
+// Per ST-läkare: senaste självskattning och rapport (ST-Lotsens bedömningsdel, med det som lästs in från DOPS-appen).
+// Studierektor och admin kryssar i ST-läkare och ber dem om självskattning (förfrågan i DOPS, 0.55.0). Specialister, handledare,
+// studierektor och admin kan fylla i en rapport för varje ST-läkare: knappen öppnar Registrera med formulär och person ifyllda.
+// Röd = senaste rapporten är äldre än tre månader eller saknas.
 function drawKollegium(root, d) {
   const old = iso => !iso || (Date.now() - Date.parse(iso)) / 864e5 > 91;
+  const canReport = d.canReport || d.lead;
   root.innerHTML = `
     <div class="tw-head"><div><h1 class="page" style="margin-bottom:2px">Specialistkollegium</h1>
-      <p class="muted" style="margin:0">Senaste <em>${esc(d.forms.self)}</em> och <em>${esc(d.forms.report)}</em> per ST-läkare, ur DOPS-appen.</p></div>
-      <div class="tw-actions">${d.lead ? `<a class="btn" href="#/dops/inkorg">Be om självskattning…</a>` : ''}</div></div>
-    ${d.dops ? '' : '<div class="card notice warn">DOPS är inte anslutet — datumen kan inte hämtas.</div>'}
+      <p class="muted" style="margin:0">Senaste <em>${esc(d.forms.self)}</em> och <em>${esc(d.forms.report)}</em> per ST-läkare.</p></div>
+      <div class="tw-actions">${d.lead ? `<button class="btn" id="kol-ask" disabled>Be om självskattning</button>` : ''}</div></div>
     <div class="card"><div class="sch-scroll"><table class="dst-table hl-kol">
-      <tr><th>ST-läkare</th><th>Senaste självskattning</th><th>Senaste rapport</th><th></th></tr>
-      ${d.people.map((p, i) => `<tr><td>${esc(p.displayName)}</td>
-        <td>${p.lastSelf ? esc(hlDate(p.lastSelf)) + (p.selfCount > 1 ? ` <span class="muted">(${p.selfCount})</span>` : '') : '<span class="muted">ingen</span>'}</td>
+      <tr>${d.lead ? `<th style="width:28px"><input type="checkbox" id="kol-all" aria-label="Markera alla"></th>` : ''}<th>ST-läkare</th><th>Senaste självskattning</th><th>Senaste rapport</th><th></th></tr>
+      ${d.people.map((p, i) => `<tr>${d.lead ? `<td><input type="checkbox" class="kol-sel" data-i="${i}" aria-label="Välj ${esc(p.displayName)}"${p.dopsId ? '' : ' disabled'}></td>` : ''}
+        <td>${esc(p.displayName)}</td>
+        <td>${p.lastSelf ? esc(hlDate(p.lastSelf)) + (p.selfCount > 1 ? ` <span class="muted">(${p.selfCount})</span>` : '') : '<span class="muted">ingen</span>'}
+          ${p.selfRequested ? ` <span class="tagchip" title="Förfrågan skickad ${esc(hlDate(p.selfRequested))}, inte gjord än">begärd ${esc(hlDate(p.selfRequested))}</span>` : ''}</td>
         <td class="${old(p.lastReport) ? 'hl-old' : ''}">${p.lastReport ? esc(hlDate(p.lastReport)) + (p.reportCount > 1 ? ` <span class="muted">(${p.reportCount})</span>` : '') : '<span class="muted">ingen</span>'}</td>
-        <td>${d.canReport && old(p.lastReport) && p.dopsName ? `<button class="btn-ghost" data-kreport="${i}">Fyll i ny rapport</button>` : ''}</td></tr>`).join('')}
+        <td>${canReport && p.dopsName ? `<button class="btn-ghost" data-kreport="${i}">Fyll i rapport</button>` : ''}</td></tr>`).join('')}
     </table></div>
-    <p class="hint">Röd = senaste rapporten är äldre än tre månader (eller saknas); då kan specialister och handledare fylla i en ny.
-      Rapporter och självskattningar görs i DOPS och sparas i ST-Lotsen; de från DOPS-appen räknas också.</p></div>`;
+    <p class="hint">Röd = senaste rapporten är äldre än tre månader (eller saknas).${d.lead ? ' Kryssa i ST-läkare och tryck <em>Be om självskattning</em>: de får en förfrågan under DOPS → Förfrågningar (inget mejl än).' : ''}
+      Rapporter och självskattningar sparas i ST-Lotsen; de från DOPS-appen räknas också.</p></div>`;
   root.querySelectorAll('[data-kreport]').forEach(b => b.onclick = () => {
     window._dregPrefill = { recipient: d.people[+b.dataset.kreport].dopsName, form: d.forms.report };
     location.hash = '#/dops/registrera';
   });
+  if (!d.lead) return;
+  const sel = () => [...root.querySelectorAll('.kol-sel:checked')].map(c => d.people[+c.dataset.i]);
+  const sync = () => { const n = sel().length; el('kol-ask').disabled = !n; el('kol-ask').textContent = n ? `Be om självskattning (${n})` : 'Be om självskattning'; };
+  root.querySelectorAll('.kol-sel').forEach(c => c.onchange = sync);
+  el('kol-all').onchange = e => { root.querySelectorAll('.kol-sel:not(:disabled)').forEach(c => { c.checked = e.target.checked; }); sync(); };
+  el('kol-ask').onclick = () => kolAskDialog(root, d, sel());
+}
+
+// Förfrågan om självskattning till de valda: meddelande (krävs) och valfritt sista datum.
+function kolAskDialog(viewRoot, d, people) {
+  let root = el('sheet-root');
+  if (!root) { root = document.createElement('div'); root.id = 'sheet-root'; document.body.appendChild(root); }
+  root.innerHTML = `<div class="overlay" data-close="1"><form class="sheet" role="dialog" aria-label="Be om självskattning" id="kol-form">
+      <h2>Be om självskattning <button type="button" class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" data-close="1" aria-label="Stäng">✕</button></h2>
+      <p style="margin:0 0 6px">${people.map(p => esc(p.displayName)).join(', ')}</p>
+      <label for="kol-msg">Meddelande</label>
+      <textarea id="kol-msg" rows="5" maxlength="1000" required style="width:100%;box-sizing:border-box;font:inherit">Inför specialistkollegiet: fyll i självskattningen.</textarea>
+      <label for="kol-due">Sista datum <span class="muted">(valfritt)</span></label><input type="date" id="kol-due" min="${todayStockholm()}" style="max-width:200px">
+      <div class="row" style="margin-top:14px"><button class="btn" type="submit">Skicka till ${people.length}</button><button class="btn-ghost" type="button" data-close="1">Avbryt</button></div>
+      <div class="status err" id="kol-err"></div></form></div>`;
+  root.querySelector('.overlay').addEventListener('click', e => { if (e.target.dataset.close) root.innerHTML = ''; });
+  el('kol-form').onsubmit = async e => {
+    e.preventDefault();
+    const btn = e.submitter; btn.disabled = true;
+    try {
+      const dme = await dopsApi('/me');
+      const r = await dopsApi('/requests/managed', { method: 'POST', body: { clinicId: dme.klinikId, mode: 'self', userIds: people.map(p => p.dopsId),
+        formType: d.forms.self, message: el('kol-msg').value.trim(), dueDate: el('kol-due').value || '' } });
+      root.innerHTML = '';
+      toast(`Förfrågan skickad till ${r.sent || people.length}.`);
+      renderHandledning(el('view'), 'kollegium');
+    } catch (err) { btn.disabled = false; el('kol-err').textContent = err.message; }
+  };
 }
 
 // ── Inställningar → Handledning (studierektor och admin) ─────────────────

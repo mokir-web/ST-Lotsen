@@ -92,9 +92,11 @@ function drawDopsStats(root) {
       <table class="bed-ans dst-table"><tr><th>Formulär</th><th>Antal</th><th>Snittid</th><th>Sparad tid</th></tr>${time.map(([ft, v]) =>
         `<tr><td>${esc(ft)}</td><td>${v.count}</td><td>${v.timedCount ? dopsDur(v.elapsedSeconds / v.timedCount) : '–'}</td><td><strong>${dopsMin(v.savedMinutes)}</strong></td></tr>`).join('')}</table>
       <p class="hint">Sparad tid = antal × formulärets referenstid. Snittiden räknar bara mätningar mellan 10 s och 60 min.</p></div>` : ''}
-    ${fb.length ? `<div class="dsec">Återkoppling i fritext</div><div class="card">
-      <table class="bed-ans dst-table"><tr><th>Formulär</th><th>Med fritext</th><th>Snittlängd</th></tr>${fb.map(([ft, v]) => { const pct = v.assessments ? Math.round(v.withText / v.assessments * 100) : 0;
-        return `<tr><td>${esc(ft)}</td><td><strong style="color:${pct >= 80 ? '#2f7d47' : pct >= 50 ? '#9a6b12' : '#9e2a18'}">${pct} %</strong> <span class="muted">(${v.withText} av ${v.assessments})</span></td><td>${v.withText ? v.avgChars + ' tecken' : '–'}</td></tr>`; }).join('')}</table></div>` : ''}
+    ${fb.length ? `<div class="dsec">Fritext och kryssfrågor</div><div class="card">
+      <p class="hint" style="margin-top:0">Hur bedömningarna fylls i per formulär: bara fritext, bara kryssfrågor (skalor och val), eller båda.</p>
+      <div class="sch-scroll"><table class="bed-ans dst-table"><tr><th>Formulär</th><th>Bara fritext</th><th>Bara kryss</th><th>Båda</th><th>Antal</th><th>Snittlängd fritext</th></tr>${fb.map(([ft, v]) => {
+        const cell = n => `<td>${n}${v.assessments ? ` <span class="muted">(${Math.round(n / v.assessments * 100)} %)</span>` : ''}</td>`;
+        return `<tr><td>${esc(ft)}</td>${cell(v.onlyText ?? 0)}${cell(v.onlyChoice ?? 0)}${cell(v.both ?? 0)}<td>${v.assessments}${v.none ? ` <span class="muted" title="Inget ifyllt">(${v.none} tomma)</span>` : ''}</td><td>${v.withText ? v.avgChars + ' tecken' : '–'}</td></tr>`; }).join('')}</table></div></div>` : ''}
     ${t ? `<div class="dsec">Måluppfyllelse — senaste 6 månaderna</div><div class="card">
       ${!t.targets.length ? '<p class="muted">Inga målvärden satta för kliniken.</p>' : `<p class="hint" style="margin-top:0">Mottagna bedömningar mot klinikens mål per yrkesroll, lägst först. Formulär personen markerat "Ej aktuellt" räknas inte.</p>
       ${t.targets.map(p => { const c = p.pct >= 100 ? '#4a9e62' : p.pct >= 50 ? '#c8a96e' : '#9e2a18';

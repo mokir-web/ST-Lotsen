@@ -98,6 +98,7 @@ function eduSectionView(sec) {
         <div class="edu-title">${v0 ? `<span class="edu-kind" title="${v0.list ? 'Spellista' : 'Video'}">${v0.list ? '☰' : '▶'}</span>` : it.url ? '<span class="edu-kind" title="Länk">🔗</span>' : '<span class="edu-kind" title="Text">📝</span>'}
           ${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a> <span class="muted edu-host">${esc(eduHost(it.url))}</span>` : `<strong>${esc(it.title)}</strong>`}</div>
         ${it.note ? `<div class="edu-note">${eduText(it.note)}</div>` : ''}
+        ${eduReleases(it)}
         ${v0 && !v ? `<div class="edu-note muted">Spelas på ${esc(eduHost(it.url))} (går inte att spela här).</div>` : ''}
         ${v ? `<button class="btn-ghost edu-play" data-e="play" data-id="${it.id}" aria-expanded="${open}">${open ? (v.list ? '■ Stäng spellistan' : '■ Stäng videon') : v.list ? '▶ Spela spellistan här' : '▶ Spela upp här'}</button>` : ''}
         ${v && open ? `<div class="edu-video">${v.kind === 'file' ? `<video src="${esc(v.src)}" controls preload="metadata"></video>`
@@ -176,6 +177,14 @@ function eduForm({ kind, sec, it }) {
       <label class="row${v.url && eduVideo(v.url) ? '' : ' hidden'}" id="ef-embed-l" style="gap:8px;font-weight:normal;margin-top:6px"><input type="checkbox" id="ef-embed"${v.embed === false ? '' : ' checked'}> Spela upp här på sidan
         <span class="muted" style="font-size:13px">— stäng av för åldersbegränsade videor, som bara går att se på YouTube</span></label>
       <label for="ef-note">Beskrivning</label><textarea id="ef-note" rows="4" maxlength="1000" placeholder="Vad är bra med materialet, vem passar det för, inloggning som behövs …">${esc(v.note || '')}</textarea>
+      <fieldset class="edu-rel"><legend>Kurssläpp <span class="muted">(valfritt)</span></legend>
+        <p class="hint" style="margin:0 0 6px">Datum då t.ex. anmälan till kursen öppnar. Användarna får en påminnelse när de öppnar appen, så många dagar före.</p>
+        <div id="ef-rel">${(v.releaseDates || []).map(eduRelInput).join('')}</div>
+        <div class="row" style="gap:10px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn-ghost" id="ef-rel-add">+ Lägg till datum</button>
+          <label for="ef-notice" style="margin:0;font-weight:normal">Påminn</label><input type="number" id="ef-notice" min="0" max="90" style="width:72px" value="${v.noticeDays ?? 7}"> <span>dagar före</span></div>
+        <div style="margin-top:8px"><span style="font-size:14px">Vilka påminns</span> <span class="muted" style="font-size:13px">(inget valt = alla)</span>
+          <div class="dmi-types" id="ef-roles">${EDU_ROLES.map(([r, l]) => `<label class="chip"><input type="checkbox" value="${r}"${(v.noticeRoles || []).includes(r) ? ' checked' : ''}> ${l}</label>`).join('')}</div></div>
+      </fieldset>
       ${kind === 'edit_item' && _edu.data.sections.length > 1 ? `<label for="ef-sec">Område</label><select id="ef-sec">${_edu.data.sections.map(s => `<option value="${s.id}"${s.id === sec.id ? ' selected' : ''}>${esc(s.title)}</option>`).join('')}</select>` : ''}`
     : `
       <label for="ef-title">Namn på området</label><input id="ef-title" maxlength="80" value="${esc(sec?.title || '')}" placeholder="Till exempel: Akut kirurgi">
@@ -195,16 +204,24 @@ function eduForm({ kind, sec, it }) {
     </div>`;
   root.querySelector('.overlay').addEventListener('click', e => { if (e.target.dataset.close) root.innerHTML = ''; });
   el('ef-title')?.focus();
+  el('ef-rel-add')?.addEventListener('click', () => { el('ef-rel').insertAdjacentHTML('beforeend', eduRelInput('')); el('ef-rel').lastElementChild.querySelector('input').focus(); });
+  el('ef-rel')?.addEventListener('click', e => { if (e.target.dataset.relDel) e.target.closest('.edu-rel-row').remove(); });
   el('ef-url')?.addEventListener('input', () => el('ef-embed-l').classList.toggle('hidden', !eduVideo(el('ef-url').value.trim().replace(/^(?![a-z]+:)/i, 'https://'))));
   el('ef').addEventListener('submit', async e => {
     e.preventDefault();
     const val = id => el(id)?.value ?? undefined;
-    const payload = kind === 'delete_item' ? {} : isItem ? { title: val('ef-title'), url: val('ef-url'), note: val('ef-note'), embed: el('ef-embed').checked } : { title: val('ef-title'), intro: val('ef-intro') };
+    const payload = kind === 'delete_item' ? {} : isItem ? { title: val('ef-title'), url: val('ef-url'), note: val('ef-note'), embed: el('ef-embed').checked,
+      releaseDates: [...document.querySelectorAll('#ef-rel input')].map(i => i.value).filter(Boolean), noticeDays: val('ef-notice') === '' ? null : Number(val('ef-notice')),
+      noticeRoles: [...document.querySelectorAll('#ef-roles input:checked')].map(i => i.value) }
+      : { title: val('ef-title'), intro: val('ef-intro') };
     // Ändring: skicka bara det som ändrats.
     if (kind === 'edit_item') {
       for (const k of ['title', 'url', 'note']) if ((payload[k] || '').trim() === (it[k] || '')) delete payload[k];
       if (payload.embed === (it.embed !== false)) delete payload.embed;
-    }
+      if (JSON.stringify([...new Set(payload.releaseDates)].sort()) === JSON.stringify(it.releaseDates || [])) delete payload.releaseDates;
+      if ((payload.noticeDays ?? 7) === (it.noticeDays ?? 7)) delete payload.noticeDays;
+      if (JSON.stringify(payload.noticeRoles) === JSON.stringify(it.noticeRoles || [])) delete payload.noticeRoles;
+    } else if (kind === 'add_item' && !payload.releaseDates.length) { delete payload.releaseDates; delete payload.noticeDays; delete payload.noticeRoles; }
     if (kind === 'edit_section') for (const k of ['title', 'intro']) if ((payload[k] || '').trim() === (sec[k] || '')) delete payload[k];
     const moveTo = kind === 'edit_item' && val('ef-sec') && val('ef-sec') !== sec.id ? val('ef-sec') : undefined;
     const btn = e.submitter || el('ef').querySelector('[type=submit]');
@@ -227,8 +244,8 @@ function eduForm({ kind, sec, it }) {
 
 // ── Förslag ───────────────────────────────────────────────────────────────
 const EDU_KIND_LABEL = { add_item: 'Nytt material', edit_item: 'Ändring', delete_item: 'Ta bort', add_section: 'Nytt område', edit_section: 'Ändra område', delete_section: 'Ta bort område' };
-const EDU_FIELD = { title: 'Titel', url: 'Länk', note: 'Beskrivning', intro: 'Inledning', embed: 'Spela upp här' };
-const eduShow = (k, v) => k === 'embed' ? (v === false ? 'Nej' : 'Ja') : v || '–';
+const EDU_FIELD = { title: 'Titel', url: 'Länk', note: 'Beskrivning', intro: 'Inledning', embed: 'Spela upp här', releaseDates: 'Kurssläpp', noticeDays: 'Påminn (dagar före)', noticeRoles: 'Vilka påminns' };
+const eduShow = (k, v) => k === 'embed' ? (v === false ? 'Nej' : 'Ja') : k === 'noticeRoles' ? eduRoleText(v) : Array.isArray(v) ? (v.map(d => fmtDM(d)).join(', ') || '–') : v ?? '–';
 
 function drawEduSuggestions(root) {
   const { data } = _edu, admin = data.canEdit;
@@ -236,7 +253,7 @@ function drawEduSuggestions(root) {
   const secName = id => data.sections.find(s => s.id === id)?.title;
   const cur = s => s.itemId ? eduFindItem(s.itemId).it : s.sectionId && s.kind.endsWith('section') ? data.sections.find(x => x.id === s.sectionId) : null;
   const diff = s => {
-    const now = cur(s), keys = ['title', 'url', 'note', 'intro', 'embed'].filter(k => k in (s.payload || {}));
+    const now = cur(s), keys = ['title', 'url', 'note', 'intro', 'embed', 'releaseDates', 'noticeDays', 'noticeRoles'].filter(k => k in (s.payload || {}));
     if (s.kind.startsWith('delete')) return now ? `<p style="margin:4px 0">${esc(now.title)}${now.url ? ` · <a href="${esc(now.url)}" target="_blank" rel="noopener noreferrer">${esc(eduHost(now.url))}</a>` : ''}</p>` : '';
     return `<table class="edu-diff">${keys.map(k => `<tr><th>${EDU_FIELD[k] || k}</th><td>${s.kind.startsWith('edit') && now ? `<del>${esc(eduShow(k, now[k]))}</del><br>` : ''}<ins>${k === 'url' && s.payload[k] ? `<a href="${esc(s.payload[k])}" target="_blank" rel="noopener noreferrer">${esc(s.payload[k])}</a>` : esc(eduShow(k, s.payload[k]))}</ins></td></tr>`).join('')}
       ${s.kind === 'edit_item' && s.sectionId && now && eduFindItem(s.itemId).sec?.id !== s.sectionId ? `<tr><th>Område</th><td><del>${esc(eduFindItem(s.itemId).sec?.title || '')}</del><br><ins>${esc(secName(s.sectionId) || '')}</ins></td></tr>` : ''}</table>`;
@@ -311,4 +328,42 @@ function eduAdjust(s) {
       root.innerHTML = ''; eduReload();
     } catch (err) { el('ea-err').textContent = err.message; }
   });
+}
+
+// ── Kurssläpp (0.56.0) ──────────────────────────────────────────────────
+// Posten kan ha datum då t.ex. anmälan till en kurs öppnar. Kommande datum visas vid posten; inom förvarningen får användaren en
+// ruta när appen öppnas (eduNotices, anropas från index.html). Uppfattat kvitterar datumen; Påminn mig senare stänger bara rutan.
+// Yrkesroller som kan påminnas (users.job_role). Inget valt = alla.
+const EDU_ROLES = [['ST', 'ST-läkare'], ['BT', 'BT-läkare'], ['AT', 'AT-läkare'], ['Spec', 'Specialister'], ['Annan', 'Övriga']];
+const eduRoleText = rs => (rs || []).length ? EDU_ROLES.filter(([r]) => rs.includes(r)).map(([, l]) => l).join(', ') : 'alla';
+const eduRelInput = d => `<div class="edu-rel-row row" style="gap:6px;margin-bottom:4px"><input type="date" value="${esc(d)}" style="max-width:180px" aria-label="Datum för kurssläpp">
+  <button type="button" class="link-btn" data-rel-del="1" aria-label="Ta bort datumet">Ta bort</button></div>`;
+function eduReleases(it) {
+  const today = todayStockholm(), next = (it.releaseDates || []).filter(d => d >= today);
+  if (!next.length) return '';
+  const days = d => Math.round((Date.parse(d) - Date.parse(today)) / 864e5);
+  return `<div class="edu-note edu-rel-dates">📅 Kurssläpp: ${next.map(d => `<span class="tagchip${days(d) <= (it.noticeDays ?? 7) ? ' warn' : ''}">${esc(fmtDM(d))}${days(d) === 0 ? ' idag' : ''}</span>`).join(' ')}
+    <span class="muted">· påminnelse ${it.noticeDays ?? 7} dagar före till ${esc(eduRoleText(it.noticeRoles))}</span></div>`;
+}
+let _eduNoticesShown = false;
+async function eduNotices() {
+  if (_eduNoticesShown) return;
+  _eduNoticesShown = true;
+  let list;
+  try { list = (await api('/edu/notices')).notices; } catch { return; }
+  if (!list?.length || el('sheet-root')?.innerHTML) return;
+  let root = el('sheet-root');
+  if (!root) { root = document.createElement('div'); root.id = 'sheet-root'; document.body.appendChild(root); }
+  const when = n => n === 0 ? 'idag' : n === 1 ? 'i morgon' : `om ${n} dagar`;
+  root.innerHTML = `<div class="overlay"><div class="sheet" role="dialog" aria-label="Kommande kurssläpp">
+      <h2 style="margin-top:0">Kommande kurssläpp</h2>
+      ${list.map(n => `<div class="pass-card" style="display:block"><strong>${n.url ? `<a href="${esc(n.url)}" target="_blank" rel="noopener noreferrer">${esc(n.title)}</a>` : esc(n.title)}</strong>
+        <div class="muted" style="font-size:14px">${esc(fmtDM(n.date))} (${when(n.daysLeft)}) · ${esc(n.section)}</div></div>`).join('')}
+      <div class="row" style="gap:8px;margin-top:14px"><button class="btn" id="edu-n-ok">Uppfattat</button><button class="btn-ghost" id="edu-n-later">Påminn mig senare</button></div>
+    </div></div>`;
+  el('edu-n-later').onclick = () => { root.innerHTML = ''; };
+  el('edu-n-ok').onclick = async () => {
+    root.innerHTML = '';
+    try { await api('/edu/notices/seen', { method: 'POST', body: { items: list.map(n => ({ itemId: n.itemId, date: n.date })) } }); } catch {}
+  };
 }

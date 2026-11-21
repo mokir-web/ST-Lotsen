@@ -552,6 +552,8 @@
     .edu-kind { display: inline-block; width: 20px; text-align: center; font-size: 13px; color: var(--accent); }
     .edu-host { font-size: 13px; }
     .edu-note { margin: 4px 0 0 24px; font-size: 14px; overflow-wrap: anywhere; }
+    .edu-rel { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 12px 0 0; } .edu-rel legend { font-weight: bold; font-size: 14px; padding: 0 4px; }
+    .edu-rel-dates .tagchip { margin-right: 2px; }
     .edu-meta { margin: 6px 0 0 24px; font-size: 12px; }
     .edu-play { margin: 8px 0 0 24px; padding: 6px 12px; }
     .edu-video { margin: 10px 0 0; position: relative; width: 100%; max-width: 720px; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
@@ -1039,7 +1041,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.55.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.56.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1336,6 +1338,7 @@
       let start = ''; try { start = localStorage.getItem('opjour_start') || ''; } catch {}
       if ((!location.hash || location.hash === '#') && start) { location.replace(start); return; }
       route();
+      setTimeout(() => eduNotices(), 600);   // kommande kurssläpp i utbildningsmaterialet (0.56.0)
     }
 
     // Personlig vy: #/ (kalender), #/settings, #/admin. Visningsskärmen har ingen navigation.

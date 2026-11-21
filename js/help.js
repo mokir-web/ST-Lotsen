@@ -19,7 +19,7 @@ const HELP = [
     'Vill du börja på en annan sida när du öppnar ST-Lotsen: välj startsida under Inställningar → Mitt konto.']],
   ['#/handledning/kollegium', 'Handledning · Specialistkollegium', [
     'Senaste <em>Självskattning inför specialistkollegium</em> och <em>Rapport från specialistkollegium</em> per ST-läkare, ur DOPS (både de som gjorts i ST-Lotsen och i DOPS-appen). Röd = rapporten är äldre än tre månader eller saknas.',
-    'Specialister och handledare kan fylla i en ny rapport när den senaste är äldre än tre månader, och studierektorn kan be ST-läkare om självskattning. <em>Fyll i ny rapport</em> öppnar DOPS → Registrera med formuläret och personen ifyllda; självskattning begärs under DOPS → Förfrågningar.']],
+    '<strong>Fyll i rapport</strong> (vid varje ST-läkare, för specialister, handledare, studierektor och admin) öppnar DOPS → Registrera med formuläret och personen ifyllda.', '<strong>Be om självskattning:</strong> studierektor och admin kryssar i ST-läkare och trycker på knappen. De valda får en förfrågan under DOPS → Förfrågningar (inget mejl än); <em>begärd</em> visas tills självskattningen är gjord.']],
   ['#/handledning', 'Handledning', [
     'ST-läkarnas handledningstillfällen. ST-läkaren ser sina egna, handledaren sina adepter (med måluppfyllelse i korthet) och studierektorn alla.',
     'Status mot klinikens intervall (Inställningar → Handledning): gul = mer än intervallet sedan senaste handledning, röd = mer än en och en halv gång intervallet.',
@@ -32,7 +32,8 @@ const HELP = [
     'Videor och spellistor från YouTube, Vimeo och videofiler (.mp4) spelas upp direkt på sidan med <em>▶ Spela upp här</em>. En spellista (märkt ☰) spelas upp med listan i spelaren, där man hoppar mellan avsnitten. Klistra in länken till spellistan (youtube.com/playlist?list=…) eller till en video i den. Övriga länkar öppnas i en ny flik.',
     'Åldersbegränsade videor (vanligt för operationsfilmer) och videor där ägaren stängt av inbäddning går inte att spela här. Stäng då av <em>Spela upp här på sidan</em> när du lägger in eller ändrar posten — den visas som en vanlig länk. Titeln är alltid en länk till originalet.',
     '<strong>Alla kan föreslå</strong> nytt material, ändringar (✎) och borttagning (✕), och nya områden. Förslaget går till klinikens admin, som godkänner det, justerar det först eller avböjer med ett svar. Dina förslag och svaren ser du under <em>Mina förslag</em>.',
-    '<strong>Admin</strong> lägger till, ändrar, flyttar (↑↓) och tar bort direkt, och behandlar förslagen under <em>Förslag</em>. Väntande förslag syns också under Att göra på startsidan.']],
+    '<strong>Admin</strong> lägger till, ändrar, flyttar (↑↓) och tar bort direkt, och behandlar förslagen under <em>Förslag</em>. Väntande förslag syns också under Att göra på startsidan.',
+    '<strong>Kurssläpp:</strong> en post kan ha ett eller flera datum (t.ex. när anmälan till en kurs öppnar) och hur många dagar före användarna ska påminnas (förval 7). Välj vilka yrkesroller som ska påminnas (t.ex. bara ST-läkare); inget valt = alla. Kommande datum visas vid posten. Under påminnelsetiden får de valda en ruta när de öppnar appen; <em>Uppfattat</em> kvitterar, <em>Påminn mig senare</em> visar rutan igen nästa gång.']],
   ['#/opjour', 'Opjour', [
     'Vem som har opjour vilken dag. Klicka på en dag för att se detaljer och boka eller släppa ditt pass.',
     'Passet byter person vid den tid kliniken har ställt in (Inställningar → Opjour).']],
