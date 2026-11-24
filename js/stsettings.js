@@ -130,7 +130,7 @@ function stsReqTab() {
       <div class="status" id="st-reqs-status"></div>
       ${yearBoardHtml(active, { editable: true, detail })}
       ${inactive.length ? `<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:bold">Borttagna ur mallen (${inactive.length})</summary>
-        <p class="hint">Visas inte i ST-läkarnas planer eller i måluppfyllelsen — utom hos den som har kravet registrerat (i veckoschemat eller för hand).
+        <p class="hint">Visas inte i måluppfyllelsen eller ST-läkarnas planer — utom i planen hos den som har kravet registrerat (i veckoschemat eller för hand).
           Klicka för att lägga tillbaka.</p>
         <div class="yb-inactive">${inactive.map(r => `<button type="button" class="btn-ghost" onclick="openReqPanel('${esc(r.id)}')">${esc(r.category)} ${esc(r.name)}</button>`).join(' ')}</div></details>` : ''}
     </div>`;
@@ -216,7 +216,7 @@ async function fillHostClinics() {
 // visas hos de personerna (utils/progress.js templateRequirements).
 async function setReqInTemplate(id, active) {
   const r = _sts.cfg.requirements.find(x => x.id === id);
-  if (!active && !confirm(`Ta bort ${r.category} ${r.name} ur mallen?\n\nKravet försvinner ur ST-läkarnas planer och måluppfyllelsen. Den som redan har det i veckoschemat eller angett det för hand ser det fortfarande. Det går att lägga tillbaka.`)) return;
+  if (!active && !confirm(`Ta bort ${r.category} ${r.name} ur mallen?\n\nKravet försvinner ur måluppfyllelsen och ST-läkarnas planer. Den som redan har det i veckoschemat eller angett det för hand ser det fortfarande i sin plan. Det går att lägga tillbaka.`)) return;
   try {
     await api('/admin/st/requirements/' + encodeURIComponent(id), { method: 'PATCH', body: { active } });
     closeReqPanel();

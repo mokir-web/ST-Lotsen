@@ -563,6 +563,15 @@
     .edu-tools { display: flex; gap: 4px; flex: none; align-items: flex-start; }
     .edu-tools .tw-ico:disabled { opacity: .35; }
     .edu-danger { color: var(--danger); border-color: #e3b3ab; }
+    /* 0.60.0: klickbara kort, regionens nätverk, dra och släpp */
+    .edu-sec[data-sec] { cursor: pointer; transition: box-shadow .15s, border-color .15s; } .edu-sec[data-sec]:hover { box-shadow: 0 2px 10px rgba(0,0,0,.08); border-color: var(--accent); }
+    .edu-item { margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 6px; }
+    .edu-link { cursor: pointer; } .edu-link:hover { background: rgba(0,0,0,.035); }
+    .edu-item[draggable="true"] { cursor: grab; } .edu-item.dragging { opacity: .4; }
+    .edu-item.drop-before { box-shadow: inset 0 3px 0 var(--accent); } .edu-item.drop-after { box-shadow: inset 0 -3px 0 var(--accent); }
+    .edu-intra { font-size: 12px; font-weight: normal; vertical-align: 1px; }
+    .edu-dropbar { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; margin: 0 0 8px; background: var(--card, #fff); border: 1px dashed var(--accent); border-radius: 8px; }
+    .edu-drop { padding: 4px 10px; border: 1px solid var(--line); border-radius: 14px; font-size: 14px; } .edu-drop.over { background: var(--accent); color: #fff; border-color: var(--accent); }
     .edu-sug { }
     .edu-diff { border-collapse: collapse; width: 100%; font-size: 14px; margin: 4px 0; }
     .edu-diff th { text-align: left; vertical-align: top; color: var(--ink-soft); font-weight: normal; padding: 4px 10px 4px 0; width: 100px; }
@@ -1044,7 +1053,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.59.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.60.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1375,7 +1384,7 @@
       let start = ''; try { start = localStorage.getItem('opjour_start') || ''; } catch {}
       if ((!location.hash || location.hash === '#') && start) { location.replace(start); return; }
       route();
-      setTimeout(() => eduNotices(), 600);   // kommande kurssläpp i utbildningsmaterialet (0.56.0)
+      setTimeout(() => eduNotices(), 600);   // påminnelser i utbildningsmaterialet (0.56.0)
     }
 
     // Personlig vy: #/ (kalender), #/settings, #/admin. Visningsskärmen har ingen navigation.

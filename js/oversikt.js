@@ -8,7 +8,7 @@
 // Kompakt läge (förval): ikon + vecka i rutan, full text i verktygstipset. Alla rubriker sorterar: namn, ST-tid, % klart
 // (obligatoriska krav) och varje krav (klara först, sedan bokade, förslag …). Klick på samma rubrik vänder ordningen.
 // Filter per kategori; på mobil visas en kategori åt gången.
-// Kolumnerna är klinikens mall; krav som tagits bort ur mallen visas bara om någon har dem registrerade (kursiva, °, räknas inte, 0.59.0).
+// Kolumnerna är klinikens mall (aktiva krav). Krav som tagits bort ur mallen visas inte här (0.60.0), bara i personens plan.
 
 let _ov = null;
 
@@ -142,7 +142,7 @@ function drawOversikt(root) {
       <p style="margin:12px 0 0;line-height:2;font-size:13px">
         <span class="pchip st-klart">✓ Klart</span> <span class="pchip st-tidigare">✓ Tidigare</span> <span class="pchip st-pagaende">▶ Pågående</span> <span class="pchip st-bokad">◷ Bokad (vecka)</span>
         <span class="pchip st-forslag">? Förslag/Ev.</span> <span class="pchip st-plan">✎ Plan</span> <span class="pchip st-ejgjort">· Ej gjort</span> <span class="pchip st-saknas">! Saknas (försenat)</span>
-        <span class="muted">* = valfritt · ° = inte i mallen (någon har det registrerat) · % klart = obligatoriska krav i mallen</span></p>
+        <span class="muted">* = valfritt · % klart = obligatoriska krav</span></p>
       <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan.' : 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan för dig själv.'}</p>
     </div>`;
 
