@@ -31,11 +31,25 @@ function drawOpSettings(root) {
 
     <p class="hint" style="margin:-4px 0 14px">Vem som bokar opjour, är reserv eller ser statistiken ställs in per person under <a href="#/installningar/anvandare">Inställningar → Användare</a>.</p>
 
+    ${screensCard()}
+  `;
+  root.querySelectorAll('.ulist').forEach(list => {
+    list.addEventListener('click', onUserClick);
+    list.addEventListener('change', onUserChange);
+  });
+}
+
+// Visningskonton (väggskärmar och läskonton, 0.61.0): visas under Inställningar → Opjour och → Användare.
+function screensCard() {
+  const screens = sortedRoster().filter(u => u.isDisplay);
+  if (!_admin.pin) _admin.pin = randomPin();
+  return `
     <div class="card">
-      <h2>Väggskärmar (${screens.length})</h2>
-      <p class="muted" style="margin:0 0 8px">Ett visningskonto loggar in som alla andra men ser bara dagens opjour och kalendern — ingen bokning, ingen reserv.</p>
-      <div class="ulist">${screens.map(u => userBlock(u, _admin.me.userId)).join('') || '<p class="muted">Inga väggskärmar än.</p>'}</div>
-      <details style="margin-top:10px"><summary style="cursor:pointer;font-weight:bold">Lägg till väggskärm</summary>
+      <h2>Visningskonton (${screens.length})</h2>
+      <p class="muted" style="margin:0 0 8px">Ett visningskonto loggar in som alla andra men kan inte ändra något. Som väggskärm visar det dagens opjour och kalendern;
+        öppna kontot för att välja fler delar (t.ex. Operationskompetens för operationskoordinatorerna).</p>
+      <div class="ulist">${screens.map(u => userBlock(u, _admin.me.userId)).join('') || '<p class="muted">Inga visningskonton än.</p>'}</div>
+      <details style="margin-top:10px"><summary style="cursor:pointer;font-weight:bold">Lägg till visningskonto</summary>
         <form onsubmit="return addScreen(event)">
           <div class="field-row">
             <div><label for="ds-name">Namn</label><input type="text" id="ds-name" maxlength="60" required placeholder="t.ex. Op-korridoren" oninput="if(!_admin.userTouched) el('ds-user').value=suggestUsername(this.value)"></div>
@@ -48,12 +62,7 @@ function drawOpSettings(root) {
           <div id="ds-status" class="status err"></div>
         </form>
       </details>
-    </div>
-  `;
-  root.querySelectorAll('.ulist').forEach(list => {
-    list.addEventListener('click', onUserClick);
-    list.addEventListener('change', onUserChange);
-  });
+    </div>`;
 }
 
 async function addScreen(e) {
@@ -62,7 +71,7 @@ async function addScreen(e) {
   const body = { displayName: el('ds-name').value.trim(), username: el('ds-user').value.trim(), tempPin: el('ds-pin').value.trim(), role: 'display' };
   try {
     await api('/admin/users', { method: 'POST', body });
-    _admin.notice = { tone: 'ok', html: `Väggskärm skapad: <strong>${esc(body.displayName)}</strong><br>`
+    _admin.notice = { tone: 'ok', html: `Visningskonto skapat: <strong>${esc(body.displayName)}</strong><br>`
       + `Användarnamn <strong>${esc(body.username)}</strong> · PIN <strong>${esc(body.tempPin)}</strong><br><span class="muted">Visas bara nu. Logga in på skärmen med dessa uppgifter.</span>` };
     _admin.pin = randomPin(); _admin.userTouched = false;
     await reloadAdmin();

@@ -112,7 +112,7 @@ function userBlock(u, selfId) {
         </div>
         <div class="row" style="margin-top:10px"><button class="btn" data-a="save">Spara</button></div>
         ${u.isDisplay || !(_admin.me.modules || []).some(m => m === 'schema' || m === 'mal') ? '' : stSection(u, locked)}
-        ${u.isDisplay ? '<p class="hint">Visningskonto: loggar in som alla andra men ser bara kalendern (ingen bokning, ingen reserv).</p>' : ''}
+        ${u.isDisplay ? displayViewsHtml(u) : ''}
         ${isSelf ? '<p class="hint">Du kan inte inaktivera, ta bort eller degradera dig själv.</p>' : ''}
         ${locked ? '<p class="hint">Globalt adminkonto — kan bara ändras av en global admin.</p>' : ''}
         <div class="row" style="margin-top:12px;gap:8px">
@@ -191,7 +191,10 @@ function drawAdmin(root) {
     </div>
 
     ${_admin.dopsUsers ? dopsUsersCard() : ''}
+
+    ${me.isAdmin ? screensCard() : ''}
   `;
+  root.querySelectorAll('.ulist').forEach(list => { list.addEventListener('click', onUserClick); list.addEventListener('change', onUserChange); });
   el('u-filter').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { _admin.filter = b.dataset.f; drawAdmin(el('view')); } });
   el('u-rows').addEventListener('click', e => { const r = e.target.closest('[data-uid]'); if (r) openUserPanel({ kind: 'user', id: r.dataset.uid, tab: 'roller' }); });
   el('u-rows').addEventListener('change', e => {
@@ -694,7 +697,24 @@ function onUserClick(e) {
   }
 }
 
+// Visningskonto (0.61.0): vilka delar kontot visar, i läsläge. Bara Opjour = väggskärmen som förut.
+const DISPLAY_VIEW_INFO = [['opjour', 'opjour', 'Opjour (väggskärmen)'], ['schema', 'schema', 'Planering'], ['mal', 'mal', 'Måluppfyllelse'],
+  ['utbildning', 'utbildning', 'Utbildningsmaterial'], ['opkomp', 'opkomp', 'Operationskompetens']];
+function displayViewsHtml(u) {
+  const cm = _admin.me.clinicModules || _admin.me.modules || [], v = u.displayViews || ['opjour'];
+  return `<div style="margin-top:12px"><strong>Visar</strong> <span class="muted" style="font-size:13px">(läsläge — inget går att ändra)</span>
+    <div class="dmi-types" style="margin-top:4px">${DISPLAY_VIEW_INFO.filter(([, m]) => cm.includes(m)).map(([k, , l]) =>
+      `<label class="chip"><input type="checkbox" data-dview="${k}"${v.includes(k) ? ' checked' : ''}> ${l}</label>`).join('')}</div>
+    <p class="hint" style="margin:4px 0 0">Bara Opjour: väggskärmen med dagens opjour och kalendern. Fler delar: flikar för var och en, t.ex. för operationskoordinatorerna.</p></div>`;
+}
+
 function onUserChange(e) {
+  const dv = e.target.closest('input[type=checkbox][data-dview]');
+  if (dv) {
+    const d = dv.closest('.ublock'), views = [...d.querySelectorAll('[data-dview]:checked')].map(x => x.dataset.dview);
+    if (!views.length) { dv.checked = true; return alert('Välj minst en del att visa.'); }
+    return userAction(d, id => api('/admin/users/' + encodeURIComponent(id), { method: 'PATCH', body: { displayViews: views } }), 'Sparat. Gäller nästa gång skärmen laddas om.');
+  }
   const box = e.target.closest('input[type=checkbox][data-a]');
   if (!box) return;
   const d = box.closest('.ublock');
@@ -789,6 +809,7 @@ const MODULE_INFO = [
   ['mal', 'ST-utbildning', 'Måluppfyllelse, individuella utbildningsplaner, krav per ST-år och delmål. Status hämtas ur veckoschemat och det som anges för hand.'],
   ['handledning', 'Handledning', 'Handledningstillfällen med anteckningar (gemensam för ST-läkaren och handledaren, och var sin egen som bara skribenten ser), status mot klinikens intervall och specialistkollegium (ur DOPS).'],
   ['utbildning', 'Utbildningsmaterial', 'Klinikens länksamling med utbildningsmaterial (artiklar, videor, kurser) i områden. Admin redigerar; alla kan föreslå ändringar som admin godkänner.'],
+  ['opkomp', 'Operationskompetens', 'Vilka ingrepp var och en opererar själv eller som assistent — för planeringen av operationerna. Var och en anger sin egen rad; specialister och admin ändrar allas. Ingreppen ställs in under Inställningar → Operationskompetens.'],
   ['dops', 'DOPS', 'Bedömningar (DOPS, Mini-CEX m.fl.): registrera, förfrågningar, progress, statistik, formulär. Sparas i ST-Lotsen; bedömningar från DOPS-appen (moradops.se) läses in för kliniker som är kopplade dit (global admin, Inställningar → System).']
 ];
 

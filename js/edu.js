@@ -81,7 +81,7 @@ function eduOverview() {
   const mine = data.suggestions.filter(s => s.status === 'pending' && !edit).length;
   return `<div class="tw-head"><div><h1 class="page" style="margin-bottom:2px">Utbildningsmaterial</h1>
       <p class="muted" style="margin:0">Klinikens samling av bra material: artiklar, videor, kurser och annat som kollegor har hittat.</p></div>
-      <div class="tw-actions">${edit ? `<button class="btn-ghost" data-e="xlsx-export" title="Hela materialet som ett kalkylark">Exportera till Excel</button>
+      <div class="tw-actions">${_edu.me.isDisplay ? '' : edit ? `<button class="btn-ghost" data-e="xlsx-export" title="Hela materialet som ett kalkylark">Exportera till Excel</button>
         <button class="btn-ghost" data-e="xlsx-import">Uppdatera från Excel…</button>
         <button class="btn" data-e="add-section">+ Nytt område</button>` : '<button class="btn-ghost" data-e="add-section">Föreslå nytt område</button>'}</div></div>
     ${mine ? `<p class="hint">Du har ${mine} förslag som väntar på admin. <a href="#/utbildning/forslag">Visa</a></p>` : ''}
@@ -111,7 +111,7 @@ function eduSectionView(sec) {
           : `<iframe src="${esc(v.src)}" title="${esc(it.title)}" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>`}</div>` : ''}
         <div class="edu-meta muted">${it.byName ? `Tillagd av ${esc(it.byName)} · ` : ''}${esc(fmtDM(String(it.createdAt).slice(0, 10)))}${pendFor(it.id) && edit ? ` · <a href="#/utbildning/forslag">${pendFor(it.id)} förslag</a>` : ''}</div>
       </div>
-      <div class="edu-tools">${edit
+      <div class="edu-tools">${_edu.me.isDisplay ? '' : edit
         ? `<button class="tw-ico" data-e="item-up" data-id="${it.id}" title="Flytta upp"${i ? '' : ' disabled'}>↑</button><button class="tw-ico" data-e="item-down" data-id="${it.id}" title="Flytta ner"${i < sec.items.length - 1 ? '' : ' disabled'}>↓</button>
            <button class="tw-ico" data-e="edit-item" data-id="${it.id}" title="Ändra">✎</button><button class="tw-ico" data-e="del-item" data-id="${it.id}" title="Ta bort">✕</button>`
         : `<button class="tw-ico" data-e="edit-item" data-id="${it.id}" title="Föreslå ändring">✎</button><button class="tw-ico" data-e="del-item" data-id="${it.id}" title="Föreslå borttagning">✕</button>`}</div>
@@ -119,9 +119,9 @@ function eduSectionView(sec) {
   };
   return `<p style="margin:0 0 6px"><a href="#/utbildning">← Alla områden</a></p>
     <div class="tw-head"><div><h1 class="page" style="margin-bottom:2px">${esc(sec.title)}</h1></div>
-      <div class="tw-actions">
+      <div class="tw-actions">${_edu.me.isDisplay ? '' : `
         <button class="btn-ghost" data-e="edit-section" data-id="${sec.id}">${edit ? 'Ändra området' : 'Föreslå ändring'}</button>
-        <button class="btn" data-e="add-item" data-id="${sec.id}">${edit ? '+ Lägg till' : '+ Föreslå material'}</button></div></div>
+        <button class="btn" data-e="add-item" data-id="${sec.id}">${edit ? '+ Lägg till' : '+ Föreslå material'}</button>`}</div></div>
     ${sec.intro ? `<div class="card edu-intro-card">${eduText(sec.intro)}</div>` : ''}
     ${edit && sec.items.length ? `<p class="hint" style="margin:0 0 6px">Dra en post för att ändra ordningen, eller till ett område i listan som visas för att flytta den dit.</p>
       <div class="edu-dropbar hidden" id="edu-dropbar"><span class="muted">Flytta till:</span> ${data.sections.filter(s => s.id !== sec.id).map(s => `<span class="edu-drop" data-drop-sec="${esc(s.id)}">${esc(s.title)}</span>`).join('') || '<span class="muted">Inga andra områden.</span>'}</div>` : ''}

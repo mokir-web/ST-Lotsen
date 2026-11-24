@@ -108,7 +108,7 @@ function drawOversikt(root) {
       return `<td class="pc st-${s.status || 'none'}${edit ? ' edit' : ''}"${edit ? ` data-p="${esc(p.id)}" data-r="${esc(r.id)}" role="button" tabindex="0"` : ''} title="${esc(r.name + ' — ' + ovTip(s))}">${esc(_ov.compact ? ovCompact(s) : ovCellText(s))}</td>`;
     }).join('');
     const pc = pct(p);
-    return `<tr><th class="pname${p.id === data.me ? ' me' : ''}"><a href="#/plan/${esc(p.id)}" title="Utbildningsplan">${esc(p.displayName)}</a><br><span class="muted" style="font-weight:normal;font-size:11px">${esc(yr)}${ovEnded(p) ? ' · ST klar' : ''}${ovPassedEnd(p, data.today)
+    return `<tr><th class="pname${p.id === data.me ? ' me' : ''}">${_ov.me.isDisplay ? `<strong>${esc(p.displayName)}</strong>` : `<a href="#/plan/${esc(p.id)}" title="Utbildningsplan">${esc(p.displayName)}</a>`}<br><span class="muted" style="font-weight:normal;font-size:11px">${esc(yr)}${ovEnded(p) ? ' · ST klar' : ''}${ovPassedEnd(p, data.today)
       ? '<br><span style="color:var(--danger)" title="Beräknat ST-slut har passerats men inget ST-slut är angivet">passerat ST-slut</span>' : ''}</span></th>
       <td class="pct" title="${pc} % av de obligatoriska kraven klara"><span class="pbar sm"><span style="width:${pc}%"></span></span>${pc} %</td>${cells}</tr>`;
   }).join('');
@@ -143,7 +143,7 @@ function drawOversikt(root) {
         <span class="pchip st-klart">✓ Klart</span> <span class="pchip st-tidigare">✓ Tidigare</span> <span class="pchip st-pagaende">▶ Pågående</span> <span class="pchip st-bokad">◷ Bokad (vecka)</span>
         <span class="pchip st-forslag">? Förslag/Ev.</span> <span class="pchip st-plan">✎ Plan</span> <span class="pchip st-ejgjort">· Ej gjort</span> <span class="pchip st-saknas">! Saknas (försenat)</span>
         <span class="muted">* = valfritt · % klart = obligatoriska krav</span></p>
-      <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan.' : 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan för dig själv.'}</p>
+      <p class="hint">${_ov.me.isDisplay ? 'Läsläge.' : data.canEditAll ? 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan.' : 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan för dig själv.'}</p>
     </div>`;
 
   el('ov-cat')?.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { _ov.cat = b.dataset.c; drawOversikt(el('view')); } });
