@@ -8,6 +8,7 @@
 // Kompakt läge (förval): ikon + vecka i rutan, full text i verktygstipset. Alla rubriker sorterar: namn, ST-tid, % klart
 // (obligatoriska krav) och varje krav (klara först, sedan bokade, förslag …). Klick på samma rubrik vänder ordningen.
 // Filter per kategori; på mobil visas en kategori åt gången.
+// Kolumnerna är klinikens mall; krav som tagits bort ur mallen visas bara om någon har dem registrerade (kursiva, °, räknas inte, 0.59.0).
 
 let _ov = null;
 
@@ -98,7 +99,7 @@ function drawOversikt(root) {
   const endedCount = data.people.filter(ovEnded).length;
 
   const head1 = byCat.map(g => `<th colspan="${g.rs.length}" class="cat">${esc(g.c)}</th>`).join('');
-  const head2 = ordered.map(r => `<th${_ov.sort === r.id ? ' class="sorted"' : ''}><button type="button" class="link-btn ov-sort" data-sort="${esc(r.id)}" title="${esc(r.name + (r.location ? ' (' + r.location + ')' : '') + (r.mandatory ? '' : ' — valfritt'))} — klicka för att sortera"><span class="vt">${esc(r.name)}${r.mandatory ? '' : '<sup>*</sup>'}${arrow(r.id)}</span></button></th>`).join('');
+  const head2 = ordered.map(r => `<th${_ov.sort === r.id ? ' class="sorted"' : ''}><button type="button" class="link-btn ov-sort" data-sort="${esc(r.id)}" title="${esc(r.name + (r.location ? ' (' + r.location + ')' : '') + (r.extra ? ' — inte i mallen, visas för att någon har det registrerat' : r.mandatory ? '' : ' — valfritt'))} — klicka för att sortera"><span class="vt"${r.extra ? ' style="font-style:italic;font-weight:normal"' : ''}>${esc(r.name)}${r.extra ? '<sup>°</sup>' : r.mandatory ? '' : '<sup>*</sup>'}${arrow(r.id)}</span></button></th>`).join('');
   const rows = people.map(p => {
     const yr = p.stMonths == null ? '' : `ST-år ${Math.floor(p.stMonths / 12) + 1} · mån ${p.stMonths}`;
     const cells = ordered.map(r => {
@@ -141,7 +142,7 @@ function drawOversikt(root) {
       <p style="margin:12px 0 0;line-height:2;font-size:13px">
         <span class="pchip st-klart">✓ Klart</span> <span class="pchip st-tidigare">✓ Tidigare</span> <span class="pchip st-pagaende">▶ Pågående</span> <span class="pchip st-bokad">◷ Bokad (vecka)</span>
         <span class="pchip st-forslag">? Förslag/Ev.</span> <span class="pchip st-plan">✎ Plan</span> <span class="pchip st-ejgjort">· Ej gjort</span> <span class="pchip st-saknas">! Saknas (försenat)</span>
-        <span class="muted">* = valfritt · % klart = obligatoriska krav</span></p>
+        <span class="muted">* = valfritt · ° = inte i mallen (någon har det registrerat) · % klart = obligatoriska krav i mallen</span></p>
       <p class="hint">${data.canEditAll ? 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan.' : 'Tryck på en ruta för att se underlaget och ange Tidigare, Klart eller Plan för dig själv.'}</p>
     </div>`;
 
@@ -181,7 +182,7 @@ function drawOversiktSheet() {
     <div class="overlay" data-os="close">
       <div class="sheet" role="dialog" aria-label="Krav">
         <h2>${esc(r.name)} <button class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" data-os="close" aria-label="Stäng">✕</button></h2>
-        <p style="margin:0">${esc(p.displayName)} · ${esc(r.category)}${r.location ? ' · ' + esc(r.location) : ''}${r.mandatory ? '' : ' · valfritt'}</p>
+        <p style="margin:0">${esc(p.displayName)} · ${esc(r.category)}${r.location ? ' · ' + esc(r.location) : ''}${r.extra ? ' · inte i mallen' : r.mandatory ? '' : ' · valfritt'}</p>
         <p style="font-size:18px;margin:10px 0 0"><span class="pchip st-${cell.status || 'none'}">${esc(OV_LABEL[cell.status] || 'Inget')}</span> ${esc(ovCellText(cell) !== OV_LABEL[cell.status] ? ovCellText(cell) : '')}</p>
         <p class="hint">${cell.source === 'schema' ? 'Enligt veckoschemat.' : cell.source === 'manuell' ? 'Angett för hand.' : ''}</p>
         <h3>I veckoschemat</h3>${list}

@@ -20,8 +20,8 @@ function yearBoardHtml(reqs, opts = {}) {
   const sorted = [...reqs].sort((a, b) => a.category.localeCompare(b.category, 'sv') || a.name.localeCompare(b.name, 'sv'));
   const card = r => `<div class="yb-card${opts.editable ? ' edit' : ''}" style="--c:${ybColor(r.category)}" data-id="${esc(r.id)}"${opts.editable ? ' draggable="true" tabindex="0" role="button" title="Klicka för att ändra, dra för att flytta"' : ''}>
       <div class="yb-cat">${esc(r.category)}</div>
-      <div class="yb-name">${esc(r.name)}${r.mandatory === false ? '<sup title="Valfritt">*</sup>' : ''}</div>
-      ${opts.detail ? opts.detail(r) : ''}${opts.status ? opts.status(r) : ''}
+      <div class="yb-name">${esc(r.name)}${r.mandatory === false && !r.extra ? '<sup title="Valfritt">*</sup>' : ''}</div>
+      ${r.extra ? '<div class="yb-tags"><span title="Borttaget ur klinikens mall men registrerat för personen">Inte i mallen</span></div>' : ''}${opts.detail ? opts.detail(r) : ''}${opts.status ? opts.status(r) : ''}
     </div>`;
   return `<div class="yb${opts.editable ? ' editable' : ''}">${cols.map(([y, title]) => {
     const rs = sorted.filter(r => (r.stYear || 0) === y);

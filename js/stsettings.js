@@ -3,7 +3,7 @@
 //
 // Klinikens egna inställningar för veckoschemat (plattform_plan.md §3, §5): aktivitetstyper (kod, namn, färg, påverkan på
 // "I tjänst", ger måluppfyllelse) och krav (kategori, namn, randning/ort, längd, undantag för i tjänst, ST-år, obligatoriskt).
-// För studierektor och admin. Inget raderas — inaktivera i stället, så att befintliga schemaposter behåller sin betydelse.
+// För studierektor och admin. Inget raderas — krav tas bort ur mallen (active = false, 0.59.0), så att befintliga schemaposter behåller sin betydelse.
 // Egna undersidor: Utbildningsplan (tab 'krav': kraven per ST-år) och Målbeskrivning (tab 'delmal': målbeskrivning + vilka delmål
 // kraven täcker). ST-läkare och handledare (tab 'personer') ställs in i användarpanelen under Inställningar → Användare; studierektor
 // som inte är admin får den listan där (page = 'users'). Planeringens inställningar (bemanning, visning och typer): page = 'plan'.
@@ -124,12 +124,14 @@ function stsReqTab() {
     <div class="card">
       <div class="row" style="justify-content:space-between;align-items:flex-start">
         <p class="hint" style="margin:0;flex:1 1 300px">Klinikens mall: det som ska uppnås, per ST-år. ST-läkarna ser samma vy i sin utbildningsplan, med status.
-          <strong>Dra</strong> ett krav till ett annat år, <strong>klicka</strong> för att ändra det (delmål, randning, längd, i tjänst). * = valfritt.</p>
+          <strong>Dra</strong> ett krav till ett annat år, <strong>klicka</strong> för att ändra det (delmål, randning, längd, i tjänst) eller ta bort det ur mallen. * = valfritt.</p>
         <button class="btn" onclick="openReqPanel(null, null)">+ Nytt krav</button>
       </div>
       <div class="status" id="st-reqs-status"></div>
       ${yearBoardHtml(active, { editable: true, detail })}
-      ${inactive.length ? `<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:bold">Inaktiva krav (${inactive.length})</summary>
+      ${inactive.length ? `<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:bold">Borttagna ur mallen (${inactive.length})</summary>
+        <p class="hint">Visas inte i ST-läkarnas planer eller i måluppfyllelsen — utom hos den som har kravet registrerat (i veckoschemat eller för hand).
+          Klicka för att lägga tillbaka.</p>
         <div class="yb-inactive">${inactive.map(r => `<button type="button" class="btn-ghost" onclick="openReqPanel('${esc(r.id)}')">${esc(r.category)} ${esc(r.name)}</button>`).join(' ')}</div></details>` : ''}
     </div>`;
 }
@@ -162,7 +164,6 @@ function openReqPanel(id, year) {
         <div><label for="rp-name">Namn</label><input type="text" id="rp-name" maxlength="60" value="${esc(r.name)}" placeholder="t.ex. Uro Falun"></div>
       </div>
       <label class="check"><input type="checkbox" id="rp-mand"${r.mandatory ? ' checked' : ''}> Obligatoriskt</label>
-      ${id ? `<label class="check"><input type="checkbox" id="rp-active"${r.active ? ' checked' : ''}> Aktivt (inaktiva visas inte för ST-läkarna)</label>` : ''}
 
       <h3>ST-år</h3>
       <div class="seg" id="rp-year">${[1, 2, 3, 4, 5, 6, null].map(y => `<button type="button" data-y="${y ?? ''}" class="${(r.stYear ?? null) === y ? 'on' : ''}">${y ?? '–'}</button>`).join('')}</div>
@@ -186,7 +187,9 @@ function openReqPanel(id, year) {
       : '<p class="hint">Välj en förvald målbeskrivning under fliken <a href="#/installningar/malbeskrivning">Målbeskrivning</a> för att koppla delmål.</p>'}
     </div>
     <div class="sp-foot"><button class="btn" onclick="saveReqPanel(${id ? `'${esc(id)}'` : 'null'})">${id ? 'Spara' : 'Lägg till'}</button>
-      <button class="btn-ghost" onclick="closeReqPanel()">Avbryt</button><div class="status err" id="rp-status"></div></div>
+      <button class="btn-ghost" onclick="closeReqPanel()">Avbryt</button>
+      ${id ? `<button class="btn-ghost${r.active ? ' edu-danger' : ''}" style="margin-left:auto" onclick="setReqInTemplate('${esc(id)}', ${!r.active})">${r.active ? 'Ta bort ur mallen' : 'Lägg tillbaka i mallen'}</button>` : ''}
+      <div class="status err" id="rp-status"></div></div>
   </aside>`;
   root.addEventListener('click', e => { if (e.target === root) closeReqPanel(); });
   root.querySelector('#rp-year').addEventListener('click', e => {
@@ -209,6 +212,18 @@ async function fillHostClinics() {
   if (_sts.hostClinics.unavailable && !cur) s.insertAdjacentHTML('afterend', '<p class="hint err" style="margin:2px 0 0">DOPS kan inte nås just nu, så kliniken kan inte väljas.</p>');
 }
 
+// Ta bort ett krav ur mallen eller lägg tillbaka det (0.59.0). Inget raderas: det som redan registrerats på kravet ligger kvar och
+// visas hos de personerna (utils/progress.js templateRequirements).
+async function setReqInTemplate(id, active) {
+  const r = _sts.cfg.requirements.find(x => x.id === id);
+  if (!active && !confirm(`Ta bort ${r.category} ${r.name} ur mallen?\n\nKravet försvinner ur ST-läkarnas planer och måluppfyllelsen. Den som redan har det i veckoschemat eller angett det för hand ser det fortfarande. Det går att lägga tillbaka.`)) return;
+  try {
+    await api('/admin/st/requirements/' + encodeURIComponent(id), { method: 'PATCH', body: { active } });
+    closeReqPanel();
+    await reloadStSettings({ box: 'st-reqs-status', text: `${r.category} ${r.name} ${active ? 'är tillbaka i mallen' : 'är borttaget ur mallen'}.` });
+  } catch (err) { showStatus(el('rp-status'), err.message, false); }
+}
+
 function closeReqPanel() { el('sheet-root')?.remove(); }
 function filterReqGoals(q) {
   q = q.trim().toLowerCase();
@@ -220,7 +235,6 @@ async function saveReqPanel(id) {
   const body = { category: el('rp-cat').value, name: el('rp-name').value, mandatory: el('rp-mand').checked, away: el('rp-away').checked,
     location: el('rp-loc').value, weeks: el('rp-weeks').value, serviceEffect: el('rp-effect').value, stYear: yb && yb.dataset.y ? Number(yb.dataset.y) : null,
     hostClinicId: el('rp-host').value || null };
-  if (id) body.active = el('rp-active').checked;
   const picks = document.querySelectorAll('.goalpick [data-goal]');
   const own = new Set([...picks].map(c => c.dataset.goal));
   try {
