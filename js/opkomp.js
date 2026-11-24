@@ -3,7 +3,8 @@
 // (OpjourImport). Globala entries: renderOpkomp(root, sub), renderOpkompSettings(root).
 // Ersätter kalkylarket "Operatör vs. ingrepp" (0.61.0): vilka ingrepp var och en opererar själv (O) eller som assistent (A).
 // Var och en ändrar sin egen rad; specialister, studierektor och admin ändrar allas (servern, routes/opkomp.js). Operations-
-// koordinatorerna ser sidan via ett visningskonto (läsläge). "Vem kan…?" visar för ett ingrepp vem som opererar själv och vem som assisterar.
+// koordinatorerna ser sidan via ett visningskonto (läsläge). "Sök operatör" visar för ett ingrepp vem som opererar själv och vem som assisterar.
+// Undersidorna (Översikt, Sök operatör) väljs i sidomenyn som i andra moduler; ingreppen ställs in under Inställningar (0.62.0).
 
 let _opk = null;
 const OPK_GROUPS = [['ST', 'ST-läkare'], ['BTAT', 'BT- och AT-läkare'], ['Spec', 'Specialister'], ['', 'Övriga']];
@@ -28,11 +29,9 @@ const opkCanEdit = uid => !_opk.data.viewer && (_opk.data.canEditAll || uid === 
 
 function drawOpkomp(root) {
   const { data, sub } = _opk;
-  const tabs = `<div class="seg" id="opk-tabs"><button type="button" data-go="#/operationer" class="${sub ? '' : 'on'}">Matris</button><button type="button" data-go="#/operationer/vem" class="${sub ? 'on' : ''}">Vem kan…?</button></div>`;
   const admin = _opk.me.isAdmin && !_opk.me.isDisplay;
-  root.innerHTML = `<div class="tw-head"><div><h1 class="page" style="margin-bottom:2px">Operationskompetens</h1>
-      <p class="muted" style="margin:0">Vilka ingrepp var och en opererar själv (<span class="opk-o">O</span>) eller som assistent (<span class="opk-a">A</span>).</p></div>
-      <div class="tw-actions">${tabs}${admin ? '<a class="btn-ghost" href="#/installningar/operationer" style="text-decoration:none">Ingrepp och Excel</a>' : ''}</div></div>
+  root.innerHTML = `<h1 class="page" style="margin-bottom:2px">${sub === 'vem' ? 'Sök operatör' : 'Operatörer'}</h1>
+      <p class="muted" style="margin:0 0 12px">Vilka ingrepp var och en opererar själv (<span class="opk-o">O</span>) eller som assistent (<span class="opk-a">A</span>).</p>
     ${!data.procedures.length ? `<div class="card"><p class="muted" style="margin:0">Inga ingrepp än. ${admin ? '<a href="#/installningar/operationer">Lägg in ingreppen</a> eller läs in kalkylarket.' : 'Admin lägger in dem.'}</p></div>`
       : sub === 'vem' ? opkWhoHtml() : opkMatrixHtml()}`;
   root.onclick = onOpkClick;
@@ -67,18 +66,17 @@ function opkTableHtml() {
   const body = OPK_GROUPS.map(([k, label]) => {
     const ps = people.filter(p => opkGroup(p.jobRole) === k);
     if (!ps.length) return '';
-    return `<tr class="opk-grp"><th class="pname" colspan="${cols.length + 2}">${esc(label)} (${ps.length})</th></tr>` + ps.map(p => {
+    return `<tr class="opk-grp"><th class="pname" colspan="${cols.length + 1}">${esc(label)} (${ps.length})</th></tr>` + ps.map(p => {
       const sk = data.skills[p.id] || {}, edit = opkCanEdit(p.id);
-      const n = cols.filter(c => sk[c.id] === 'O').length;
-      return `<tr${p.id === data.me ? ' class="opk-me"' : ''}><th class="pname">${esc(p.name)}</th><td class="svc" title="Opererar själv i ${n} av ${cols.length}">${n}</td>${cols.map(c => {
+      return `<tr${p.id === data.me ? ' class="opk-me"' : ''}><th class="pname">${esc(p.name)}</th>${cols.map(c => {
         const v = sk[c.id] || '';
         return `<td class="opk-c${v ? ' opk-' + v.toLowerCase() : ''}${edit ? ' edit' : ''}"${edit ? ` data-u="${esc(p.id)}" data-p="${esc(c.id)}" role="button" tabindex="0"` : ''} title="${esc(p.name + ' — ' + c.name + ': ' + (OPK_LABEL[v] || 'inget angett'))}">${v}</td>`;
       }).join('')}</tr>`;
     }).join('');
   }).join('');
   return `<div class="sch-scroll" id="opk-table"><table class="sch prog compact opk">
-    <thead><tr><th class="pname" rowspan="2">Namn</th><th rowspan="2" class="pct" title="Antal ingrepp personen opererar själv">O</th>${head1}</tr><tr>${head2}</tr></thead>
-    <tbody>${body || `<tr><td colspan="${cols.length + 2}" class="muted">Ingen matchar.</td></tr>`}</tbody></table></div>`;
+    <thead><tr><th class="pname" rowspan="2">Namn</th>${head1}</tr><tr>${head2}</tr></thead>
+    <tbody>${body || `<tr><td colspan="${cols.length + 1}" class="muted">Ingen matchar.</td></tr>`}</tbody></table></div>`;
 }
 
 function opkWhoHtml() {
@@ -174,17 +172,56 @@ async function onOpkSetClick(e) {
       [ids[i], ids[j]] = [ids[j], ids[i]];
       await api('/opkomp/order', { method: 'PUT', body: { ids } }); return opkReloadSettings();
     }
-    if (b.dataset.o === 'edit') {
-      const name = prompt('Namn på ingreppet:', p.name); if (name == null) return;
-      const category = prompt('Kategori:', p.category); if (category == null) return;
-      await api('/opkomp/procedures/' + p.id, { method: 'PUT', body: { name, category } }); return opkReloadSettings('Sparat.');
-    }
+    if (b.dataset.o === 'edit') return opkEditProc(p);
     if (b.dataset.o === 'del') {
       const n = Object.values(data.skills).filter(s => s[p.id]).length;
       if (!confirm(`Ta bort ${p.name}?${n ? `\n\n${n} personers angivelser för ingreppet tas också bort.` : ''} Det går inte att ångra.`)) return;
       await api('/opkomp/procedures/' + p.id, { method: 'DELETE' }); return opkReloadSettings('Borttaget.');
     }
   } catch (err) { showStatus(el('opk-st'), err.message, false); }
+}
+
+// Ändra ett ingrepp (0.62.0): namn, kategori och "Sätt för alla" i en yrkesroll — för sådant som alla gör (t.ex. alla specialister
+// opererar själv). O sätts för alla i rollen; A bara för dem som inte har något angett (ingen som opererar själv flyttas ner);
+// "Ta bort" tömmer rollens angivelser för ingreppet.
+const OPK_SET_ROLES = [['all', 'Alla'], ['ST', 'ST-läkare'], ['BTAT', 'BT- och AT-läkare'], ['Spec', 'Specialister']];
+function opkEditProc(p) {
+  const cats = opkCats();
+  let root = el('sheet-root');
+  if (!root) { root = document.createElement('div'); root.id = 'sheet-root'; document.body.appendChild(root); }
+  root.innerHTML = `<div class="overlay" data-close="1"><form class="sheet" role="dialog" aria-label="Ändra ingrepp" id="oe">
+    <h2>${esc(p.name)} <button type="button" class="link-btn" style="color:var(--ink-soft);text-decoration:none;font-size:22px" data-close="1" aria-label="Stäng">✕</button></h2>
+    <label for="oe-name">Namn</label><input id="oe-name" maxlength="80" value="${esc(p.name)}" required>
+    <label for="oe-cat">Kategori</label><input id="oe-cat" maxlength="60" list="oe-cats" value="${esc(p.category)}" required>
+    <datalist id="oe-cats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+    <div class="row" style="margin-top:12px"><button class="btn" type="submit">Spara</button><button class="btn-ghost" type="button" data-close="1">Avbryt</button></div>
+    <h3>Sätt för alla</h3>
+    <p class="hint" style="margin-top:0">För ingrepp som alla i en yrkesroll gör. <strong>O</strong> sätts för alla i rollen; <strong>A</strong> bara för dem som inte har något angett.
+      <strong>Ta bort</strong> tömmer rollens angivelser för ingreppet.</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div><label for="oe-role" style="margin-top:0">Yrkesroll</label><select id="oe-role">${OPK_SET_ROLES.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div>
+      <div><label for="oe-lvl" style="margin-top:0">Nivå</label><select id="oe-lvl"><option value="O">O – opererar själv</option><option value="A">A – som assistent</option><option value="">Ta bort</option></select></div>
+      <button class="btn-ghost" type="button" id="oe-bulk">Sätt</button>
+    </div>
+    <div class="status" id="oe-st"></div>
+  </form></div>`;
+  root.querySelector('.overlay').addEventListener('click', e => { if (e.target.dataset.close) root.innerHTML = ''; });
+  el('oe').onsubmit = async e => {
+    e.preventDefault();
+    try { await api('/opkomp/procedures/' + p.id, { method: 'PUT', body: { name: el('oe-name').value, category: el('oe-cat').value } }); root.innerHTML = ''; opkReloadSettings('Sparat.'); }
+    catch (err) { showStatus(el('oe-st'), err.message, false); }
+  };
+  el('oe-bulk').onclick = async () => {
+    const role = el('oe-role').value, level = el('oe-lvl').value || null, rl = OPK_SET_ROLES.find(r => r[0] === role)[1].toLowerCase();
+    if (!level && !confirm(`Ta bort angivelserna för ${p.name} för ${rl === 'alla' ? 'alla' : 'alla ' + rl}?`)) return;
+    try {
+      const r = await api(`/opkomp/procedures/${p.id}/all`, { method: 'POST', body: { role, level } });
+      showStatus(el('oe-st'), `${r.changed} ${r.changed === 1 ? 'person' : 'personer'} ändrade.`, true);
+      _opk.data = await api('/opkomp');
+      drawOpkSettings(el('view'));   // antalet angivna i listan bakom rutan
+    } catch (err) { showStatus(el('oe-st'), err.message, false); }
+  };
+  el('oe-name').focus();
 }
 
 // ── Excel ───────────────────────────────────────────────────────────────

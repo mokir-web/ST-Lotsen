@@ -970,7 +970,7 @@
         <a href="#/handledning" id="world-hl" class="hidden">Handledning</a>
         <a href="#/dops" id="world-dops" class="hidden">DOPS</a>
         <a href="#/utbildning" id="world-edu" class="hidden">Utbildningsmaterial</a>
-        <a href="#/operationer" id="world-opk" class="hidden">Operationer</a>
+        <a href="#/operationer" id="world-opk" class="hidden">Operatörer</a>
       </nav>
       <span class="spacer"></span>
       <button id="logout-btn" class="hidden" onclick="logout()">Logga ut</button>
@@ -1034,9 +1034,9 @@
           <a href="#/utbildning" data-route="#/utbildning">Alla områden</a>
         </div>
         <div data-world="opk" class="hidden">
-          <div class="sn-title">Operationskompetens</div>
-          <a href="#/operationer" data-route="#/operationer">Matris</a>
-          <a href="#/operationer/vem" data-route="#/operationer/vem">Vem kan…?</a>
+          <div class="sn-title">Operatörer</div>
+          <a href="#/operationer" data-route="#/operationer">Översikt</a>
+          <a href="#/operationer/vem" data-route="#/operationer/vem">Sök operatör</a>
         </div>
         <div data-world="set" class="hidden">
           <div class="sn-title">Inställningar</div>
@@ -1067,7 +1067,7 @@
       ? ((() => { try { const a = localStorage.getItem('opjour_api'); return /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(a || '') ? a : null; } catch { return null; } })() || 'http://localhost:8080')
       : 'https://opjour-backend-110110585004.europe-north1.run.app'; // byts när domänen är vald (opjour_migrationsplan.md §12)
 
-    const APP_VERSION = '0.61.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
+    const APP_VERSION = '0.62.0';   // håll lika med opjour-backend/package.json (snapshot.sh kontrollerar)
 
     const SV_DAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
     const SV_DAYS_FULL = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
@@ -1422,6 +1422,7 @@
       if (views.length === 1 && views[0] === 'opjour') { renderDisplay(el('view')); return; }
       el('worlds').classList.remove('hidden');
       el('world-home').classList.add('hidden');
+      el('nav-btn').classList.remove('hidden');   // telefonens meny med flikarna och undersidorna
       for (const [v, [id, href]] of Object.entries(DISPLAY_TABS)) { el(id).classList.toggle('hidden', !views.includes(v)); el(id).href = href; }
       el('world-st').textContent = 'Måluppfyllelse';
       if (displayAllowed(location.hash)) route(); else location.replace(DISPLAY_TABS[views[0]][1]);
@@ -1562,7 +1563,7 @@
         : h.startsWith('#/installningar/dops') ? '#/installningar/dops'
         : h.startsWith('#/utbildning/forslag') ? '#/utbildning/forslag' : h === '#/handledning/kollegium' ? h : h.startsWith('#/handledning') ? '#/handledning' : h;
       el('world-op').classList.toggle('active', world === 'op');
-      el('subnav').classList.toggle('hidden', state.scope !== 'user' || world === 'today');   // Idag har inga undersidor
+      el('subnav').classList.toggle('hidden', (state.scope !== 'user' && !state.displayViews) || world === 'today');   // Idag har inga undersidor
       el('world-plan').classList.toggle('active', world === 'plan');
       el('world-st').classList.toggle('active', world === 'st');
       el('world-dops').classList.toggle('active', world === 'dops');
@@ -1590,7 +1591,7 @@
     function drawNavTree() {
       const world = worldOf(location.hash);
       const link = a => `<a href="${esc(a.getAttribute('href'))}" class="${a.classList.contains('active') ? 'active' : ''}">${esc(a.textContent.trim())}</a>`;
-      let html = `<a href="#/" class="${world === 'today' ? 'cur active' : ''}">Startsida</a>`;
+      let html = state.scope === 'display' ? '' : `<a href="#/" class="${world === 'today' ? 'cur active' : ''}">Startsida</a>`;
       for (const [id, w, name] of NAV_MODS) {
         const tab = el(id);
         if (!tab || tab.classList.contains('hidden')) continue;
